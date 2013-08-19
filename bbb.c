@@ -5,14 +5,51 @@
 #include <tchar.h>
 #include <stdarg.h>
 
-#define CLIP_FMT_NAME "XenAppTraversalFormat"
+//#define CLIP_FMT_NAME "XenAppTraversalFormat"
 //#define CLIP_TEXTDATA "XenAppTraversalFormat"
+#define MY_CF CF_RIFF
 
 static void pWin32Error(const char* fmt, ...);
 static int put_string_to_clipboard(UINT fmtid, int empty, LPCSTR str);
 static int change_clip_str(int empty, UINT fmtid);
 
 #define MAX_FORMATS 100
+
+static HWND _createutilitywindow(WNDCLASS *wndclass) {
+	ATOM classatom;
+	HINSTANCE hinst = GetModuleHandle(NULL);
+	HWND hwnd;
+
+	wndclass->hInstance = hinst;
+	classatom = RegisterClass(wndclass);
+	if (classatom == 0) {
+		pWin32Error("RegisterClass() failed");
+		return NULL;
+	}
+	hwnd = CreateWindowEx(0, (LPCTSTR)classatom, NULL, 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hinst, NULL);
+	if (!hwnd) {
+		pWin32Error("CreateWindowEx() failed");
+		return NULL;
+	}
+	return hwnd;
+}
+
+#define createutilitywindow(phwnd, lpfnWndProc, lpszClassName) do {   \
+	static WNDCLASS wndclass = {                                 \
+		0,            /*    UINT        style;*/                 \
+		(lpfnWndProc),/*    WNDPROC     lpfnWndProc;*/           \
+		0,            /*    int         cbClsExtra;*/            \
+		0,            /*    int         cbWndExtra;*/            \
+		NULL,         /*    HINSTANCE   hInstance;*/             \
+		NULL,         /*    HICON       hIcon;*/                 \
+		NULL,         /*    HCURSOR     hCursor;*/               \
+		NULL,         /*    HBRUSH      hbrBackground;*/         \
+		NULL,         /*    LPCWSTR     lpszMenuName;*/          \
+		(lpszClassName) /*    LPCWSTR     lpszClassName;*/       \
+	};                                                           \
+	*(phwnd) = _createutilitywindow(&wndclass);                  \
+} while(0)
+
 
 static HBITMAP dupbitmap(HBITMAP hbitmap)
 {
@@ -86,7 +123,7 @@ static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 	return GlobalFree(h) == NULL;
 }
 
-static int dupandreplace(int empty) {
+static int dupandreplace() {
 	UINT fmtid;
 	HANDLE hglbsrc;
 	struct {
@@ -112,6 +149,10 @@ static int dupandreplace(int empty) {
 				goto err;
 			}
 			break;
+		}
+		if (fmtid == MY_CF) {
+			printf("not duplicating my format\n");
+			continue;
 		}
 		if (ndatas >= MAX_FORMATS) {
 			printf("too many clipboard formats\n");
@@ -214,19 +255,17 @@ cont_ok:
 
 	}
 
-	/* optionally clear clipboard contents */
-	if (empty) {
-		printf("emptying clipboard\n");
-		if (!EmptyClipboard()) {
-			pWin32Error("EmptyClipboard() failed");
+	/* clear clipboard contents */
+	printf("emptying clipboard\n");
+	if (!EmptyClipboard()) {
+		pWin32Error("EmptyClipboard() failed");
 
-		 err:
-			for (i = 0; i < ndatas; i++) {
-				datas[i].freefunc(datas[i].hglbl);
-			}
-
-			return -1;
+	 err:
+		for (i = 0; i < ndatas; i++) {
+			datas[i].freefunc(datas[i].hglbl);
 		}
+
+		return -1;
 	}
 
 	/* replace clipboard contents */
@@ -240,32 +279,84 @@ cont_ok:
 	return 0;
 }
 
-int main(int argc, char* argv[]) {
-	int rc, empty;
+HWND hwnd = NULL;
 
-	if (argc != 2) {
-		return 1;
+int senddata(HGLOBAL hdata) {
+	static DWORD nseq = 0;
+	DWORD newnseq;
+	int rc = -1;
+
+	while (!OpenClipboard(hwnd)) {
+		//pWin32Error("OpenClipboard() failed");
+		Sleep(1);
+	}
+	newnseq = GetClipboardSequenceNumber();
+	printf("before %d\n", newnseq);
+	if (nseq != newnseq) {
+		if (dupandreplace() < 0) {
+			goto err;
+		}
+	}
+	if (!SetClipboardData(MY_CF, hdata)) {
+		pWin32Error("SetClipboardData() failed");
+		goto err;
 	}
 
-	empty = atoi(argv[1]);
-	//fmtid_xen = atoi(argv[2]);
-
-	if (!OpenClipboard(NULL)) {
-		pWin32Error("OpenClipboard() failed");
-		return -1;
-	}
-
-	rc = !(1
-		// && !put_string_to_clipboard(fmtid_xen, 0, "abc")
-		// && !put_string_to_clipboard(fmtid_xen, 0, "def")
-		&& !dupandreplace(empty)
-		);
-
+	rc = 0;
+err:
 	if (!CloseClipboard()) {
 		pWin32Error("CloseClipboard() failed");
-		return -1;
 	}
+	nseq = GetClipboardSequenceNumber();
+	printf("after %d\n", nseq);
 	return rc;
+}
+
+#define BUFSZ 4
+
+int main(int argc, char* argv[]) {
+	HGLOBAL hglbl, hnew;
+	LPVOID p;
+	size_t sz;
+	FILE *f = stdin;
+	createutilitywindow(&hwnd, DefWindowProc, _T("myclipowner")); if (!hwnd) return 1;
+	//setvbuf(f, NULL, _IONBF, 0); 
+	for (;!feof(f);) {
+		printf("*************\n");
+		sz = BUFSZ;
+		hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
+		if (hglbl == NULL) {
+			pWin32Error("GlobalAlloc() failed");
+			return 1;
+		}
+		//sz = GlobalSize(hglbl);
+		p = GlobalLock(hglbl);
+
+		sz = fread(p, 1, sz, f);
+		if (sz == 0) {
+			if (!feof(f)) perror("fread() failed");
+			goto err;
+		}
+		//*/
+
+		GlobalUnlock(hglbl);
+
+		hnew = GlobalReAlloc(hglbl, sz, 0);
+		if (!hnew) {
+			pWin32Error("GlobalReAlloc() failed");
+			goto err;
+		}
+		hglbl = hnew;
+
+		if (senddata(hglbl) < 0) {
+err:
+			printf("calling GlobalFree()\n");
+			GlobalFree(hglbl);
+			return 1;
+		}
+
+	}
+	return 0;
 }
 
 static int change_clip_str(int empty, UINT fmtid)
