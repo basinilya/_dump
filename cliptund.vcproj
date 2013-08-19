@@ -226,6 +226,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\containers.cpp"
+				>
+			</File>
+			<File
 				RelativePath="service.c"
 				>
 				<FileConfiguration

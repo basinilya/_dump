@@ -24,6 +24,11 @@
 #if !defined(_CLIPTUND_H)
 #define _CLIPTUND_H
 
+#include <winsock2.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define WINET_APPNAME "cliptund"
 #define WINET_VERSION "0.7p.a" /* 'pump' or 'pipes' */
@@ -36,7 +41,13 @@
 int winet_stop_service(void);
 int winet_main(int argc, char const **argv);
 
+void hEvents_add(WSAEVENT ev);
+WSAEVENT *hEvents_get();
+DWORD hEvents_size();
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* #if !defined(_CLIPTUND_H) */
 
