@@ -44,38 +44,26 @@
 #define WINET_LOG_WARNING 2
 #define WINET_LOG_ERROR 3
 
-#define MAX_PMAPS 128
+/* local */
+#undef INFO
+#undef WARN
+#undef ERR
+#define INFO WINET_LOG_MESSAGE
+#define WARN WINET_LOG_WARNING
+#define ERR WINET_LOG_ERROR
+
 #define CFGFILENAME "cliptund.conf"
 #define ACCEPT_TIMEOUT 4
 #define LSN_BKLOG 128
-
-
-typedef struct s_portmap {
-	SOCKET sock;
-	union {
-		struct {
-			char *user;
-			char *pass;
-			char *cmdline;
-		} lsn;
-		struct {
-			int i;
-		} cnn;
-	} a;
-} portmap_t;
 
 
 static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size);
 static void winet_evtlog(char const *logmsg, long type);
 static int winet_log(int level, char const *fmt, ...);
 static int winet_load_cfg(char const *cfgfile);
-static int winet_create_listeners(void);
 static void winet_cleanup(void);
-static char *winet_get_syserror(void);
 static _TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size);
 
-static int npmaps = 0;
-static portmap_t pmaps[MAX_PMAPS];
 static int sk_timeout = -1;
 static int linger_timeo = 60;
 static int stopsvc;
@@ -116,7 +104,8 @@ static char *cleanstr(char *s)
 	return s;
 }
 
-static void __pWin32Error(int level, DWORD eNum, const char* fmt, va_list args)
+
+static void __pWin32Error(int level, char mode, DWORD eNum, const char* fmt, va_list args)
 {
 	char emsg[1024];
 	char *pend = emsg + sizeof(emsg);
@@ -136,10 +125,14 @@ static void __pWin32Error(int level, DWORD eNum, const char* fmt, va_list args)
 		if (u >= count) break;
 		count -= u;
 
-		u = FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-															NULL, eNum,
-															MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-															pend - count, count, NULL );
+		if (mode == 'w') {
+			u = FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+																NULL, eNum,
+																MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+																pend - count, count, NULL );
+		} else if (mode == 's') {
+			u = (unsigned)_snprintf(pend - count, count, "%s", strerror(eNum));
+		}
 		if (u == 0) {
 			u = (unsigned)_snprintf(pend - count, count, "0x%08x (%d)", eNum, eNum);
 		}
@@ -156,35 +149,45 @@ static void __pWin32Error(int level, DWORD eNum, const char* fmt, va_list args)
 	_winet_log(level, emsg);
 }
 
-void pWin32Error(char const *fmt, ...)
+void pSysError(int lvl, char const *fmt, ...)
+{
+	va_list args;
+	int myerrno = errno;
+
+	va_start(args, fmt);
+	__pWin32Error(lvl, 's', myerrno, fmt, args);
+	va_end(args);
+}
+
+void pWin32Error(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = GetLastError();
 
 	va_start(args, fmt);
-	__pWin32Error(WINET_LOG_WARNING, eNum, fmt, args);
+	__pWin32Error(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 
-void pWinsockError(char const *fmt, ...)
+void pWinsockError(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = WSAGetLastError();
 
 	va_start(args, fmt);
-	__pWin32Error(WINET_LOG_WARNING, eNum, fmt, args);
+	__pWin32Error(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 
 #ifdef _DEBUG
 static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 	if (!CloseHandle(hObject)) {
-		pWin32Error("CloseHandle() failed at %s:%d", file, line);
+		pWin32Error(WARN, "CloseHandle() failed at %s:%d", file, line);
 	}
 }
 static void dbg_closesocket(const char *file, int line, SOCKET s) {
 	if (closesocket(s) == SOCKET_ERROR) {
-		pWinsockError("closesocket() failed at %s:%d", file, line);
+		pWinsockError(WARN, "closesocket() failed at %s:%d", file, line);
 	}
 }
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
@@ -229,120 +232,218 @@ static int winet_log(int level, char const *fmt, ...) {
 	return _winet_log(level, emsg);
 }
 
+#undef STRINGIZE2
+#undef STRINGIZE
+#define STRINGIZE2(x) #x
+#define STRINGIZE(x) STRINGIZE2(x)
 
-static int winet_load_cfg(char const *cfgfile) {
-	FILE *file;
-	char *cmdline, *user, *pass;
-	char cfgline[1024];
-	int port;
-	int timeo;
-	struct sockaddr_in saddr;
-	struct linger ling;
 
-	if (!(file = fopen(cfgfile, "rt"))) {
-		winet_log(WINET_LOG_ERROR, "[%s] unable to open config file: file='%s'\n",
-			  WINET_APPNAME, cfgfile);
+typedef struct data_accept {
+	SOCKET lsock;
+} data_accept;
+
+typedef struct data_recv {
+	SOCKET sock;
+} data_recv;
+
+static int recv_handler_func(DWORD i_event, WSAEVENT ev, void *param)
+{
+	WSANETWORKEVENTS netevs;
+	data_recv *data = (data_recv *)param;
+
+	if (0 != WSAEnumNetworkEvents(data->sock, ev, &netevs)) {
+		pWinsockError(ERR, "WSAEnumNetworkEvents() failed");
 		return -1;
 	}
-	for (npmaps = 0; fgets(cfgline, sizeof(cfgline) - 1, file);) {
-		cfgline[strlen(cfgline) - 1] = '\0';
-		if (!isdigit(cfgline[0]))
-			continue;
-		port = atoi(cfgline);
-
-		for (user = cfgline; isdigit(*user) || strchr(" \t", *user); user++);
-		for (cmdline = user; *cmdline && !strchr(" \t", *cmdline); cmdline++);
-		if (*cmdline) {
-			*cmdline++ = '\0';
-			for (; strchr(" \t", *cmdline); cmdline++);
-			if (*cmdline) {
-				if ((pass = strchr(user, ':')) != NULL)
-					*pass++ = '\0';
-				pmaps[npmaps].a.lsn.cmdline = strdup(cmdline);
-				pmaps[npmaps].a.lsn.user = strdup(user);
-				pmaps[npmaps].a.lsn.pass = pass ? strdup(pass): NULL;
-
-				if ((pmaps[npmaps].sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-					winet_log(WINET_LOG_ERROR, "[%s] unable to create socket\n",
-						  WINET_APPNAME);
-					return -1;
-				}
-
-				if (sk_timeout > 0) {
-					timeo = sk_timeout * 1000;
-					if (setsockopt(pmaps[npmaps].sock, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeo, sizeof(timeo))) {
-						winet_log(WINET_LOG_ERROR, "[%s] unable to set socket option: opt=SO_RCVTIMEO\n",
-							  WINET_APPNAME);
-						return -1;
-					}
-					timeo = sk_timeout * 1000;
-					if (setsockopt(pmaps[npmaps].sock, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeo, sizeof(timeo))) {
-						winet_log(WINET_LOG_ERROR, "[%s] unable to set socket option: opt=SO_SNDTIMEO\n",
-							  WINET_APPNAME);
-						return -1;
-					}
-				}
-
-				ling.l_onoff = 1;
-				ling.l_linger = linger_timeo;
-				if (setsockopt(pmaps[npmaps].sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling))) {
-					winet_log(WINET_LOG_ERROR, "[%s] unable to set socket option: opt=SO_LINGER\n",
-						  WINET_APPNAME);
-					return -1;
-				}
-
-				memset(&saddr, 0, sizeof(saddr));
-				saddr.sin_addr.S_un.S_addr = INADDR_ANY;
-				saddr.sin_port = htons((short int) port);
-				saddr.sin_family = AF_INET;
-
-				if (bind(pmaps[npmaps].sock, (const struct sockaddr *) &saddr, sizeof(saddr))) {
-					winet_log(WINET_LOG_ERROR, "[%s] unable to bind to port: port=%d\n",
-						  WINET_APPNAME, port);
-					return -1;
-				}
-
-
-				npmaps++;
-			}
+	if (netevs.lNetworkEvents & FD_READ) {
+		int i;
+		char buf[100];
+		i = netevs.iErrorCode[FD_READ_BIT];
+		if (i != 0) {
+			winet_log(ERR, "[%s] FD_READ failed with error %d\n", WINET_APPNAME, i);
+			return -1;
 		}
-	}
-
-	fclose(file);
-
-	if (!npmaps) {
-		winet_log(WINET_LOG_ERROR, "[%s] empty config file: file='%s'\n",
-			  WINET_APPNAME, cfgfile);
-		return -1;
+		i = recv(data->sock, buf, 100, 0);
+		i = 0;
 	}
 
 	return 0;
 }
 
+static int accept_handler_func(DWORD i_event, WSAEVENT ev, void *param)
+{
+	WSANETWORKEVENTS netevs;
+	data_accept *data = (data_accept *)param;
 
-static int winet_create_listeners(void) {
-	int i;
+	if (0 != WSAEnumNetworkEvents(data->lsock, ev, &netevs)) {
+		pWinsockError(ERR, "WSAEnumNetworkEvents() failed");
+		return -1;
+	}
+	if (netevs.lNetworkEvents & FD_ACCEPT) {
+		int i;
+		int adrlen;
+		struct sockaddr_in saddr;
+		data_recv *newdata;
+		WSAEVENT ev;
+		SOCKET asock;
+		wsaevent_handler recv_handler = { recv_handler_func };
 
-	for (i = 0; i < npmaps; i++) {
+		i = netevs.iErrorCode[FD_ACCEPT_BIT];
+		if (i != 0) {
+			winet_log(ERR, "[%s] FD_ACCEPT failed with error %d\n", WINET_APPNAME, i);
+			return -1;
+		}
+
+		recv_handler.param = newdata = (data_recv *)malloc(sizeof(data_recv));
+		if (!data) {
+			pSysError(ERR, "malloc() failed");
+			return -1;
+		}
+
+		adrlen = sizeof(saddr);
+		asock = newdata->sock = accept(data->lsock, (struct sockaddr *) &saddr, &adrlen);
+		if (asock == INVALID_SOCKET) {
+			pWinsockError(ERR, "accept() failed");
+			goto cleanup1;
+		}
+		/*
 		{
-			int x;
-			WSAEVENT ev = WSACreateEvent();
-			hEvents_add(ev);
-			x = WSAEventSelect(pmaps[i].sock, ev, FD_ACCEPT | FD_CLOSE);
-			x = 0;
+			int i;
+			char buf[100];
+			i = recv(asock, buf, 100, 0);
+			pWinsockError(ERR, "recv() failed");
+			i = 0;
 		}
-		listen(pmaps[i].sock, LSN_BKLOG);
+		*/
+		ev = WSACreateEvent();
+		if (ev == WSA_INVALID_EVENT) {
+			pWinsockError(ERR, "WSACreateEvent() failed");
+			goto cleanup2;
+		}
+		if (0 != WSAEventSelect(asock, ev, FD_READ | FD_WRITE | FD_CLOSE)) {
+			pWinsockError(ERR, "WSAEventSelect() failed");
+			goto cleanup3;
+		}
+		hEvents_add(ev, &recv_handler);
+		return 0;
+	cleanup3:
+		WSACloseEvent(ev);
+	cleanup2:
+		closesocket(asock);
+	cleanup1:
+		free(newdata);
+		return -1;
 	}
-
 	return 0;
 }
 
+static int winet_create_listener(short port)
+{
+	int rc = -1;
+	struct sockaddr_in saddr;
+	data_accept *newdata;
+	WSAEVENT ev;
+	SOCKET sock;
+	wsaevent_handler accept_handler = { accept_handler_func };
+
+	accept_handler.param = newdata = (data_accept *)malloc(sizeof(data_accept));
+	if (!newdata) {
+		pSysError(ERR, "malloc() failed");
+		return -1;
+	}
+	if ((newdata->lsock = sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+		pWinsockError(ERR, "socket() failed");
+		goto cleanup1;
+	}
+
+	memset(&saddr, 0, sizeof(saddr));
+	saddr.sin_addr.S_un.S_addr = INADDR_ANY;
+	saddr.sin_port = htons((short int) port);
+	saddr.sin_family = AF_INET;
+
+	if (0 != bind(sock, (const struct sockaddr *) &saddr, sizeof(saddr))) {
+		pWinsockError(WARN, "failed to bind port %d", port);
+		rc = -2; /* not fatal */
+		goto cleanup2;
+	}
+	ev = WSACreateEvent();
+	if (ev == WSA_INVALID_EVENT) {
+		pWinsockError(ERR, "WSACreateEvent() failed");
+		goto cleanup2;
+	}
+	if (0 != WSAEventSelect(sock, ev, FD_ACCEPT | FD_CLOSE)) {
+		pWinsockError(ERR, "WSAEventSelect() failed");
+		goto cleanup3;
+	}
+	if (0 != listen(sock, LSN_BKLOG)) {
+		pWinsockError(ERR, "listen() failed");
+		goto cleanup3;
+	}
+	hEvents_add(ev, &accept_handler);
+	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
+	return 0;
+cleanup3:
+	WSACloseEvent(ev);
+cleanup2:
+	closesocket(sock);
+cleanup1:
+	free(newdata);
+	return rc;
+}
+
+
+static int winet_load_cfg(char const *cfgfilename) {
+	#undef WORDSZ
+	#define WORDSZ 40
+	#undef SP
+	#define SP " \t\f\v\r"
+	#undef SCANWRD
+	#define SCANWRD "%" STRINGIZE(WORDSZ) "[^" SP "\n" "]" /* does not skip leading white spaces */
+	#define SKIPSP "%*[" SP "]" /* does not skip '\n' */
+	typedef char word_t[WORDSZ+1];
+	int rc;
+	FILE *conf_file;
+	short port;
+	word_t s_listen, s_port, s_theport, s_forward, s_clip, s_clipname;
+	int npmaps;
+
+	if (!(conf_file = fopen(cfgfilename, "rt"))) {
+		winet_log(WINET_LOG_ERROR, "[%s] unable to open config file: file='%s'\n",
+			  WINET_APPNAME, cfgfilename);
+		return -1;
+	}
+
+	npmaps = 0;
+	while (!feof(conf_file)) {
+		rc = fscanf(conf_file, SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD
+			, s_listen, s_port, s_theport, s_forward, s_clip, s_clipname);
+		fscanf(conf_file, "%*[^\n]"); /* read till EOL */
+		fscanf(conf_file, "\n"); /* read till EOL */
+		if (rc == 6 && sscanf(s_theport, "%hd", &port) == 1
+			&& 0 == strcmp(s_listen, "listen")
+			&& 0 == strcmp(s_port, "port")
+			&& 0 == strcmp(s_forward, "forward")
+			&& 0 == strcmp(s_clip, "clip"))
+		{
+			rc = winet_create_listener(port);
+			if (rc == -1) {
+				fclose(conf_file);
+				return -1;
+			}
+			if (rc == 0) npmaps++;
+		}
+	}
+	fclose(conf_file);
+	if (!npmaps) {
+		winet_log(ERR, "[%s] empty config file: file='%s'\n", WINET_APPNAME, cfgfilename);
+		return -1;
+	}
+	return 0;
+}
 
 static void winet_cleanup(void) {
-	int i;
-
 	/* TODO: Looks like we don't wait for threads, that may use 'user','pass' or 'envSnapshot'  */
-
+/*
 	for (i = 0; i < npmaps; i++) {
 		closesocket(pmaps[i].sock);
 		if (pmaps[i].a.lsn.user)
@@ -350,33 +451,7 @@ static void winet_cleanup(void) {
 		if (pmaps[i].a.lsn.pass)
 			free(pmaps[i].a.lsn.pass);
 	}
-}
-
-
-static char *winet_get_syserror(void) {
-	int len;
-	LPVOID msg;
-	char *emsg;
-
-	FormatMessage( 
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-		FORMAT_MESSAGE_FROM_SYSTEM | 
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		GetLastError(),
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR) &msg,
-		0,
-		NULL);
-
-	emsg = strdup((char *) msg);
-
-	LocalFree(msg);
-
-	if ((len = strlen(emsg)) > 0)
-		emsg[len - 1] = '\0';
-
-	return emsg;
+	*/
 }
 
 
@@ -397,15 +472,12 @@ int winet_stop_service(void) {
 
 
 int winet_main(int argc, char const **argv) {
-	int i, adrlen;
-	SOCKET asock;
+	int i;
 	char const *cfgfile = NULL;
 	WSADATA WD;
-	struct sockaddr_in saddr;
 	char cfgpath[MAX_PATH];
 	int rc = 1;
 
-	npmaps = 0;
 	sk_timeout = -1;
 	stopsvc = 0;
 
@@ -436,27 +508,41 @@ int winet_main(int argc, char const **argv) {
 		return 1;
 	}
 
-	if (winet_load_cfg(cfgfile) < 0 ||
-	    winet_create_listeners() < 0) {
+	if (winet_load_cfg(cfgfile) < 0) {
 		WSACleanup();
 		return 2;
 	}
 
 	rc = 0;
 	for (; !stopsvc;) {
+		int funcrslt;
+		DWORD i_ev;
+		WSAEVENT *tmp_evs;
+		wsaevent_handler *handler;
 
-		DWORD i_ev, x;
-		WSANETWORKEVENTS netevs;
-		WSAEVENT *evs = hEvents_get();
-
-		i_ev = WSAWaitForMultipleEvents(hEvents_size(), evs, FALSE, INFINITE /*ACCEPT_TIMEOUT*1000*/, FALSE);
-		if (i_ev < npmaps) {
-		} else {
+		tmp_evs = hEvents_getall();
+		i_ev = WSAWaitForMultipleEvents(hEvents_size(), tmp_evs, FALSE, INFINITE /*ACCEPT_TIMEOUT*1000*/, FALSE);
+		{
+			int sfsdf;
+			//SOCKET lsock = ((data_accept *)datas_get(i_ev)->param)->lsock;
+			//SOCKET asock;
+			
+			//asock = accept(lsock, NULL, NULL);
+			//SOCKET asock = accept(lsock, (struct sockaddr *) &saddr, &adrlen);
+			//asock = 0;
 		}
-		x = WSAEnumNetworkEvents(pmaps[i_ev].sock, evs[i_ev], &netevs);
-		asock = accept(pmaps[i_ev].sock, NULL, NULL);
+		switch (i_ev) {
+			case WSA_WAIT_FAILED:
+				pWinsockError(ERR, "WSAWaitForMultipleEvents() failed");
+				return 1;
+			/*case WSA_WAIT_TIMEOUT:
+				break;*/
+			default:
+				handler = datas_get(i_ev);
+				funcrslt = handler->func(i_ev, tmp_evs[i_ev], handler->param);
+				if (funcrslt == -1) return 1;
+		}
 
-		asock = 0;
 		//netevs.
 			/*
 		if (!(selres = select(0, &lsnset, NULL, NULL, &tmo))) {
@@ -468,15 +554,18 @@ int winet_main(int argc, char const **argv) {
 			continue;
 		}
 		*/
-		for (i = 0; i < npmaps; i++) {
+		for (i = 0; i < 5/*npmaps*/; i++) {
 			/*
 			if (!FD_ISSET(pmaps[i].sock, &lsnset))
 				continue;
 				*/
-
+/*
 			adrlen = sizeof(saddr);
 			if ((asock = accept(pmaps[i].sock, (struct sockaddr *) &saddr,
-					    &adrlen)) != INVALID_SOCKET) {
+					    &adrlen)) != INVALID_SOCKET)
+						*/
+						{
+						
 				/*
 				if (winet_handle_client(&pmaps[i], asock, &saddr) < 0) {
 
@@ -488,7 +577,7 @@ int winet_main(int argc, char const **argv) {
 
 					winet_log(WINET_LOG_MESSAGE, "[%s] client served: %s:%d -> '%s'\n",
 						  WINET_APPNAME, inet_ntoa(saddr.sin_addr), (int) ntohs(saddr.sin_port),
-						  pmaps[i].a.lsn.cmdline);
+						  pmaps[i].a.lsn.arg2);
 
 				}
 				*/

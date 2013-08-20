@@ -8,12 +8,19 @@ using namespace std;
 
 static vector<WSAEVENT> hEvents;
 
-void hEvents_add(WSAEVENT ev)
+//typedef int (*on_event_t)(DWORD i_event, void *param);
+
+static vector<wsaevent_handler> datas;
+
+//static struct wsaevent_data model = {};
+
+void hEvents_add(WSAEVENT ev, const wsaevent_handler *handler_model)
 {
 	hEvents.push_back(ev);
+	datas.push_back(*handler_model);
 }
 
-WSAEVENT *hEvents_get()
+WSAEVENT *hEvents_getall()
 {
 	return hEvents.empty() ? NULL : &hEvents.front();
 }
@@ -21,4 +28,9 @@ WSAEVENT *hEvents_get()
 DWORD hEvents_size()
 {
 	return (DWORD)hEvents.size();
+}
+
+wsaevent_handler *datas_get(DWORD index)
+{
+	return &datas.at(index);
 }
