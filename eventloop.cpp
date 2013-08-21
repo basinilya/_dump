@@ -1,5 +1,3 @@
-#include <windows.h>
-
 /*
 
 Use WaitForMultipleObjects().
@@ -39,21 +37,51 @@ You can free the data structure immediately, the handler function won't be calle
 
 */
 
+#include <windows.h>
+
 typedef int (*evloop_func_t)(void *param);
 
-HANDLE evloop_add(evloop_func_t func, void *param);
-int evloop_remove(HANDLE ev);
+/** add event listener */
+HANDLE evloop_addlistener(evloop_func_t func, void *param);
+/** remove event listener */
+int evloop_removelistener(HANDLE ev);
+/** wait for events and process next event */
+int evloop_processnext();
 
-//typedef struct 
+#include <vector>
+#include <string>
+#include <map>
 
-/*
+using namespace std;
+
 typedef struct evloop_handler {
 	evloop_func_t func;
 	void *param;
 } evloop_handler;
-*/
 
-HANDLE evloop_add(evloop_func_t func, void *param)
+static struct {
+	basic_string<HANDLE> events;
+} ctx;
+
+//static 
+//static 
+
+static void _evloop_notifythreads()
 {
-	return 0;
+}
+
+HANDLE evloop_addlistener(evloop_func_t func, void *param)
+{
+	evloop_handler handler;
+	HANDLE newev;
+
+	newev = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	handler.func = func;
+	handler.param = param;
+
+	ctx.events += newev;
+	//GetCurrentThreadId
+	_evloop_notifythreads();
+	return newev;
 }
