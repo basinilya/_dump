@@ -51,10 +51,18 @@ typedef struct evloop_data {
 
 /** init */
 int evloop_init();
-/** add event listener */
+
+/** Add event listener
+ *  Waiting threads are notified.
+ */
 HANDLE evloop_addlistener(evloop_func_t func, void *param);
-/** remove event listener */
+
+/** Remove event listener
+ *  Waiting threads are notified.
+ *  The last notified thread closes event.
+ */
 int evloop_removelistener(HANDLE ev);
+
 /** wait for events and process next event */
 int evloop_processnext(evloop_data *data);
 
@@ -68,20 +76,21 @@ int evloop_processnext(evloop_data *data);
 using namespace std;
 
 typedef struct evloop_handler {
-	LONG refcount;
+	//LONG refcount;
 	evloop_func_t func;
 	void *param;
-	HANDLE hEvent;
+	//HANDLE hEvent;
 } evloop_handler;
 
 static struct {
-	volatile HANDLE controlEvent;
 	CRITICAL_SECTION lock;
+	vector<HANDLE> events;
+	vector<HANDLE> controlEventsPool;
+	vector<HANDLE> controlEvents;
 	vector<evloop_handler> handlers;
-} ctx = { NULL };
+} ctx = { NULL, 0 };
 
 static void _evloop_notifyall();
-static void _evloop_release_handler(vector<evloop_handler>::iterator &_Where);
 static void _evloop_release_control_event(HANDLE ev);
 static HANDLE _evloop_acquire_control_event();
 
@@ -90,53 +99,59 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 	evloop_handler handler;
 	HANDLE newev;
 
-	handler.hEvent = newev = CreateEvent(NULL, FALSE, FALSE, NULL);
-	handler.refcount = 1;
+	//handler.hEvent = 
+	newev = CreateEvent(NULL, FALSE, FALSE, NULL);
+	//handler.refcount = 1;
 	handler.func = func;
 	handler.param = param;
 
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.handlers.size() < MAXIMUM_WAIT_OBJECTS-1) {
 		ctx.handlers.push_back(handler);
+		ctx.events.push_back(newev);
 	} else {
 		printf("too many events\n");
 		CloseHandle(newev);
 		newev = NULL;
 	}
+	_evloop_notifyall();
 	LeaveCriticalSection(&ctx.lock);
 
-	_evloop_notifyall();
 	return newev;
 }
 
 int evloop_removelistener(HANDLE ev)
 {
 	EnterCriticalSection(&ctx.lock);
-	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
-		if (it->hEvent == ev) {
-			it->func = NULL;
-			_evloop_release_handler(it);
+	HANDLE *events = ctx.events.front();
+	for (int i = 0; /*it's there*/; i++) {
+		if (events[i] == ev) {
+			//ctx.events.erase(ctx.events.begin()+i);
+			ctx.handlers[i].func = NULL;
 			break;
 		}
 	}
+
 	LeaveCriticalSection(&ctx.lock);
 	return 0;
 }
 
 int evloop_processnext(evloop_data *data)
 {
-	HANDLE ev, nextev;
+	HANDLE ev;
 	HANDLE handles[MAXIMUM_WAIT_OBJECTS];
 	DWORD nCount;
 	DWORD dwrslt;
 
-	ev = (HANDLE)data->data1;
-	if (ev) {
-		nextev = (HANDLE)data->data2;
+	EnterCriticalSection(&ctx.lock);
+	if (ctx.controlEventsPool.empty()) {
+		ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	} else {
-		ev = _evloop_acquire_control_event();
-		nextev = InterlockedExchangePointer(&ctx.controlEvent, ev);
+		ev = ctx.controlEventsPool.pop_back();
 	}
+	ctx.controlEvents.push_back(ev);
+	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
+
 	handles[0] = ev;
 	nCount = 1;
 
@@ -175,14 +190,6 @@ int evloop_processnext(evloop_data *data)
 	return 0;
 }
 
-static void _evloop_release_handler(vector<evloop_handler>::iterator &_Where)
-{
-	if ( (--_Where->refcount) == 0) {
-		CloseHandle(_Where->hEvent);
-		ctx.handlers.erase(_Where);
-	}
-}
-
 int evloop_init() {
 	InitializeCriticalSection(&ctx.lock);
 	return 0;
@@ -202,9 +209,7 @@ static void _evloop_release_control_event(HANDLE ev)
 
 static void _evloop_notifyall()
 {
-	HANDLE ev;
-
-	/* all waits after this are part of a new chain */
-	ev = InterlockedExchangePointer(&ctx.controlEvent, NULL);
-	if (ev) SetEvent(ev);
+	for (vector<HANDLE>::iterator it = ctx.controlEvents.begin(); it != ctx.controlEvents.end(); it++) {
+		SetEvent(*it);
+	}
 }
