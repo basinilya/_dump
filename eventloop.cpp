@@ -76,18 +76,39 @@ int evloop_processnext(evloop_data *data);
 using namespace std;
 
 typedef struct evloop_handler {
-	//LONG refcount;
 	evloop_func_t func;
 	void *param;
-	//HANDLE hEvent;
+	HANDLE ev;
 } evloop_handler;
+
+typedef struct handlers_t {
+	volatile LONG refcount;
+	vector<evloop_handler> a;
+
+	handlers_t() : refcount(1) {}
+
+	void release() {
+		this->refcount--;
+		if (this->refcount == 0) {
+			/* Close unused events */
+			evloop_handler *handlers = &this->a.front();
+			for (int i = this->a.size()-1; i >= 0; i--) {
+				if (!handlers[i].func) CloseHandle(handlers[i].ev);
+			}
+			delete this;
+		}
+	}
+
+private:
+	~handlers_t() {}
+} handlers_t;
 
 static struct {
 	CRITICAL_SECTION lock;
 	vector<HANDLE> events;
 	vector<HANDLE> controlEventsPool;
 	vector<HANDLE> controlEvents;
-	vector<evloop_handler> handlers;
+	handlers_t *current_handlers;
 } ctx = { NULL, 0 };
 
 static void _evloop_notifyall();
@@ -99,15 +120,14 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 	evloop_handler handler;
 	HANDLE newev;
 
-	//handler.hEvent = 
-	newev = CreateEvent(NULL, FALSE, FALSE, NULL);
-	//handler.refcount = 1;
+	handler.ev = newev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	handler.func = func;
 	handler.param = param;
 
 	EnterCriticalSection(&ctx.lock);
-	if (ctx.handlers.size() < MAXIMUM_WAIT_OBJECTS-1) {
-		ctx.handlers.push_back(handler);
+	vector<evloop_handler> &handlers = ctx.current_handlers->a;
+	if (handlers.size() < MAXIMUM_WAIT_OBJECTS-1) {
+		handlers.push_back(handler);
 		ctx.events.push_back(newev);
 	} else {
 		printf("too many events\n");
@@ -123,15 +143,22 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 int evloop_removelistener(HANDLE ev)
 {
 	EnterCriticalSection(&ctx.lock);
-	HANDLE *events = ctx.events.front();
-	for (int i = 0; /*it's there*/; i++) {
-		if (events[i] == ev) {
-			//ctx.events.erase(ctx.events.begin()+i);
-			ctx.handlers[i].func = NULL;
-			break;
-		}
-	}
+	HANDLE *events = &ctx.events.front();
+	int i;
 
+	for (i = 0; events[i] != ev; i++);
+
+	handlers_t *current_handlers = ctx.current_handlers;
+	current_handlers->a[i].func = NULL;
+	if (current_handlers->refcount > 1) {
+		/* someone is waiting, need to duplicate */
+		ctx.current_handlers = new handlers_t();
+		ctx.current_handlers->a = current_handlers->a;
+		current_handlers->release();
+		current_handlers = ctx.current_handlers;
+	}
+	ctx.events.erase(ctx.events.begin()+i);
+	current_handlers->a.erase(current_handlers->a.begin()+i);
 	LeaveCriticalSection(&ctx.lock);
 	return 0;
 }
@@ -142,56 +169,65 @@ int evloop_processnext(evloop_data *data)
 	HANDLE handles[MAXIMUM_WAIT_OBJECTS];
 	DWORD nCount;
 	DWORD dwrslt;
+	handlers_t *current_handlers;
 
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.controlEventsPool.empty()) {
 		ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	} else {
-		ev = ctx.controlEventsPool.pop_back();
+		ev = ctx.controlEventsPool.back();
+		ctx.controlEventsPool.pop_back();
 	}
 	ctx.controlEvents.push_back(ev);
+
+	current_handlers = ctx.current_handlers;
+	current_handlers->refcount++;
+
+	nCount = ctx.events.size();
+	if (nCount != 0) {
+		memcpy(handles, &ctx.events.front(), nCount*sizeof(handles[0]));
+	}
 	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
 
 	handles[0] = ev;
-	nCount = 1;
-
-	EnterCriticalSection(&ctx.lock);
-	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
-		if (it->func) {
-			it->refcount++;
-			handles[nCount++] = it->hEvent;
-		}
-	}
-	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
+	nCount += 1;
 
 	dwrslt = WaitForMultipleObjects(nCount, handles, FALSE, INFINITE);
 
-	//EnterCriticalSection(&ctx.lock);
+	evloop_func_t func = NULL;
+	void *param;
+
+	EnterCriticalSection(&ctx.lock);
+
+	/* remove my control event from array */
+	vector<HANDLE>::iterator it;
+	for (it = ctx.controlEvents.begin(); *it != ev; it++);
+	ctx.controlEvents.erase(it);
+
+	/* put my control event to pool */
+	ctx.controlEventsPool.push_back(ev);
+
 	switch(dwrslt) {
 		case WAIT_OBJECT_0:
-			_evloop_release_control_event(ev);
-			data->data1 = NULL;
-			if (nextev) SetEvent(nextev);
 			break;
 		default:
 			dwrslt -= WAIT_OBJECT_0;
-			(&ctx.handlers.front())[dwrslt];
-			;
+			func = current_handlers->a[dwrslt].func;
+			param = current_handlers->a[dwrslt].param;
 	}
-	//LeaveCriticalSection(&ctx.lock);
 
-	EnterCriticalSection(&ctx.lock);
-	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
-		_evloop_release_handler(it);
-		break;
-	}
+	current_handlers->release();
+
 	LeaveCriticalSection(&ctx.lock);
+
+	if (func) func(param);
 
 	return 0;
 }
 
 int evloop_init() {
 	InitializeCriticalSection(&ctx.lock);
+	ctx.current_handlers = new handlers_t();
 	return 0;
 }
 
