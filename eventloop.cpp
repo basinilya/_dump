@@ -76,7 +76,7 @@ typedef struct evloop_handler {
 
 static struct {
 	volatile HANDLE controlEvent;
-	CRITICAL_SECTION critsec;
+	CRITICAL_SECTION lock;
 	vector<evloop_handler> handlers;
 } ctx = { NULL };
 
@@ -95,7 +95,7 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 	handler.func = func;
 	handler.param = param;
 
-	EnterCriticalSection(&ctx.critsec);
+	EnterCriticalSection(&ctx.lock);
 	if (ctx.handlers.size() < MAXIMUM_WAIT_OBJECTS-1) {
 		ctx.handlers.push_back(handler);
 	} else {
@@ -103,7 +103,7 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 		CloseHandle(newev);
 		newev = NULL;
 	}
-	LeaveCriticalSection(&ctx.critsec);
+	LeaveCriticalSection(&ctx.lock);
 
 	_evloop_notifyall();
 	return newev;
@@ -111,7 +111,7 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 
 int evloop_removelistener(HANDLE ev)
 {
-	EnterCriticalSection(&ctx.critsec);
+	EnterCriticalSection(&ctx.lock);
 	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
 		if (it->hEvent == ev) {
 			it->func = NULL;
@@ -119,7 +119,7 @@ int evloop_removelistener(HANDLE ev)
 			break;
 		}
 	}
-	LeaveCriticalSection(&ctx.critsec);
+	LeaveCriticalSection(&ctx.lock);
 	return 0;
 }
 
@@ -140,18 +140,18 @@ int evloop_processnext(evloop_data *data)
 	handles[0] = ev;
 	nCount = 1;
 
-	EnterCriticalSection(&ctx.critsec);
+	EnterCriticalSection(&ctx.lock);
 	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
 		if (it->func) {
 			it->refcount++;
 			handles[nCount++] = it->hEvent;
 		}
 	}
-	LeaveCriticalSection(&ctx.critsec); /* If handlers array changes after this, we'll be notified */
+	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
 
 	dwrslt = WaitForMultipleObjects(nCount, handles, FALSE, INFINITE);
 
-	//EnterCriticalSection(&ctx.critsec);
+	//EnterCriticalSection(&ctx.lock);
 	switch(dwrslt) {
 		case WAIT_OBJECT_0:
 			_evloop_release_control_event(ev);
@@ -163,14 +163,14 @@ int evloop_processnext(evloop_data *data)
 			(&ctx.handlers.front())[dwrslt];
 			;
 	}
-	//LeaveCriticalSection(&ctx.critsec);
+	//LeaveCriticalSection(&ctx.lock);
 
-	EnterCriticalSection(&ctx.critsec);
+	EnterCriticalSection(&ctx.lock);
 	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
 		_evloop_release_handler(it);
 		break;
 	}
-	LeaveCriticalSection(&ctx.critsec);
+	LeaveCriticalSection(&ctx.lock);
 
 	return 0;
 }
@@ -184,7 +184,7 @@ static void _evloop_release_handler(vector<evloop_handler>::iterator &_Where)
 }
 
 int evloop_init() {
-	InitializeCriticalSection(&ctx.critsec);
+	InitializeCriticalSection(&ctx.lock);
 	return 0;
 }
 
