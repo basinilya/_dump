@@ -44,6 +44,10 @@ extern "C" {
 #endif
 
 typedef int (*evloop_func_t)(void *param);
+typedef struct evloop_data {
+	void *data1;
+	void *data2;
+} evloop_data;
 
 /** init */
 int evloop_init();
@@ -52,7 +56,7 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param);
 /** remove event listener */
 int evloop_removelistener(HANDLE ev);
 /** wait for events and process next event */
-int evloop_processnext();
+int evloop_processnext(evloop_data *data);
 
 #ifdef __cplusplus
 }
@@ -119,17 +123,22 @@ int evloop_removelistener(HANDLE ev)
 	return 0;
 }
 
-int evloop_processnext()
+int evloop_processnext(evloop_data *data)
 {
 	HANDLE ev, nextev;
 	HANDLE handles[MAXIMUM_WAIT_OBJECTS];
 	DWORD nCount;
 	DWORD dwrslt;
 
-	handles[0] = ev = _evloop_acquire_control_event();
+	ev = (HANDLE)data->data1;
+	if (ev) {
+		nextev = (HANDLE)data->data2;
+	} else {
+		ev = _evloop_acquire_control_event();
+		nextev = InterlockedExchangePointer(&ctx.controlEvent, ev);
+	}
+	handles[0] = ev;
 	nCount = 1;
-
-	nextev = InterlockedExchangePointer(&ctx.controlEvent, ev);
 
 	EnterCriticalSection(&ctx.critsec);
 	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
@@ -141,19 +150,20 @@ int evloop_processnext()
 	LeaveCriticalSection(&ctx.critsec); /* If handlers array changes after this, we'll be notified */
 
 	dwrslt = WaitForMultipleObjects(nCount, handles, FALSE, INFINITE);
-	_evloop_release_control_event(ev);
 
-	EnterCriticalSection(&ctx.critsec);
-	dwrslt -= WAIT_OBJECT_0;
+	//EnterCriticalSection(&ctx.critsec);
 	switch(dwrslt) {
-		case 0:
+		case WAIT_OBJECT_0:
+			_evloop_release_control_event(ev);
+			data->data1 = NULL;
 			if (nextev) SetEvent(nextev);
 			break;
 		default:
+			dwrslt -= WAIT_OBJECT_0;
 			(&ctx.handlers.front())[dwrslt];
 			;
 	}
-	LeaveCriticalSection(&ctx.critsec);
+	//LeaveCriticalSection(&ctx.critsec);
 
 	EnterCriticalSection(&ctx.critsec);
 	for (vector<evloop_handler>::iterator it = ctx.handlers.begin(); it != ctx.handlers.end(); it++) {
