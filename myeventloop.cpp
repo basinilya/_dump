@@ -1,6 +1,7 @@
 #include "myeventloop.h"
 #include <stdio.h>
 #include <vector>
+#include <stdlib.h> /* for abort() */
 
 using namespace std;
 
@@ -8,6 +9,7 @@ using namespace std;
 static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 	if (!CloseHandle(hObject)) {
 		printf("CloseHandle() failed at %s:%d\n", file, line);
+		abort();
 	}
 }
 
@@ -20,20 +22,22 @@ typedef struct evloop_handler {
 	HANDLE ev;
 } evloop_handler;
 
-struct handlers_t {
+struct handlerswrap {
 	vector<evloop_handler> a;
 
-	handlers_t() : refcount(1) {}
-	handlers_t(const vector<evloop_handler> &from) : refcount(1), a(from) {}
+	handlerswrap() : refcount(1) {}
+	handlerswrap(const vector<evloop_handler> &from) : refcount(1), a(from) {}
 
-	void inline addref() { this->refcount++; }
+	inline
+	void addref() { this->refcount++; }
+
 	void deref() {
 		this->refcount--;
 		if (this->refcount == 0) {
 			/* Close unused events */
-			evloop_handler *handlers = &this->a.front();
+			evloop_handler *phandlers = &this->a.front();
 			for (int i = this->a.size()-1; i >= 0; i--) {
-				if (!handlers[i].func) CloseHandle(handlers[i].ev);
+				if (!phandlers[i].func) CloseHandle(phandlers[i].ev);
 			}
 			delete this;
 		}
@@ -41,7 +45,7 @@ struct handlers_t {
 
 private:
 	LONG refcount;
-	inline ~handlers_t() {}
+	inline ~handlerswrap() {}
 };
 
 static struct {
@@ -49,14 +53,14 @@ static struct {
 	vector<HANDLE> events;
 	vector<HANDLE> controlEventsPool;
 	vector<HANDLE> controlEvents;
-	handlers_t *current_handlers;
+	handlerswrap *current_handlers;
 } ctx;
 
 static void _evloop_notifyall();
 
 int evloop_init() {
 	InitializeCriticalSection(&ctx.lock);
-	ctx.current_handlers = new handlers_t();
+	ctx.current_handlers = new handlerswrap();
 	return 0;
 }
 
@@ -66,6 +70,10 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 	HANDLE newev;
 
 	handler.ev = newev = CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (!newev) {
+		printf("CreateEvent() failed\n");
+		abort();
+	}
 	handler.func = func;
 	handler.param = param;
 
@@ -77,8 +85,9 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 		ctx.events.push_back(newev);
 	} else {
 		printf("too many events\n");
-		CloseHandle(newev);
-		newev = NULL;
+		abort();
+		//CloseHandle(newev);
+		//newev = NULL;
 	}
 	_evloop_notifyall();
 	LeaveCriticalSection(&ctx.lock);
@@ -89,24 +98,32 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 int evloop_removelistener(HANDLE ev)
 {
 	EnterCriticalSection(&ctx.lock);
-	HANDLE *events = &ctx.events.front();
+	HANDLE *pevents = &ctx.events.front();
 	int i;
 
-	for (i = 0; events[i] != ev; i++);
+	for (i = 0; pevents[i] != ev; i++);
 
-	handlers_t *current_handlers = ctx.current_handlers;
-	current_handlers->a[i].func = NULL;
+	if (i >= (int)ctx.events.size()) {
+		printf("bad event to remove\n");
+		abort();
+	}
+
+	handlerswrap *phandlerswrap = ctx.current_handlers;
+	phandlerswrap->a[i].func = NULL;
 	if (!ctx.controlEvents.empty()) {
-		/* someone is waiting, need to duplicate the array, so index of signalled event is valid */
-		ctx.current_handlers = new handlers_t(current_handlers->a);
-		current_handlers->deref();
-		current_handlers = ctx.current_handlers;
+		/* ev is not used anymore, but someone is waiting for it. Can't close it now */
+		/* Besides, when wait returns, the index of signalled event must be valid */
+		/* Duplicating the array, so new waits don't wait for ev */
+		/* Current waits use the old array */
+		ctx.current_handlers = new handlerswrap(phandlerswrap->a);
+		phandlerswrap->deref();
+		phandlerswrap = ctx.current_handlers;
 		_evloop_notifyall();
 	} else {
 		CloseHandle(ev);
 	}
 	ctx.events.erase(ctx.events.begin()+i);
-	current_handlers->a.erase(current_handlers->a.begin()+i);
+	phandlerswrap->a.erase(phandlerswrap->a.begin()+i);
 	LeaveCriticalSection(&ctx.lock);
 	return 0;
 }
@@ -117,13 +134,17 @@ int evloop_processnext()
 	HANDLE handles[MAXIMUM_WAIT_OBJECTS];
 	DWORD nCount;
 	DWORD dwrslt;
-	handlers_t *current_handlers;
+	handlerswrap *phandlerswrap;
 	evloop_func_t func = NULL;
 	void *param;
 
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.controlEventsPool.empty()) {
 		ev = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if (!ev) {
+			printf("CreateEvent() failed\n");
+			abort();
+		}
 	} else {
 		ev = ctx.controlEventsPool.back();
 		ctx.controlEventsPool.pop_back();
@@ -136,8 +157,8 @@ notified_retry:
 		memcpy(handles+1, &ctx.events.front(), nCount*sizeof(handles[0]));
 	}
 
-	current_handlers = ctx.current_handlers;
-	current_handlers->addref();
+	phandlerswrap = ctx.current_handlers;
+	phandlerswrap->addref();
 
 	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
 
@@ -149,16 +170,19 @@ notified_retry:
 	EnterCriticalSection(&ctx.lock);
 
 	switch(dwrslt) {
+		case WAIT_FAILED:
+			printf("WaitForMultipleObjects() failed\n");
+			abort();
 		case WAIT_OBJECT_0:
-			current_handlers->deref();
+			phandlerswrap->deref();
 			goto notified_retry;
 		default:
 			dwrslt -= WAIT_OBJECT_0;
-			func = current_handlers->a[dwrslt].func;
-			param = current_handlers->a[dwrslt].param;
+			func = phandlerswrap->a[dwrslt].func;
+			param = phandlerswrap->a[dwrslt].param;
 	}
 
-	current_handlers->deref();
+	phandlerswrap->deref();
 
 	/* remove my control event from array */
 	vector<HANDLE>::iterator it;
@@ -178,6 +202,9 @@ notified_retry:
 static void _evloop_notifyall()
 {
 	for (vector<HANDLE>::iterator it = ctx.controlEvents.begin(); it != ctx.controlEvents.end(); it++) {
-		SetEvent(*it);
+		if (!SetEvent(*it)) {
+			printf("SetEvent() failed\n");
+			abort();
+		}
 	}
 }
