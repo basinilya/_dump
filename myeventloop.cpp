@@ -118,6 +118,8 @@ int evloop_processnext()
 	DWORD nCount;
 	DWORD dwrslt;
 	handlers_t *current_handlers;
+	evloop_func_t func = NULL;
+	void *param;
 
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.controlEventsPool.empty()) {
@@ -128,13 +130,15 @@ int evloop_processnext()
 	}
 	ctx.controlEvents.push_back(ev);
 
-	current_handlers = ctx.current_handlers;
-	current_handlers->addref();
-
+notified_retry:
 	nCount = ctx.events.size();
 	if (nCount != 0) {
 		memcpy(handles+1, &ctx.events.front(), nCount*sizeof(handles[0]));
 	}
+
+	current_handlers = ctx.current_handlers;
+	current_handlers->addref();
+
 	LeaveCriticalSection(&ctx.lock); /* If handlers array changes after this, we'll be notified */
 
 	handles[0] = ev;
@@ -142,10 +146,19 @@ int evloop_processnext()
 
 	dwrslt = WaitForMultipleObjects(nCount, handles, FALSE, INFINITE);
 
-	evloop_func_t func = NULL;
-	void *param;
-
 	EnterCriticalSection(&ctx.lock);
+
+	switch(dwrslt) {
+		case WAIT_OBJECT_0:
+			current_handlers->deref();
+			goto notified_retry;
+		default:
+			dwrslt -= WAIT_OBJECT_0;
+			func = current_handlers->a[dwrslt].func;
+			param = current_handlers->a[dwrslt].param;
+	}
+
+	current_handlers->deref();
 
 	/* remove my control event from array */
 	vector<HANDLE>::iterator it;
@@ -154,17 +167,6 @@ int evloop_processnext()
 
 	/* put my control event to pool */
 	ctx.controlEventsPool.push_back(ev);
-
-	switch(dwrslt) {
-		case WAIT_OBJECT_0:
-			break;
-		default:
-			dwrslt -= WAIT_OBJECT_0;
-			func = current_handlers->a[dwrslt].func;
-			param = current_handlers->a[dwrslt].param;
-	}
-
-	current_handlers->deref();
 
 	LeaveCriticalSection(&ctx.lock);
 
