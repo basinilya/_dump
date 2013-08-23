@@ -247,6 +247,7 @@ typedef struct data_accept {
 	char buf[ADDRESSLENGTH*2];
 } data_accept;
 
+/*
 typedef struct data_recv {
 	SOCKET sock;
 } data_recv;
@@ -274,8 +275,9 @@ static int recv_handler_func(DWORD i_event, WSAEVENT ev, void *param)
 
 	return 0;
 }
+*/
 
-static int accept_handler_func(DWORD i_event, WSAEVENT ev, void *param)
+static int accept_handler_func(void *param)
 {
 	data_accept *data = (data_accept *)param;
 	DWORD nb;
@@ -291,46 +293,24 @@ static int accept_handler_func(DWORD i_event, WSAEVENT ev, void *param)
 	GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
 	localSockaddr = *pLocalSockaddr;
 	remoteSockaddr = *pRemoteSockaddr;
-
 	{
-		int i;
-		int adrlen;
-		struct sockaddr_in saddr;
-		data_recv *newdata;
-		WSAEVENT ev;
-		SOCKET asock;
-		wsaevent_handler recv_handler = { recv_handler_func };
+		TCHAR buf[100];
+		winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
+		_fputts(buf, stdout);
+		printf(":%d\n", ntohs(remoteSockaddr.sin_port));
+	}
+	closesocket(data->asock);
 
-		recv_handler.param = newdata = (data_recv *)malloc(sizeof(data_recv));
-		if (!data) {
-			pSysError(ERR, "malloc() failed");
-			return -1;
-		}
+	if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+		pWinsockError(ERR, "socket() failed");
+		abort();
+		//goto cleanup3;
+	}
 
-		adrlen = sizeof(saddr);
-		asock = newdata->sock = accept(data->lsock, (struct sockaddr *) &saddr, &adrlen);
-		if (asock == INVALID_SOCKET) {
-			pWinsockError(ERR, "accept() failed");
-			goto cleanup1;
-		}
-		ev = CreateEvent(NULL, FALSE, FALSE, NULL);
-		if (ev == WSA_INVALID_EVENT) {
-			pWinsockError(ERR, "CreateEvent() failed");
-			goto cleanup2;
-		}
-		if (0 != WSAEventSelect(asock, ev, FD_READ | FD_WRITE | FD_CLOSE)) {
-			pWinsockError(ERR, "WSAEventSelect() failed");
-			goto cleanup3;
-		}
-		hEvents_add(ev, &recv_handler);
-		return 0;
-	cleanup3:
-		CloseHandle(ev);
-	cleanup2:
-		closesocket(asock);
-	cleanup1:
-		free(newdata);
-		return -1;
+	if (!AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
+		pWinsockError(ERR, "AcceptEx() failed");
+		//evloop_removelistener(ev);
+		//goto cleanup4;
 	}
 	return 0;
 }
@@ -354,20 +334,14 @@ static int winet_create_listener(short port)
 	DWORD nb;
 	HANDLE ev;
 	SOCKET lsock, asock;
-	wsaevent_handler accept_handler = { accept_handler_func };
 
-	accept_handler.param = newdata = (data_accept *)malloc(sizeof(data_accept));
+	newdata = (data_accept *)malloc(sizeof(data_accept));
 	if (!newdata) {
 		pSysError(ERR, "malloc() failed");
 		return -1;
 	}
 
 	memset(&newdata->overlap, 0, sizeof(OVERLAPPED));
-	newdata->overlap.hEvent = ev = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (ev == WSA_INVALID_EVENT) {
-		pWin32Error(ERR, "CreateEvent() failed");
-		goto cleanup1;
-	}
 
 	if ((newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
 		pWinsockError(ERR, "socket() failed");
@@ -395,11 +369,13 @@ static int winet_create_listener(short port)
 		goto cleanup4;
 	}
 
+	newdata->overlap.hEvent = ev = evloop_addlistener(accept_handler_func, newdata);
+
 	if (!AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
 		pWinsockError(ERR, "AcceptEx() failed");
+		evloop_removelistener(ev);
 		goto cleanup4;
 	}
-	hEvents_add(ev, &accept_handler);
 	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
 	//CreateThread(NULL, 0, foo, lsock, 0, &nb);
 	return 0;
@@ -408,8 +384,6 @@ cleanup4:
 cleanup3:
 	closesocket(lsock);
 cleanup2:
-	CloseHandle(ev);
-cleanup1:
 	free(newdata);
 	return rc;
 }
@@ -493,11 +467,6 @@ int winet_stop_service(void) {
 	return 0;
 }
 
-DWORD WINAPI foo1(void *param)
-{
-	evloop_processnext();
-}
-
 int evloopfunc1(void *param)
 {
 	return 0;
@@ -540,21 +509,7 @@ int winet_main(int argc, char const **argv) {
 		return 1;
 	}
 
-	{
-		HANDLE ev;
-		DWORD dw;
-		evloop_init();
-		ev = evloop_addlistener(evloopfunc1, NULL);
-		evloop_removelistener(ev);
-		ev = evloop_addlistener(evloopfunc1, NULL);
-		//LPTHREAD_START_ROUTINE
-		CreateThread(NULL, 0, foo1, NULL, 0, &dw);
-		Sleep(5000);
-		evloop_removelistener(ev);
-		Sleep(50000);
-	}
-
-	exit(0);
+	evloop_init();
 
 	if (winet_load_cfg(cfgfile) < 0) {
 		WSACleanup();
@@ -563,75 +518,7 @@ int winet_main(int argc, char const **argv) {
 
 	rc = 0;
 	for (; !stopsvc;) {
-		int funcrslt;
-		DWORD i_ev;
-		WSAEVENT *tmp_evs;
-		wsaevent_handler *handler;
-
-		tmp_evs = hEvents_getall();
-
-		i_ev = WSAWaitForMultipleEvents(hEvents_size(), tmp_evs, FALSE, INFINITE /*ACCEPT_TIMEOUT*1000*/, FALSE);
-		{
-			int sfsdf;
-			//SOCKET lsock = ((data_accept *)datas_get(i_ev)->param)->lsock;
-			//SOCKET asock;
-			
-			//asock = accept(lsock, NULL, NULL);
-			//SOCKET asock = accept(lsock, (struct sockaddr *) &saddr, &adrlen);
-			//asock = 0;
-		}
-		switch (i_ev) {
-			case WSA_WAIT_FAILED:
-				pWinsockError(ERR, "WSAWaitForMultipleEvents() failed");
-				return 1;
-			/*case WSA_WAIT_TIMEOUT:
-				break;*/
-			default:
-				handler = datas_get(i_ev);
-				funcrslt = handler->func(i_ev, tmp_evs[i_ev], handler->param);
-				if (funcrslt == -1) return 1;
-		}
-
-		//netevs.
-			/*
-		if (!(selres = select(0, &lsnset, NULL, NULL, &tmo))) {
-
-			continue;
-		}
-		if (selres < 0) {
-			winet_log(WINET_LOG_WARNING, "[%s] select error\n", WINET_APPNAME);
-			continue;
-		}
-		*/
-		for (i = 0; i < 5/*npmaps*/; i++) {
-			/*
-			if (!FD_ISSET(pmaps[i].sock, &lsnset))
-				continue;
-				*/
-/*
-			adrlen = sizeof(saddr);
-			if ((asock = accept(pmaps[i].sock, (struct sockaddr *) &saddr,
-					    &adrlen)) != INVALID_SOCKET)
-						*/
-						{
-						
-				/*
-				if (winet_handle_client(&pmaps[i], asock, &saddr) < 0) {
-
-					winet_log(WINET_LOG_ERROR, "[%s] unable to serve client: %s:%d\n",
-						  WINET_APPNAME, inet_ntoa(saddr.sin_addr), (int) ntohs(saddr.sin_port));
-
-					closesocket(asock);
-				} else {
-
-					winet_log(WINET_LOG_MESSAGE, "[%s] client served: %s:%d -> '%s'\n",
-						  WINET_APPNAME, inet_ntoa(saddr.sin_addr), (int) ntohs(saddr.sin_port),
-						  pmaps[i].a.lsn.arg2);
-
-				}
-				*/
-			}
-		}
+		evloop_processnext();
 	}
 
 //cleanup:

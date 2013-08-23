@@ -1,4 +1,6 @@
 #include "myeventloop.h"
+
+#include <windows.h>
 #include <stdio.h>
 #include <vector>
 #include <stdlib.h> /* for abort() */
@@ -177,7 +179,7 @@ notified_retry:
 			phandlerswrap->deref();
 			goto notified_retry;
 		default:
-			dwrslt -= WAIT_OBJECT_0;
+			dwrslt -= (WAIT_OBJECT_0 + 1);
 			func = phandlerswrap->a[dwrslt].func;
 			param = phandlerswrap->a[dwrslt].param;
 	}

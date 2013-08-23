@@ -41,7 +41,7 @@ extern "C" {
 int winet_stop_service(void);
 int winet_main(int argc, char const **argv);
 
-
+/*
 typedef struct wsaevent_handler {
 	int (*func)(DWORD i_event, WSAEVENT ev, void *param);
 	void *param;
@@ -51,6 +51,7 @@ void hEvents_add(WSAEVENT ev, const wsaevent_handler *handler_model);
 WSAEVENT *hEvents_getall();
 DWORD hEvents_size();
 wsaevent_handler *datas_get(DWORD index);
+*/
 
 #ifdef __cplusplus
 }
