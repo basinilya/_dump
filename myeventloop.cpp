@@ -194,6 +194,9 @@ notified_retry:
 
 	LeaveCriticalSection(&ctx.lock);
 
+	/* at this point phandlerswrap->a[dwrslt].func may change to NULL,
+	   but it's no different from when already inside func */
+
 	if (func) func(param);
 
 	return 0;
