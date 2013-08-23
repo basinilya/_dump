@@ -38,6 +38,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "cliptund.h"
+#include "myeventloop.h"
 
 
 
@@ -492,6 +493,16 @@ int winet_stop_service(void) {
 	return 0;
 }
 
+DWORD WINAPI foo1(void *param)
+{
+	evloop_processnext();
+}
+
+int evloopfunc1(void *param)
+{
+	return 0;
+}
+
 int winet_main(int argc, char const **argv) {
 	int i;
 	char const *cfgfile = NULL;
@@ -528,6 +539,22 @@ int winet_main(int argc, char const **argv) {
 			  WINET_APPNAME);
 		return 1;
 	}
+
+	{
+		HANDLE ev;
+		DWORD dw;
+		evloop_init();
+		ev = evloop_addlistener(evloopfunc1, NULL);
+		evloop_removelistener(ev);
+		ev = evloop_addlistener(evloopfunc1, NULL);
+		//LPTHREAD_START_ROUTINE
+		CreateThread(NULL, 0, foo1, NULL, 0, &dw);
+		Sleep(5000);
+		evloop_removelistener(ev);
+		Sleep(50000);
+	}
+
+	exit(0);
 
 	if (winet_load_cfg(cfgfile) < 0) {
 		WSACleanup();

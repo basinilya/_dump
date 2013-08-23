@@ -230,11 +230,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\eventloop.cpp"
+				RelativePath=".\mswsock.c"
 				>
 			</File>
 			<File
-				RelativePath=".\mswsock.c"
+				RelativePath=".\myeventloop.cpp"
 				>
 			</File>
 			<File
@@ -264,6 +264,10 @@
 			>
 			<File
 				RelativePath=".\cliptund.h"
+				>
+			</File>
+			<File
+				RelativePath=".\myeventloop.h"
 				>
 			</File>
 		</Filter>
