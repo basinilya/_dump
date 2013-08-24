@@ -153,7 +153,7 @@ int evloop_processnext()
 	}
 	ctx.controlEvents.push_back(ev);
 
-notified_retry:
+//notified_retry:
 	nCount = ctx.events.size();
 	if (nCount != 0) {
 		memcpy(handles+1, &ctx.events.front(), nCount*sizeof(handles[0]));
@@ -177,7 +177,8 @@ notified_retry:
 			abort();
 		case WAIT_OBJECT_0:
 			phandlerswrap->deref();
-			goto notified_retry;
+			break;
+			//goto notified_retry;
 		default:
 			dwrslt -= (WAIT_OBJECT_0 + 1);
 			func = phandlerswrap->a[dwrslt].func;

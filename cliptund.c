@@ -21,8 +21,13 @@
  *
  */
 
+#include "cliptund.h"
+#include "myeventloop.h"
+#include "mylogging.h"
+#include "myportlistener.h"
+
+
 #include <winsock2.h>
-#include <mswsock.h>
 #include <windows.h>
 #include <tchar.h>
 #include <stdlib.h>
@@ -37,34 +42,18 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "cliptund.h"
-#include "myeventloop.h"
 
 
-
-#define WINET_LOG_MESSAGE 1
-#define WINET_LOG_WARNING 2
-#define WINET_LOG_ERROR 3
-
-/* local */
-#undef INFO
-#undef WARN
-#undef ERR
-#define INFO WINET_LOG_MESSAGE
-#define WARN WINET_LOG_WARNING
-#define ERR WINET_LOG_ERROR
+#include "mylastheader.h"
 
 #define CFGFILENAME "cliptund.conf"
-#define ACCEPT_TIMEOUT 4
-#define LSN_BKLOG 128
+//#define ACCEPT_TIMEOUT 4
 
 
 static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size);
 static void winet_evtlog(char const *logmsg, long type);
-static int winet_log(int level, char const *fmt, ...);
 static int winet_load_cfg(char const *cfgfile);
 static void winet_cleanup(void);
-static _TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size);
 
 static int sk_timeout = -1;
 static int linger_timeo = 60;
@@ -222,7 +211,8 @@ static void winet_evtlog(char const *logmsg, long type) {
 }
 
 
-static int winet_log(int level, char const *fmt, ...) {
+int winet_log(int level, char const *fmt, ...)
+{
 	va_list args;
 	char emsg[1024];
 
@@ -233,19 +223,7 @@ static int winet_log(int level, char const *fmt, ...) {
 	return _winet_log(level, emsg);
 }
 
-#undef STRINGIZE2
-#undef STRINGIZE
-#define STRINGIZE2(x) #x
-#define STRINGIZE(x) STRINGIZE2(x)
 
-#define ADDRESSLENGTH (sizeof(struct sockaddr_in)+16)
-
-typedef struct data_accept {
-	SOCKET lsock;
-	SOCKET asock;
-	OVERLAPPED overlap;
-	char buf[ADDRESSLENGTH*2];
-} data_accept;
 
 /*
 typedef struct data_recv {
@@ -277,117 +255,11 @@ static int recv_handler_func(DWORD i_event, WSAEVENT ev, void *param)
 }
 */
 
-static int accept_handler_func(void *param)
-{
-	data_accept *data = (data_accept *)param;
-	DWORD nb;
-	struct sockaddr_in localSockaddr, remoteSockaddr;
-	struct sockaddr_in *pLocalSockaddr, *pRemoteSockaddr;
-	int lenL, lenR;
 
-	if (!GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE)) {
-		pWin32Error(ERR, "GetOverlappedResult() failed");
-		return -1;
-	}
-
-	GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
-	localSockaddr = *pLocalSockaddr;
-	remoteSockaddr = *pRemoteSockaddr;
-	{
-		TCHAR buf[100];
-		winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
-		_fputts(buf, stdout);
-		printf(":%d\n", ntohs(remoteSockaddr.sin_port));
-	}
-	closesocket(data->asock);
-
-	if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		abort();
-		//goto cleanup3;
-	}
-
-	if (!AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
-		pWinsockError(ERR, "AcceptEx() failed");
-		//evloop_removelistener(ev);
-		//goto cleanup4;
-	}
-	return 0;
-}
-
-static DWORD WINAPI foo(
-    LPVOID lpThreadParameter
-    )
-{
-	Sleep(2000);
-	//CloseHandle((HANDLE)lpThreadParameter);
-	closesocket((SOCKET)lpThreadParameter);
-	return 0;
-}
-
-
-static int winet_create_listener(short port)
-{
-	int rc = -1;
-	struct sockaddr_in saddr;
-	data_accept *newdata;
-	DWORD nb;
-	HANDLE ev;
-	SOCKET lsock, asock;
-
-	newdata = (data_accept *)malloc(sizeof(data_accept));
-	if (!newdata) {
-		pSysError(ERR, "malloc() failed");
-		return -1;
-	}
-
-	memset(&newdata->overlap, 0, sizeof(OVERLAPPED));
-
-	if ((newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		goto cleanup2;
-	}
-
-	if ((newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		goto cleanup3;
-	}
-
-	memset(&saddr, 0, sizeof(saddr));
-	saddr.sin_addr.S_un.S_addr = INADDR_ANY;
-	saddr.sin_port = htons((short int) port);
-	saddr.sin_family = AF_INET;
-
-	if (0 != bind(lsock, (const struct sockaddr *) &saddr, sizeof(saddr))) {
-		pWinsockError(WARN, "failed to bind port %d", port);
-		rc = -2; /* not fatal */
-		goto cleanup4;
-	}
-
-	if (0 != listen(lsock, LSN_BKLOG)) {
-		pWinsockError(ERR, "listen() failed");
-		goto cleanup4;
-	}
-
-	newdata->overlap.hEvent = ev = evloop_addlistener(accept_handler_func, newdata);
-
-	if (!AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
-		pWinsockError(ERR, "AcceptEx() failed");
-		evloop_removelistener(ev);
-		goto cleanup4;
-	}
-	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
-	//CreateThread(NULL, 0, foo, lsock, 0, &nb);
-	return 0;
-cleanup4:
-	closesocket(asock);
-cleanup3:
-	closesocket(lsock);
-cleanup2:
-	free(newdata);
-	return rc;
-}
-
+#undef STRINGIZE2
+#undef STRINGIZE
+#define STRINGIZE2(x) #x
+#define STRINGIZE(x) STRINGIZE2(x)
 
 static int winet_load_cfg(char const *cfgfilename) {
 	#undef WORDSZ
@@ -422,7 +294,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 			&& 0 == strcmp(s_forward, "forward")
 			&& 0 == strcmp(s_clip, "clip"))
 		{
-			rc = winet_create_listener(port);
+			rc = cliptund_create_listener(port, s_clipname);
 			if (rc == -1) {
 				fclose(conf_file);
 				return -1;
@@ -452,7 +324,7 @@ static void winet_cleanup(void) {
 }
 
 
-static _TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size) {
+_TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size) {
 	char const *ip;
 
 	ip = inet_ntoa(addr);

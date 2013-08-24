@@ -25,6 +25,7 @@
 #define _CLIPTUND_H
 
 #include <winsock2.h>
+#include <tchar.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,8 @@ extern "C" {
 
 int winet_stop_service(void);
 int winet_main(int argc, char const **argv);
+_TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size);
+
 
 /*
 typedef struct wsaevent_handler {
