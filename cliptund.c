@@ -25,7 +25,7 @@
 #include "myeventloop.h"
 #include "mylogging.h"
 #include "myportlistener.h"
-
+#include "myclipserver.h"
 
 #include <winsock2.h>
 #include <windows.h>
@@ -387,6 +387,8 @@ int winet_main(int argc, char const **argv) {
 		WSACleanup();
 		return 2;
 	}
+
+	clipsrv_init();
 
 	rc = 0;
 	for (; !stopsvc;) {

@@ -1,6 +1,7 @@
 #include "cliptund.h"
 #include "myeventloop.h"
 #include "myportlistener.h"
+#include "myclipserver.h"
 #include "mylogging.h"
 
 #include <winsock2.h>
@@ -45,6 +46,7 @@ static int _cliptund_handler_func(void *param)
 		winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
 		winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
 	}
+	clipsrv_connect(data->clipname);
 	closesocket(data->asock);
 
 	if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
