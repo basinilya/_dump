@@ -54,7 +54,8 @@ int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
 	newdata->state = STATE_SYN;
 	newdata->sock = sock;
 	newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
-	clipsrv_connect(clipname, newdata->ev, &newdata->remote);
+	clipsrv_havenewdata();
+	//clipsrv_connect(clipname, newdata->ev, &newdata->remote);
 	return 0;
 }
 

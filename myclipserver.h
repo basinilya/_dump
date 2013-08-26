@@ -13,6 +13,7 @@ typedef struct clipaddr {
 } clipaddr;
 
 int clipsrv_init();
+int clipsrv_havenewdata();
 int clipsrv_connect(const char *clipname, HANDLE ev, clipaddr *remote);
 
 #ifdef __cplusplus

@@ -1,4 +1,5 @@
 #include "myclipserver.h"
+#include "myeventloop.h"
 #include "mylogging.h"
 
 #include <windows.h>
@@ -14,6 +15,7 @@
 static UUID localclipuuid;
 static int nchannel;
 static HWND hwnd = NULL;
+static HANDLE havedata_ev;
 
 static HWND _createutilitywindow(WNDCLASS *wndclass) {
 	ATOM classatom;
@@ -309,10 +311,22 @@ err:
 	return rc;
 }
 
+static int _clipserv_havedata_func(void *_param)
+{
+	return 0;
+}
+
 int clipsrv_init()
 {
 	UuidCreate(&localclipuuid);
 	createutilitywindow(&hwnd, DefWindowProc, _T("myclipowner")); if (!hwnd) return 1;
+	havedata_ev = evloop_addlistener(_clipserv_havedata_func, NULL);
+	return 0;
+}
+
+int clipsrv_havenewdata()
+{
+	SetEvent(havedata_ev);
 	return 0;
 }
 
