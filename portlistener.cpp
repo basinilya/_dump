@@ -25,7 +25,40 @@ typedef struct data_accept {
 	char clipname[40+1];
 } data_accept;
 
-static int _cliptund_handler_func(void *param)
+enum cnnstate {
+	STATE_SYN
+};
+
+typedef struct data_connection {
+	cnnstate state;
+	SOCKET sock;
+	HANDLE ev;
+	clipaddr remote;
+} data_connection;
+
+static int _cliptund_connection_func(void *param)
+{
+	data_connection *data = (data_connection *)param;
+	switch (data->state) {
+		case STATE_SYN:
+			;
+	}
+	return 0;
+}
+
+int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
+{
+	data_connection *newdata;
+
+	newdata = (data_connection*)malloc(sizeof(data_connection));
+	newdata->state = STATE_SYN;
+	newdata->sock = sock;
+	newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
+	clipsrv_connect(clipname, newdata->ev, &newdata->remote);
+	return 0;
+}
+
+static int _cliptund_accept_func(void *param)
 {
 	data_accept *data = (data_accept *)param;
 	DWORD nb;
@@ -46,8 +79,7 @@ static int _cliptund_handler_func(void *param)
 		winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
 		winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
 	}
-	clipsrv_connect(data->clipname);
-	closesocket(data->asock);
+	_cliptund_sock_to_clip(data->asock, data->clipname);
 
 	if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
 		pWinsockError(ERR, "socket() failed");
@@ -106,7 +138,7 @@ int cliptund_create_listener(short port, const char *clipname)
 		goto cleanup4;
 	}
 
-	newdata->overlap.hEvent = ev = evloop_addlistener(_cliptund_handler_func, newdata);
+	newdata->overlap.hEvent = ev = evloop_addlistener(_cliptund_accept_func, newdata);
 
 	strcpy(newdata->clipname, clipname);
 

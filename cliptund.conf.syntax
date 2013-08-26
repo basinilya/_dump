@@ -1,0 +1,26 @@
+file:
+[line]*
+
+line:
+listenspec forwardspec
+
+listenspec:
+listen addr
+
+forwardspec:
+forward {addr|cmdspec}
+
+addr:
+{portspec|clipspec}
+
+portspec:
+port n [host s]
+
+clipspec
+clip s
+
+cmdspec:
+cmd userspec s
+
+userspec:
+{user:pass|none}

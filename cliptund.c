@@ -339,11 +339,6 @@ int winet_stop_service(void) {
 	return 0;
 }
 
-int evloopfunc1(void *param)
-{
-	return 0;
-}
-
 int winet_main(int argc, char const **argv) {
 	int i;
 	char const *cfgfile = NULL;
