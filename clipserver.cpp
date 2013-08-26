@@ -311,22 +311,68 @@ err:
 	return rc;
 }
 
+static int weUseTimer;
+
+/*
+
+- if triggered by timer and no data
+-   kill timer
+-   wait for event
+- fi
+
+- if triggered by event and have data
+-   set timer
+-   wait for timer
+- fi
+
+*/
+
+VOID CALLBACK _clipserv_timerproc(HWND hwnd, UINT a, UINT_PTR b, DWORD c)
+{
+}
+
 static int _clipserv_havedata_func(void *_param)
 {
 	return 0;
 }
 
+/*
+static LRESULT CALLBACK _clipserv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch(uMsg) {
+		case WM_TIMER:
+			_clipserv_havedata_func(NULL);
+			return 0;
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+}
+*/
+
+static DWORD WINAPI _clipserv_wnd_thread(void *param)
+{
+	MSG msg;
+	createutilitywindow(&hwnd, DefWindowProc, _T("myclipowner")); if (!hwnd) abort();
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return 0;
+}
+
 int clipsrv_init()
 {
+	DWORD tid;
 	UuidCreate(&localclipuuid);
-	createutilitywindow(&hwnd, DefWindowProc, _T("myclipowner")); if (!hwnd) return 1;
 	havedata_ev = evloop_addlistener(_clipserv_havedata_func, NULL);
+	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
 	return 0;
 }
 
 int clipsrv_havenewdata()
 {
-	SetEvent(havedata_ev);
+	if (!weUseTimer) SetEvent(havedata_ev);
 	return 0;
 }
 
