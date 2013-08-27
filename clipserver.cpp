@@ -12,10 +12,15 @@
 #define MY_CF CF_RIFF
 #define MAX_FORMATS 100
 
-static UUID localclipuuid;
-static int nchannel;
-static HWND hwnd = NULL;
-static HANDLE havedata_ev;
+static struct {
+	UUID localclipuuid;
+	int nchannel;
+	HWND hwnd;
+	HANDLE havedata_ev;
+	int havedata;
+	UINT_PTR nTimer;
+	CRITICAL_SECTION lock;
+} ctx;
 
 static HWND _createutilitywindow(WNDCLASS *wndclass) {
 	ATOM classatom;
@@ -285,7 +290,7 @@ int senddata(HGLOBAL hdata) {
 	DWORD newnseq;
 	int rc = -1;
 
-	while (!OpenClipboard(hwnd)) {
+	while (!OpenClipboard(ctx.hwnd)) {
 		//pWin32Error("OpenClipboard() failed");
 		Sleep(1);
 	}
@@ -311,8 +316,6 @@ err:
 	return rc;
 }
 
-static int weUseTimer;
-
 /*
 
 - if triggered by timer and no data
@@ -326,7 +329,7 @@ static int weUseTimer;
 - fi
 
 */
-
+/*
 VOID CALLBACK _clipserv_timerproc(HWND hwnd, UINT a, UINT_PTR b, DWORD c)
 {
 }
@@ -335,7 +338,7 @@ static int _clipserv_havedata_func(void *_param)
 {
 	return 0;
 }
-
+*/
 /*
 static LRESULT CALLBACK _clipserv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
@@ -352,7 +355,7 @@ static LRESULT CALLBACK _clipserv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 static DWORD WINAPI _clipserv_wnd_thread(void *param)
 {
 	MSG msg;
-	createutilitywindow(&hwnd, DefWindowProc, _T("myclipowner")); if (!hwnd) abort();
+	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipowner")); if (!ctx.hwnd) abort();
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
@@ -361,22 +364,44 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 	return 0;
 }
 
+enum cnnstate {
+	STATE_SYN
+};
+
+typedef struct clip_connection {
+	cnnstate state;
+	char sendbuf[100];
+} clip_connection;
+
+static DWORD WINAPI _clipserv_send_thread(void *param)
+{
+	for(;;) {
+		WaitForSingleObject(ctx.havedata_ev, INFINITE);
+		/* ... */
+		Sleep(1000);
+	}
+	return 0;
+}
+
 int clipsrv_init()
 {
 	DWORD tid;
-	UuidCreate(&localclipuuid);
-	havedata_ev = evloop_addlistener(_clipserv_havedata_func, NULL);
+	InitializeCriticalSection(&ctx.lock);
+	UuidCreate(&ctx.localclipuuid);
+	ctx.havedata_ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
+	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
 	return 0;
 }
 
 int clipsrv_havenewdata()
 {
-	if (!weUseTimer) SetEvent(havedata_ev);
+	SetEvent(ctx.havedata_ev);
 	return 0;
 }
-
+/*
 int clipsrv_connect(const char *clipname, HANDLE ev, clipaddr *remote)
 {
 	return 0;
 }
+*/
