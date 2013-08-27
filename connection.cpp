@@ -18,18 +18,13 @@ size_t rfifo_availread(rfifo_t *rfifo)
 	size_t ofs_end = rfifo->ofs_end;
 	size_t ofs_beg = rfifo->ofs_beg;
 
-	if (ofs_end == ofs_beg) return 0;
+	size_t block_end = ofs_end & ~((size_t)RFIFO_BUFSZ - 1);
 
+	if (block_end <= ofs_beg) {
+		return ofs_end - ofs_beg;
+	}
 	size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
-	size_t rem_end = ofs_end % RFIFO_BUFSZ;
-
-	size_t x;
-	x = ofs_end - ofs_beg;
-	return (ofs_end - ofs_beg) % RFIFO_BUFSZ;
-
-	if (rem_end > rem_beg) return rem_end - rem_beg;
-	if (rem_end == rem_beg) return RFIFO_BUFSZ - rem_beg;
-	if (rem_end < rem_beg) return RFIFO_BUFSZ - rem_beg;
+	return RFIFO_BUFSZ - rem_beg;
 }
 
 char *rfifo_pdata(rfifo_t *rfifo)
@@ -47,32 +42,15 @@ size_t rfifo_availwrite(rfifo_t *rfifo)
 	size_t ofs_end = rfifo->ofs_end;
 	size_t ofs_beg = rfifo->ofs_beg;
 
-	size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
 	size_t rem_end = ofs_end % RFIFO_BUFSZ;
 
 	if (ofs_end > ofs_beg) {
+		size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
 		if (rem_end <= rem_beg) {
 			return rem_beg - rem_end;
 		}
 	}
 	return RFIFO_BUFSZ - rem_end;
-
-	if (ofs_end == ofs_beg) {
-		/* 0,0 - 8
-		   8,8 - 8
-		   1,1 - 7
-		   */
-		return RFIFO_BUFSZ - rem_end;
-	}
-	if (ofs_end > ofs_beg) {
-		if (rem_end > rem_beg) {
-			return RFIFO_BUFSZ - rem_end;
-		}
-		if (rem_end <= rem_beg) {
-			return (ofs_beg - ofs_end) % RFIFO_BUFSZ;
-		}
-	}
-	return -1;
 }
 
 char *rfifo_pfree(rfifo_t *rfifo)
@@ -87,9 +65,9 @@ static struct {
 	size_t pfree;
 	rfifo_t rfifo;
 } x[] = {
-	{ 0,1,7,1, { 1,1 } },
 	{ 0,0,8,0, { 0,0 } },
 
+	{ 0,1,7,1, { 1,1 } },
 	{ 1,1,6,2, { 1,2 } },
 	{ 2,0,6,2, { 0,2 } },
 	{ 1,0,7,1, { 0,1 } },
@@ -117,7 +95,7 @@ int main()
 			 availwrite = rfifo_availwrite(&x[i].rfifo);
 			 pfree = rfifo_pfree(&x[i].rfifo) - x[i].rfifo.data;
 
-			//assert(availread == x[i].availread);
+			assert(availread == x[i].availread);
 			assert(pdata == x[i].pdata);
 			assert(availwrite == x[i].availwrite);
 			assert(pfree == x[i].pfree);
