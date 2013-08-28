@@ -246,6 +246,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rfifo.c"
+				>
+			</File>
+			<File
 				RelativePath="service.c"
 				>
 				<FileConfiguration
