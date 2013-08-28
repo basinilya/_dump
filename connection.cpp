@@ -1,9 +1,7 @@
-#define INLINE __inline
-
 #include <windows.h>
 #include <stdlib.h>
 
-#define RFIFO_BUFSZ 8
+#define RFIFO_BUFSZ 2048
 
 typedef struct rfifo_t {
     size_t ofs_beg;
@@ -74,6 +72,8 @@ void rfifo_markread(rfifo_t *rfifo, size_t count)
 }
 
 #if 0
+
+/* RFIFO_BUFSZ must be 8 */
 static struct {
 	size_t availread;
 	size_t pdata;
