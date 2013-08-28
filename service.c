@@ -86,7 +86,7 @@ static char **get_ascii_argv(int argc, LPWSTR *argv) {
 }
 
 
-int main1(int argc, char const *argv[]) {
+int main(int argc, char const *argv[]) {
 	SERVICE_TABLE_ENTRY disptab[] = {
 		{ _TEXT(WINET_APPNAME), (LPSERVICE_MAIN_FUNCTION) service_main },
 		{ NULL, NULL }

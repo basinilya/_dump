@@ -18,13 +18,12 @@ size_t rfifo_availread(rfifo_t *rfifo)
 	size_t ofs_end = rfifo->ofs_end;
 	size_t ofs_beg = rfifo->ofs_beg;
 
-	size_t block_end = ofs_end & ~((size_t)RFIFO_BUFSZ - 1);
+	if (ofs_end == ofs_beg) return 0;
 
-	if (block_end <= ofs_beg) {
-		return ofs_end - ofs_beg;
-	}
+	size_t rem_end = ofs_end % RFIFO_BUFSZ;
 	size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
-	return RFIFO_BUFSZ - rem_beg;
+
+	return (rem_end <= rem_beg ? RFIFO_BUFSZ : rem_end) - rem_beg;
 }
 
 char *rfifo_pdata(rfifo_t *rfifo)
@@ -44,7 +43,7 @@ size_t rfifo_availwrite(rfifo_t *rfifo)
 
 	size_t rem_end = ofs_end % RFIFO_BUFSZ;
 
-	if (ofs_end > ofs_beg) {
+	if (ofs_end != ofs_beg) {
 		size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
 		if (rem_end <= rem_beg) {
 			return rem_beg - rem_end;
@@ -58,6 +57,23 @@ char *rfifo_pfree(rfifo_t *rfifo)
 	return rfifo->data + (rfifo->ofs_end % RFIFO_BUFSZ);
 }
 
+void rfifo_init(rfifo_t *rfifo)
+{
+	rfifo->ofs_beg = 0;
+	rfifo->ofs_end = 0;
+}
+
+void rfifo_markwrite(rfifo_t *rfifo, size_t count)
+{
+    rfifo->ofs_end += count;
+}
+
+void rfifo_markread(rfifo_t *rfifo, size_t count)
+{
+	rfifo->ofs_beg += count;
+}
+
+#if 0
 static struct {
 	size_t availread;
 	size_t pdata;
@@ -65,15 +81,14 @@ static struct {
 	size_t pfree;
 	rfifo_t rfifo;
 } x[] = {
+	{ 7,1,0,1, { 1,9 } },
+	{ 7,1,1,0, { 1,8 } },
 	{ 0,0,8,0, { 0,0 } },
-
 	{ 0,1,7,1, { 1,1 } },
 	{ 1,1,6,2, { 1,2 } },
 	{ 2,0,6,2, { 0,2 } },
 	{ 1,0,7,1, { 0,1 } },
-	{ 7,1,1,0, { 1,8 } },
 	{ 8,0,0,0, { 0,8 } },
-	{ 7,1,0,1, { 1,9 } },
 	{ 6,2,1,1, { 2,9 } },
 	{ 1,7,7,0, { 7,8 } },
 	{ -1 }
@@ -82,13 +97,60 @@ static struct {
 
 #include <assert.h>
 
+static void rfifo_test() 
+{
+    rfifo_t buf;
+    char cw = 0;
+    char cr_prev = cw;
+    size_t dw;
+	/* for overflow */
+	buf.ofs_beg = -RFIFO_BUFSZ;
+	buf.ofs_end = -RFIFO_BUFSZ;
+	for(; (int)buf.ofs_beg < RFIFO_BUFSZ*4;) {
+        size_t avread = rfifo_availread(&buf);
+        size_t avwrite = rfifo_availwrite(&buf);
+
+        assert(avread<=RFIFO_BUFSZ);
+        assert(avwrite<=RFIFO_BUFSZ);
+        assert( (0 < avread+avwrite) && (avread+avwrite <= RFIFO_BUFSZ) );
+
+        if (rand() < (RAND_MAX / 2)) {
+			char *pdata;
+            size_t toread = 0xFFFFFFFF & (rand()*(avread+1)/((long long)RAND_MAX+1));
+            assert(toread <= avread);
+
+			pdata = rfifo_pdata(&buf);
+            for (dw = 0; dw < toread; dw++) {
+                assert(pdata[dw] == cr_prev++);
+            }
+
+            rfifo_markread(&buf, toread);
+        } else {
+			char *pfree;
+            size_t towrite = rand()*(avwrite+1)/((long long)RAND_MAX+1);
+            assert(towrite <= avwrite);
+			pfree = rfifo_pfree(&buf);
+            for (dw = 0; dw < towrite; dw++) {
+                pfree[dw] = cw++;
+            }
+            rfifo_markwrite(&buf, towrite);
+        }
+        
+    }
+}
+
 int main()
 {
 	int i, j;
+
+	/* for overflow */
+	for (i = 0; x[i].availread != -1; i++) {
+		x[i].rfifo.ofs_beg -= RFIFO_BUFSZ;
+		x[i].rfifo.ofs_end -= RFIFO_BUFSZ;
+	}
+
 	for (j = 0; j < 2; j++) {
 		for (i = 0; x[i].availread != -1; i++) {
-			x[i].rfifo.ofs_beg += RFIFO_BUFSZ;
-			x[i].rfifo.ofs_end += RFIFO_BUFSZ;
 
 			 availread = rfifo_availread(&x[i].rfifo);
 			 pdata = rfifo_pdata(&x[i].rfifo) - x[i].rfifo.data;
@@ -100,48 +162,11 @@ int main()
 			assert(availwrite == x[i].availwrite);
 			assert(pfree == x[i].pfree);
 
+			x[i].rfifo.ofs_beg += RFIFO_BUFSZ;
+			x[i].rfifo.ofs_end += RFIFO_BUFSZ;
 		}
 	}
+	rfifo_test();
 	return 0;
 }
-/*
-typedef struct rfifo_t {
-    size_t size;
-    size_t oData;
-    size_t count;
-    char data[2048];
-} rfifo_t;
-
-#define RFIFO_OFREE(_prfifo) ( ((_prfifo)->oData + (_prfifo)->count) % (_prfifo)->size )
-
-#define RFIFO_PFREE(_prfifo) ((_prfifo)->data+RFIFO_OFREE(_prfifo))
-#define RFIFO_PDATA(_prfifo) ((_prfifo)->data+(_prfifo)->oData)
-
-#define RFIFO_AVAILREAD(_prfifo) MIN((_prfifo)->count,(_prfifo)->size - (_prfifo)->oData)
-#define RFIFO_AVAILWRITE(_prfifo) ((_prfifo)->oData + (_prfifo)->count >= (_prfifo)->size ? (_prfifo)->size - (_prfifo)->count : (_prfifo)->size - ((_prfifo)->oData + (_prfifo)->count))
-
-#define RFIFO_ISFULL(_prfifo) (RFIFO_AVAILWRITE(_prfifo)==0)
-#define RFIFO_ISEMPTY(_prfifo) (RFIFO_AVAILREAD(_prfifo)==0)
-
-static INLINE void rfifo_markwrite(rfifo_t *rfifo, size_t count)
-{
-    rfifo->count += count;
-}
-
-static INLINE void rfifo_markread(rfifo_t *rfifo, size_t count)
-{
-    rfifo->count -= count;
-    if ((rfifo->oData += count) == rfifo->size)
-    {
-        rfifo->oData = 0;
-    }
-}
-
-static void rfifo_init(rfifo_t *rfifo, size_t bufSize)
-{
-    rfifo->size = bufSize;
-    rfifo->oData = 0;
-    rfifo->count = 0;
-}
-
-*/
+#endif
