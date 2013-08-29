@@ -27,40 +27,6 @@ static struct {
 	vector<clip_connection*> connections;
 } ctx;
 
-static HWND _createutilitywindow(WNDCLASS *wndclass) {
-	ATOM classatom;
-	HINSTANCE hinst = GetModuleHandle(NULL);
-	HWND hwnd;
-
-	wndclass->hInstance = hinst;
-	classatom = RegisterClass(wndclass);
-	if (classatom == 0) {
-		pWin32Error(ERR, "RegisterClass() failed");
-		return NULL;
-	}
-	hwnd = CreateWindowEx(0, (LPCTSTR)classatom, NULL, 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hinst, NULL);
-	if (!hwnd) {
-		pWin32Error(ERR, "CreateWindowEx() failed");
-		return NULL;
-	}
-	return hwnd;
-}
-
-#define createutilitywindow(phwnd, lpfnWndProc, lpszClassName) do {   \
-	static WNDCLASS wndclass = {                                 \
-		0,            /*    UINT        style;*/                 \
-		(lpfnWndProc),/*    WNDPROC     lpfnWndProc;*/           \
-		0,            /*    int         cbClsExtra;*/            \
-		0,            /*    int         cbWndExtra;*/            \
-		NULL,         /*    HINSTANCE   hInstance;*/             \
-		NULL,         /*    HICON       hIcon;*/                 \
-		NULL,         /*    HCURSOR     hCursor;*/               \
-		NULL,         /*    HBRUSH      hbrBackground;*/         \
-		NULL,         /*    LPCWSTR     lpszMenuName;*/          \
-		(lpszClassName) /*    LPCWSTR     lpszClassName;*/       \
-	};                                                           \
-	*(phwnd) = _createutilitywindow(&wndclass);                  \
-} while(0)
 
 static HBITMAP dupbitmap(HBITMAP hbitmap)
 {
@@ -344,30 +310,6 @@ static int _clipserv_havedata_func(void *_param)
 	return 0;
 }
 */
-/*
-static LRESULT CALLBACK _clipserv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	switch(uMsg) {
-		case WM_TIMER:
-			_clipserv_havedata_func(NULL);
-			return 0;
-		default:
-			return DefWindowProc(hwnd, uMsg, wParam, lParam);
-	}
-}
-*/
-
-static DWORD WINAPI _clipserv_wnd_thread(void *param)
-{
-	MSG msg;
-	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipowner")); if (!ctx.hwnd) abort();
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-	return 0;
-}
 
 int clipsrv_reg_cnn(clip_connection *conn)
 {
@@ -413,6 +355,18 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 	return 0;
 }
 
+static DWORD WINAPI _clipserv_wnd_thread(void *param)
+{
+	MSG msg;
+	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipsender")); if (!ctx.hwnd) abort();
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return 0;
+}
+
 int clipsrv_init()
 {
 	DWORD tid;
@@ -420,7 +374,9 @@ int clipsrv_init()
 	UuidCreate(&ctx.localclipuuid);
 	ctx.havedata_ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
+	CreateThread(NULL, 0, clipmon_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
+	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipsender"));
 	return 0;
 }
 
