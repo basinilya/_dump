@@ -9,6 +9,9 @@
 #include <tchar.h>
 #include <windows.h>
 
+#include <vector>
+using namespace std;
+
 #include "mylastheader.h"
 
 static int counter=0;
@@ -16,6 +19,14 @@ static int counter=0;
 static HWND nextWnd = NULL;
 
 volatile HWND global_hwnd = NULL;
+
+typedef struct cliplistener {
+	char clipname[40+1];
+	char host[40+1];
+	short port;
+} cliplistener;
+
+static vector<cliplistener*> listeners;
 
 static void unreg()
 {
@@ -28,6 +39,8 @@ static void unreg()
 		}
 	}
 }
+
+DWORD clipsrv_nseq = 0;
 
 static int enumformats() {
 	UINT fmtid;
@@ -46,6 +59,47 @@ static int enumformats() {
 			break;
 		}
 		printf("%6d %d\n", counter, (int)fmtid);
+		if (fmtid == MY_CF) {
+			HGLOBAL hglob = GetClipboardData(fmtid);
+			SIZE_T sz = GlobalSize(hglob);
+			if (sz > sizeof(cliptun_data_header) + sizeof(net_uuid_t)) {
+				const char *pbeg = (char*)GlobalLock(hglob);
+				const char *pend = pbeg + sz;
+				const char *p = pbeg;
+				if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
+					p += sizeof(cliptun_data_header);
+
+					net_uuid_t remoteaddr;
+					memcpy(&remoteaddr, p, sizeof(net_uuid_t));
+					p += sizeof(net_uuid_t);
+
+					for(;;) {
+						u_long netstate, netchannel;
+
+						if (pend - p < sizeof(netchannel) + sizeof(netstate)) break;
+
+						memcpy(&netchannel, p, sizeof(netchannel));
+						p += sizeof(netchannel);
+
+						memcpy(&netstate, p, sizeof(netstate));
+						p += sizeof(netstate);
+
+						cnnstate state = (cnnstate)ntohl(netstate);
+						switch(state) {
+							case STATE_SYN:
+								for (vector<cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
+									cliplistener *liplistener = *it;
+									if (0 == strncmp(p, liplistener->clipname, pend - p)) {
+										//clipsrv_reg_cnn(
+										break;
+									}
+								}
+						}
+					}
+				}
+				GlobalUnlock(hglob);
+			}
+		};
 	}
 err:
 	if (!CloseClipboard()) {
@@ -189,3 +243,12 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 	return 0;
 }
 
+int clipsrv_create_listener(const char clipname[40+1], const char host[40+1], short port)
+{
+	cliplistener *listener = (cliplistener*)malloc(sizeof(cliplistener));
+	strcpy(listener->clipname, clipname);
+	strcpy(listener->host, host);
+	listener->port = port;
+	listeners.push_back(listener);
+	return 0;
+}

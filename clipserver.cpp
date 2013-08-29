@@ -12,12 +12,14 @@ using namespace std;
 
 #include "mylastheader.h"
 
-#define MY_CF CF_RIFF
 #define MAX_FORMATS 100
 
 
 static struct {
-	UUID localclipuuid;
+	union {
+		net_uuid_t net;
+		UUID _align;
+	} localclipuuid;
 	int nchannel;
 	HWND hwnd;
 	HANDLE havedata_ev;
@@ -257,7 +259,6 @@ cont_ok:
 }
 
 int senddata(HGLOBAL hdata) {
-	static DWORD nseq = 0;
 	DWORD newnseq;
 	int rc = -1;
 
@@ -267,7 +268,7 @@ int senddata(HGLOBAL hdata) {
 	}
 	newnseq = GetClipboardSequenceNumber();
 	printf("before %d\n", newnseq);
-	if (nseq != newnseq) {
+	if (clipsrv_nseq != newnseq) {
 		if (dupandreplace() < 0) {
 			goto err;
 		}
@@ -282,8 +283,8 @@ err:
 	if (!CloseClipboard()) {
 		pWin32Error(ERR, "CloseClipboard() failed");
 	}
-	nseq = GetClipboardSequenceNumber();
-	printf("after %d\n", nseq);
+	clipsrv_nseq = GetClipboardSequenceNumber();
+	printf("after %d\n", clipsrv_nseq);
 	return rc;
 }
 
@@ -319,6 +320,8 @@ int clipsrv_reg_cnn(clip_connection *conn)
 	return 0;
 }
 
+const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
+
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
 	for(;;) {
@@ -327,19 +330,33 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		char *pbeg = (char*)GlobalLock(hglob);
 		char *pend = pbeg + 4096;
 		char *p = pbeg;
+
+		memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
+		p += sizeof(cliptun_data_header);
+
+		memcpy(p, &ctx.localclipuuid.net, sizeof(ctx.localclipuuid.net));
+		p += sizeof(ctx.localclipuuid.net);
+
 		EnterCriticalSection(&ctx.lock);
 		for(vector<clip_connection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 			clip_connection *conn = *it;
 			cnnstate state = conn->state;
 			switch (state) {
 				case STATE_SYN:
-					u_long netstate;
+					u_long netstate, netchannel;
 					size_t clipnamesize = strlen(conn->a.clipname)+1;
-					SSIZE_T sz = sizeof(netstate) + clipnamesize;
+					SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
 					if (pend - p < sz) goto break_loop;
+
+					ctx.nchannel++;
+					netchannel = htonl(ctx.nchannel);
+					memcpy(p, &netchannel, sizeof(netchannel));
+					p += sizeof(netchannel);
+
 					netstate = htonl(state);
 					memcpy(p, &netstate, sizeof(netstate));
 					p += sizeof(netstate);
+
 					strcpy(p, conn->a.clipname);
 					p += clipnamesize;
 					//aaa;
@@ -371,7 +388,9 @@ int clipsrv_init()
 {
 	DWORD tid;
 	InitializeCriticalSection(&ctx.lock);
-	UuidCreate(&ctx.localclipuuid);
+
+	UuidCreate(&ctx.localclipuuid._align);
+
 	ctx.havedata_ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, clipmon_wnd_thread, NULL, 0, &tid);

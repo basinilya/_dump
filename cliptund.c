@@ -273,7 +273,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 	int rc;
 	FILE *conf_file;
 	short port;
-	word_t s_listen, s_port, s_theport, s_forward, s_clip, s_clipname;
+	word_t s1, s2, s3, s4, s5, s6, s7, s8;
 	int npmaps;
 
 	if (!(conf_file = fopen(cfgfilename, "rt"))) {
@@ -284,23 +284,38 @@ static int winet_load_cfg(char const *cfgfilename) {
 
 	npmaps = 0;
 	while (!feof(conf_file)) {
-		rc = fscanf(conf_file, SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD
-			, s_listen, s_port, s_theport, s_forward, s_clip, s_clipname);
+		rc = fscanf(conf_file, SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD
+			, s1, s2, s3, s4, s5, s6, s7, s8);
 		fscanf(conf_file, "%*[^\n]"); /* read till EOL */
 		fscanf(conf_file, "\n"); /* read till EOL */
-		if (rc == 6 && sscanf(s_theport, "%hd", &port) == 1
-			&& 0 == strcmp(s_listen, "listen")
-			&& 0 == strcmp(s_port, "port")
-			&& 0 == strcmp(s_forward, "forward")
-			&& 0 == strcmp(s_clip, "clip"))
+		if (rc == 6 && sscanf(s3, "%hd", &port) == 1
+			&& 0 == strcmp(s1, "listen")
+			&& 0 == strcmp(s2, "port")
+			&& 0 == strcmp(s4, "forward")
+			&& 0 == strcmp(s5, "clip"))
 		{
-			rc = cliptund_create_listener(port, s_clipname);
+			rc = cliptund_create_listener(port, s6);
 			if (rc == -1) {
 				fclose(conf_file);
 				return -1;
 			}
 			if (rc == 0) npmaps++;
 		}
+		else if (rc == 8 && sscanf(s8, "%hd", &port) == 1
+			&& 0 == strcmp(s1, "listen")
+			&& 0 == strcmp(s2, "clip")
+			&& 0 == strcmp(s4, "forward")
+			&& 0 == strcmp(s5, "host")
+			&& 0 == strcmp(s7, "port"))
+		{
+			rc = clipsrv_create_listener(s3, s6, port);
+			if (rc == -1) {
+				fclose(conf_file);
+				return -1;
+			}
+			if (rc == 0) npmaps++;
+		}
+
 	}
 	fclose(conf_file);
 	if (!npmaps) {

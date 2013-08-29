@@ -7,9 +7,20 @@
 extern "C" {
 #endif
 
+#define MY_CF CF_RIFF
+
+extern DWORD clipsrv_nseq;
+
+#define CLIPTUN_DATA_HEADER "!cliptun!"
+extern const char cliptun_data_header[sizeof(CLIPTUN_DATA_HEADER)];
+
 typedef enum cnnstate {
 	STATE_SYN
 } cnnstate;
+
+typedef struct net_uuid_t {
+	unsigned char   __u_bits[16];
+} net_uuid_t;
 
 typedef struct clip_connection {
 	cnnstate state;
@@ -19,14 +30,17 @@ typedef struct clip_connection {
 } clip_connection;
 
 typedef struct clipaddr {
-	UUID addr;
-	int nchannel;
+	net_uuid_t addr;
+	u_long nchannel;
 } clipaddr;
 
 int clipsrv_reg_cnn(clip_connection *conn);
 int clipsrv_init();
 int clipsrv_havenewdata();
 int clipsrv_connect(const char *clipname, HANDLE ev, clipaddr *remote);
+int clipsrv_create_listener(const char clipname[40+1], const char host[40+1], short port);
+
+
 DWORD WINAPI clipmon_wnd_thread(void *param);
 
 HWND _createutilitywindow(WNDCLASS *wndclass);
