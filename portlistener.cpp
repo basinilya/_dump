@@ -25,12 +25,8 @@ typedef struct data_accept {
 	char clipname[40+1];
 } data_accept;
 
-enum cnnstate {
-	STATE_SYN
-};
-
 typedef struct data_connection {
-	cnnstate state;
+	clip_connection conn;
 	SOCKET sock;
 	HANDLE ev;
 	clipaddr remote;
@@ -39,10 +35,6 @@ typedef struct data_connection {
 static int _cliptund_connection_func(void *param)
 {
 	data_connection *data = (data_connection *)param;
-	switch (data->state) {
-		case STATE_SYN:
-			;
-	}
 	return 0;
 }
 
@@ -51,9 +43,11 @@ int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
 	data_connection *newdata;
 
 	newdata = (data_connection*)malloc(sizeof(data_connection));
-	newdata->state = STATE_SYN;
 	newdata->sock = sock;
 	newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
+	newdata->conn.state = STATE_SYN;
+	strcpy(newdata->conn.a.clipname, clipname);
+	clipsrv_reg_cnn(&newdata->conn);
 	clipsrv_havenewdata();
 	//clipsrv_connect(clipname, newdata->ev, &newdata->remote);
 	return 0;

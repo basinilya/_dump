@@ -7,10 +7,14 @@
 #include <stdio.h>
 #include <tchar.h>
 
+#include <vector>
+using namespace std;
+
 #include "mylastheader.h"
 
 #define MY_CF CF_RIFF
 #define MAX_FORMATS 100
+
 
 static struct {
 	UUID localclipuuid;
@@ -20,6 +24,7 @@ static struct {
 	int havedata;
 	UINT_PTR nTimer;
 	CRITICAL_SECTION lock;
+	vector<clip_connection*> connections;
 } ctx;
 
 static HWND _createutilitywindow(WNDCLASS *wndclass) {
@@ -364,20 +369,45 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 	return 0;
 }
 
-enum cnnstate {
-	STATE_SYN
-};
-
-typedef struct clip_connection {
-	cnnstate state;
-	char sendbuf[100];
-} clip_connection;
+int clipsrv_reg_cnn(clip_connection *conn)
+{
+	EnterCriticalSection(&ctx.lock);
+	ctx.connections.push_back(conn);
+	LeaveCriticalSection(&ctx.lock);
+	return 0;
+}
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
 	for(;;) {
 		WaitForSingleObject(ctx.havedata_ev, INFINITE);
-		/* ... */
+		HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, 4096);
+		char *pbeg = (char*)GlobalLock(hglob);
+		char *pend = pbeg + 4096;
+		char *p = pbeg;
+		EnterCriticalSection(&ctx.lock);
+		for(vector<clip_connection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+			clip_connection *conn = *it;
+			cnnstate state = conn->state;
+			switch (state) {
+				case STATE_SYN:
+					u_long netstate;
+					size_t clipnamesize = strlen(conn->a.clipname)+1;
+					SSIZE_T sz = sizeof(netstate) + clipnamesize;
+					if (pend - p < sz) goto break_loop;
+					netstate = htonl(state);
+					memcpy(p, &netstate, sizeof(netstate));
+					p += sizeof(netstate);
+					strcpy(p, conn->a.clipname);
+					p += clipnamesize;
+					//aaa;
+			}
+		}
+		break_loop:
+		LeaveCriticalSection(&ctx.lock);
+		GlobalUnlock(hglob);
+		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
+		senddata(hglob);
 		Sleep(1000);
 	}
 	return 0;
@@ -393,6 +423,8 @@ int clipsrv_init()
 	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
 	return 0;
 }
+
+
 
 int clipsrv_havenewdata()
 {
