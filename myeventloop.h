@@ -2,6 +2,12 @@
 #define _MY_EVENTLOOP_H
 
 #include <windows.h>
+#include <atlbase.h>
+
+struct IEventPin : IUnknown {
+	virtual void onEvent() = 0;
+};
+
 
 #ifdef __cplusplus
 extern "C" {
