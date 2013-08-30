@@ -29,7 +29,7 @@ typedef struct data_connection {
 	clip_connection conn;
 	SOCKET sock;
 	HANDLE ev;
-	clipaddr remote;
+	//clipaddr remote;
 } data_connection;
 
 static int _cliptund_connection_func(void *param)

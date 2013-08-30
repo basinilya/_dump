@@ -303,6 +303,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\mytunnel.h"
+				>
+			</File>
+			<File
 				RelativePath=".\rfifo.h"
 				>
 			</File>

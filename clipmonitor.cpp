@@ -94,6 +94,7 @@ static int enumformats() {
 										break;
 									}
 								}
+								p += strlen(p)+1;
 						}
 					}
 				}

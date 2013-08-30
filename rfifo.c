@@ -3,7 +3,7 @@
 size_t rfifo_availread(rfifo_t *rfifo)
 {
 	size_t ofs_end = rfifo->ofs_end;
-	size_t ofs_beg = rfifo->ofs_beg;
+	size_t ofs_beg = rfifo->ofs_mid;
 
 	if (ofs_end != ofs_beg) {
 		size_t rem_end = ofs_end % RFIFO_BUFSZ;
@@ -16,7 +16,7 @@ size_t rfifo_availread(rfifo_t *rfifo)
 
 char *rfifo_pdata(rfifo_t *rfifo)
 {
-	return rfifo->data + (rfifo->ofs_beg % RFIFO_BUFSZ);
+	return rfifo->data + (rfifo->ofs_mid % RFIFO_BUFSZ);
 }
 
 size_t rfifo_availwrite(rfifo_t *rfifo)
@@ -44,6 +44,7 @@ void rfifo_init(rfifo_t *rfifo)
 {
 	rfifo->ofs_beg = 0;
 	rfifo->ofs_end = 0;
+	rfifo->ofs_mid = 0;
 }
 
 void rfifo_markwrite(rfifo_t *rfifo, size_t count)
@@ -53,10 +54,21 @@ void rfifo_markwrite(rfifo_t *rfifo, size_t count)
 
 void rfifo_markread(rfifo_t *rfifo, size_t count)
 {
+	rfifo->ofs_mid += count;
+}
+
+void rfifo_confirmread(rfifo_t *rfifo, size_t count)
+{
 	rfifo->ofs_beg += count;
 }
 
 #if 0
+
+static void test_rfifo_markread(rfifo_t *rfifo, size_t count)
+{
+	rfifo_markread(rfifo, count);
+	rfifo_confirmread(rfifo, count);
+}
 
 size_t availread;
 size_t pdata;
@@ -95,7 +107,9 @@ static void rfifo_test()
     char cr_prev = cw;
     size_t dw;
 	/* for overflow */
+	rfifo_init(&buf);
 	buf.ofs_beg = -RFIFO_BUFSZ;
+	buf.ofs_mid = -RFIFO_BUFSZ;
 	buf.ofs_end = -RFIFO_BUFSZ;
 	for(; (int)buf.ofs_beg < RFIFO_BUFSZ*4;) {
         size_t avread = rfifo_availread(&buf);
@@ -115,7 +129,7 @@ static void rfifo_test()
                 assert(pdata[dw] == cr_prev++);
             }
 
-            rfifo_markread(&buf, toread);
+            test_rfifo_markread(&buf, toread);
         } else {
 			char *pfree;
             size_t towrite = rand()*(avwrite+1)/((long long)RAND_MAX+1);
@@ -138,6 +152,7 @@ int main()
 	for (i = 0; x[i].availread != -1; i++) {
 		x[i].rfifo.ofs_beg -= RFIFO_BUFSZ;
 		x[i].rfifo.ofs_end -= RFIFO_BUFSZ;
+		x[i].rfifo.ofs_mid = x[i].rfifo.ofs_beg;
 	}
 
 	for (j = 0; j < 2; j++) {
@@ -155,6 +170,7 @@ int main()
 
 			x[i].rfifo.ofs_beg += RFIFO_BUFSZ;
 			x[i].rfifo.ofs_end += RFIFO_BUFSZ;
+			x[i].rfifo.ofs_mid = x[i].rfifo.ofs_beg;
 		}
 	}
 	rfifo_test();
