@@ -19,7 +19,7 @@
 
 static int _cliptund_accept_func(void *param);
 
-static int _cliptund_sock_to_clip(SOCKET sock, const char *clipname);
+static void _cliptund_sock_to_clip(SOCKET sock, const char *clipname);
 
 struct data_accept : SimpleRefcount, IEventPin {
 	SOCKET lsock;
@@ -68,47 +68,53 @@ struct data_accept : SimpleRefcount, IEventPin {
 
 };
 
-
+/*
 typedef struct data_connection {
 	clip_connection conn;
 	SOCKET sock;
 	HANDLE ev;
-	//clipaddr remote;
 } data_connection;
-
+*/
+/*
 static int _cliptund_connection_func(void *param)
 {
 	data_connection *data = (data_connection *)param;
 	return 0;
 }
+*/
 
 #include "mytunnel.h"
 using namespace cliptund;
 
 struct TCPConnection : Connection {
-	SOCKET sock;
-
 	void recv() {};
 	void send() {};
+
+	TCPConnection(const char *host, short port) { abort(); }
+	TCPConnection(SOCKET _sock) : sock(_sock) {}
 
 	~TCPConnection() {
 		closesocket(sock);
 	}
+private:
+	SOCKET sock;
 };
 
-static int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
-{
-	Tunnel *newdata = new Tunnel();
-	TCPConnection *conn = new TCPConnection();
 
-	conn->sock = sock;
+static void _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
+{
+	TCPConnection *conn = new TCPConnection(sock);
+	Tunnel *tun = new Tunnel(conn);
+	clipsrv_connect(tun, clipname);
+	//new ClipConnection();
+	//tun->
 	//newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
 	//newdata->conn.state = STATE_SYN;
 	//strcpy(newdata->conn.a.clipname, clipname);
 	//clipsrv_reg_cnn(&newdata->conn);
 	//clipsrv_havenewdata();
 	//clipsrv_connect(clipname, newdata->ev, &newdata->remote);
-	return 0;
+	tun->deref();
 }
 
 int cliptund_create_listener(short port, const char *clipname)

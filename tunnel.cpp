@@ -14,15 +14,19 @@ Pump::Pump()
 	rfifo_init(&this->buf);
 }
 
-void Tunnel::connected()
+Tunnel::Tunnel(Connection  *cnn_cl)
 {
-	Connection *cnn_cl, *cnn_srv;
+	pump_cl2srv.cnn_src = cnn_cl;
+	pump_srv2cl.cnn_dst = cnn_cl;
+	cnn_cl->tun = this;
+}
 
-	cnn_cl = pump_cl2srv.cnn_src;
-	cnn_srv = pump_cl2srv.cnn_dst;
+void Tunnel::connected(Connection  *cnn_srv)
+{
+	Connection *cnn_cl = pump_cl2srv.cnn_src;
 
-	cnn_cl->owner = this;
-	cnn_srv->owner = this;
+	pump_cl2srv.cnn_dst = cnn_srv;
+	pump_srv2cl.cnn_src = cnn_srv;
 
 	cnn_cl->pump_src = &pump_srv2cl;
 	cnn_srv->pump_dst = &pump_srv2cl;

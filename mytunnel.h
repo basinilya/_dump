@@ -12,12 +12,12 @@ struct Tunnel;
 struct Pump;
 
 struct Connection {
-	ISimpleRefcount *owner;
+	Tunnel *tun;
 	Pump *pump_src;
 	Pump *pump_dst;
 	virtual void recv() = 0;
 	virtual void send() = 0;
-	virtual ~Connection() = 0;
+	virtual ~Connection() {};
 };
 
 struct Pump {
@@ -31,12 +31,11 @@ struct Pump {
 
 struct Tunnel : SimpleRefcount {
 
+	Tunnel(Connection  *cnn_cl);
+	void connected(Connection  *cnn_srv);
+private:
 	Pump pump_cl2srv;
 	Pump pump_srv2cl;
-
-	Tunnel();
-	void connected();
-private:
 	~Tunnel();
 };
 

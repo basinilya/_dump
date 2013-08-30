@@ -1,4 +1,6 @@
 #include "myclipserver.h"
+#include "myclipinternal.h"
+
 #include "myeventloop.h"
 #include "mylogging.h"
 
@@ -14,6 +16,18 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
+struct ClipConnection : Connection {
+	void recv() {};
+	void send() {};
+
+	cnnstate state;
+	union {
+		char clipname[40+1];
+	} a;
+
+};
+
+const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
 static struct {
 	union {
@@ -26,7 +40,7 @@ static struct {
 	int havedata;
 	UINT_PTR nTimer;
 	CRITICAL_SECTION lock;
-	vector<clip_connection*> connections;
+	vector<ClipConnection *> connections;
 } ctx;
 
 
@@ -312,15 +326,28 @@ static int _clipserv_havedata_func(void *_param)
 }
 */
 
-int clipsrv_reg_cnn(clip_connection *conn)
+void _clipsrv_havenewdata()
 {
-	EnterCriticalSection(&ctx.lock);
-	ctx.connections.push_back(conn);
-	LeaveCriticalSection(&ctx.lock);
-	return 0;
+	SetEvent(ctx.havedata_ev);
 }
 
-const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
+void _clipsrv_reg_cnn(ClipConnection *conn)
+{
+	EnterCriticalSection(&ctx.lock);
+	conn->tun->addref();
+	ctx.connections.push_back(conn);
+	LeaveCriticalSection(&ctx.lock);
+}
+
+void clipsrv_connect(cliptund::Tunnel *tun, const char clipname[40+1])
+{
+	ClipConnection *cnn = new ClipConnection();
+	cnn->tun = tun;
+	cnn->state = STATE_SYN;
+	strcpy(cnn->a.clipname, clipname);
+	_clipsrv_reg_cnn(cnn);
+	_clipsrv_havenewdata();
+}
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
@@ -338,8 +365,8 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		p += sizeof(ctx.localclipuuid.net);
 
 		EnterCriticalSection(&ctx.lock);
-		for(vector<clip_connection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-			clip_connection *conn = *it;
+		for(vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+			ClipConnection *conn = *it;
 			cnnstate state = conn->state;
 			switch (state) {
 				case STATE_SYN:
@@ -375,7 +402,7 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 static DWORD WINAPI _clipserv_wnd_thread(void *param)
 {
 	MSG msg;
-	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipsender")); if (!ctx.hwnd) abort();
+	createutilitywindow(&ctx.hwnd); if (!ctx.hwnd) abort();
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
@@ -395,17 +422,10 @@ int clipsrv_init()
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, clipmon_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
-	createutilitywindow(&ctx.hwnd, DefWindowProc, _T("myclipsender"));
+	createutilitywindow(&ctx.hwnd);
 	return 0;
 }
 
-
-
-int clipsrv_havenewdata()
-{
-	SetEvent(ctx.havedata_ev);
-	return 0;
-}
 /*
 int clipsrv_connect(const char *clipname, HANDLE ev, clipaddr *remote)
 {

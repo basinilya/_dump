@@ -4,6 +4,7 @@
 
 #include "mylogging.h"
 #include "myclipserver.h"
+#include "myclipinternal.h"
 
 #include <stdio.h>
 #include <tchar.h>
@@ -195,17 +196,21 @@ BOOL WINAPI CtrlHandler( DWORD fdwCtrlType )
 
 HWND _createutilitywindow(WNDCLASS *wndclass)
 {
-	ATOM classatom;
+	LPCTSTR lpClassName;
 	HINSTANCE hinst = GetModuleHandle(NULL);
 	HWND hwnd;
 
 	wndclass->hInstance = hinst;
-	classatom = RegisterClass(wndclass);
-	if (classatom == 0) {
-		pWin32Error(ERR, "RegisterClass() failed");
-		return NULL;
+	lpClassName = (LPCTSTR)RegisterClass(wndclass);
+	if (lpClassName == 0) {
+		if (GetLastError() == ERROR_CLASS_ALREADY_EXISTS) {
+			lpClassName = wndclass->lpszClassName;
+		} else {
+			pWin32Error(ERR, "RegisterClass() failed");
+			return NULL;
+		}
 	}
-	hwnd = CreateWindowEx(0, (LPCTSTR)classatom, NULL, 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hinst, NULL);
+	hwnd = CreateWindowEx(0, lpClassName, NULL, 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hinst, NULL);
 	if (!hwnd) {
 		pWin32Error(ERR, "CreateWindowEx() failed");
 		return NULL;
@@ -217,7 +222,7 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 {
 	MSG msg;
 
-	createutilitywindow(&global_hwnd, WindowProc, _T("myclipmonitor"));
+	createutilitywindowwithproc(&global_hwnd, WindowProc, _T("myclipmonitor"));
 	if (global_hwnd == NULL) return 1;
 
 	printf("hwnd = %p\n", (void*)global_hwnd);
