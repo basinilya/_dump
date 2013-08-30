@@ -18,9 +18,19 @@ static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
 #endif /* _DEBUG */
 
+void SimpleRefcount::addref() {
+	InterlockedIncrement(&this->refcount);
+}
+
+void SimpleRefcount::deref() {
+	LONG newrefcount = InterlockedDecrement(&this->refcount);
+	if (newrefcount == 0) {
+		delete this;
+	}
+}
+
 typedef struct evloop_handler {
-	evloop_func_t func;
-	void *param;
+	IEventPin *pin;
 	HANDLE ev;
 } evloop_handler;
 
@@ -39,7 +49,7 @@ struct handlerswrap {
 			/* Close unused events */
 			evloop_handler *phandlers = &this->a.front();
 			for (int i = this->a.size()-1; i >= 0; i--) {
-				if (!phandlers[i].func) CloseHandle(phandlers[i].ev);
+				if (!phandlers[i].pin) CloseHandle(phandlers[i].ev);
 			}
 			delete this;
 		}
@@ -66,7 +76,7 @@ int evloop_init() {
 	return 0;
 }
 
-HANDLE evloop_addlistener(evloop_func_t func, void *param)
+HANDLE evloop_addlistener(IEventPin *pin)
 {
 	evloop_handler handler;
 	HANDLE newev;
@@ -76,8 +86,8 @@ HANDLE evloop_addlistener(evloop_func_t func, void *param)
 		printf("CreateEvent() failed\n");
 		abort();
 	}
-	handler.func = func;
-	handler.param = param;
+	pin->addref();
+	handler.pin = pin;
 
 	EnterCriticalSection(&ctx.lock);
 	vector<evloop_handler> &handlers = ctx.current_handlers->a;
@@ -111,7 +121,9 @@ int evloop_removelistener(HANDLE ev)
 	}
 
 	handlerswrap *phandlerswrap = ctx.current_handlers;
-	phandlerswrap->a[i].func = NULL;
+	evloop_handler &handler = phandlerswrap->a[i];
+	handler.pin->deref();
+	handler.pin = NULL;
 	if (!ctx.controlEvents.empty()) {
 		/* ev is not used anymore, but someone is waiting for it. Can't close it now */
 		/* Besides, when wait returns, the index of signalled event must be valid */
@@ -137,8 +149,7 @@ int evloop_processnext()
 	DWORD nCount;
 	DWORD dwrslt;
 	handlerswrap *phandlerswrap;
-	evloop_func_t func = NULL;
-	void *param;
+	IEventPin *pin = NULL;
 
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.controlEventsPool.empty()) {
@@ -181,8 +192,8 @@ int evloop_processnext()
 			//goto notified_retry;
 		default:
 			dwrslt -= (WAIT_OBJECT_0 + 1);
-			func = phandlerswrap->a[dwrslt].func;
-			param = phandlerswrap->a[dwrslt].param;
+			pin = phandlerswrap->a[dwrslt].pin;
+			if (pin) pin->addref();
 	}
 
 	phandlerswrap->deref();
@@ -200,7 +211,10 @@ int evloop_processnext()
 	/* at this point phandlerswrap->a[dwrslt].func may change to NULL,
 	   but it's no different from when already inside func */
 
-	if (func) func(param);
+	if (pin) {
+		pin->onEvent();
+		pin->deref();
+	}
 
 	return 0;
 }

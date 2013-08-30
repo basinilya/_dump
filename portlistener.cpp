@@ -17,13 +17,57 @@
 #define ADDRESSLENGTH (sizeof(struct sockaddr_in)+16)
 #define LSN_BKLOG 128
 
-typedef struct data_accept {
+static int _cliptund_accept_func(void *param);
+
+static int _cliptund_sock_to_clip(SOCKET sock, const char *clipname);
+
+struct data_accept : SimpleRefcount, IEventPin {
 	SOCKET lsock;
 	SOCKET asock;
 	OVERLAPPED overlap;
 	char buf[ADDRESSLENGTH*2];
 	char clipname[40+1];
-} data_accept;
+
+	void addref() { SimpleRefcount::addref(); };
+	void deref() { SimpleRefcount::deref(); };
+
+	void onEvent() {
+		data_accept *data = this;
+		DWORD nb;
+		struct sockaddr_in localSockaddr, remoteSockaddr;
+		struct sockaddr_in *pLocalSockaddr, *pRemoteSockaddr;
+		int lenL, lenR;
+
+		if (!GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE)) {
+			pWin32Error(ERR, "GetOverlappedResult() failed");
+			abort();
+		}
+
+		GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
+		memcpy(&localSockaddr, pLocalSockaddr, sizeof(struct sockaddr_in));
+		memcpy(&remoteSockaddr, pRemoteSockaddr, sizeof(struct sockaddr_in));
+		{
+			TCHAR buf[100];
+			winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
+			winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
+		}
+		_cliptund_sock_to_clip(data->asock, data->clipname);
+
+		if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+			pWinsockError(ERR, "socket() failed");
+			abort();
+			//goto cleanup3;
+		}
+
+		if (!AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
+			pWinsockError(ERR, "AcceptEx() failed");
+			//evloop_removelistener(ev);
+			//goto cleanup4;
+		}
+	}
+
+};
+
 
 typedef struct data_connection {
 	clip_connection conn;
@@ -38,55 +82,32 @@ static int _cliptund_connection_func(void *param)
 	return 0;
 }
 
-int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
-{
-	data_connection *newdata;
+#include "mytunnel.h"
+using namespace cliptund;
 
-	newdata = (data_connection*)malloc(sizeof(data_connection));
-	newdata->sock = sock;
-	newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
-	newdata->conn.state = STATE_SYN;
-	strcpy(newdata->conn.a.clipname, clipname);
-	clipsrv_reg_cnn(&newdata->conn);
-	clipsrv_havenewdata();
+struct TCPConnection : Connection {
+	SOCKET sock;
+
+	void recv() {};
+	void send() {};
+
+	~TCPConnection() {
+		closesocket(sock);
+	}
+};
+
+static int _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
+{
+	Tunnel *newdata = new Tunnel();
+	TCPConnection *conn = new TCPConnection();
+
+	conn->sock = sock;
+	//newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
+	//newdata->conn.state = STATE_SYN;
+	//strcpy(newdata->conn.a.clipname, clipname);
+	//clipsrv_reg_cnn(&newdata->conn);
+	//clipsrv_havenewdata();
 	//clipsrv_connect(clipname, newdata->ev, &newdata->remote);
-	return 0;
-}
-
-static int _cliptund_accept_func(void *param)
-{
-	data_accept *data = (data_accept *)param;
-	DWORD nb;
-	struct sockaddr_in localSockaddr, remoteSockaddr;
-	struct sockaddr_in *pLocalSockaddr, *pRemoteSockaddr;
-	int lenL, lenR;
-
-	if (!GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE)) {
-		pWin32Error(ERR, "GetOverlappedResult() failed");
-		return -1;
-	}
-
-	GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
-	memcpy(&localSockaddr, pLocalSockaddr, sizeof(struct sockaddr_in));
-	memcpy(&remoteSockaddr, pRemoteSockaddr, sizeof(struct sockaddr_in));
-	{
-		TCHAR buf[100];
-		winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
-		winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
-	}
-	_cliptund_sock_to_clip(data->asock, data->clipname);
-
-	if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		abort();
-		//goto cleanup3;
-	}
-
-	if (!AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
-		pWinsockError(ERR, "AcceptEx() failed");
-		//evloop_removelistener(ev);
-		//goto cleanup4;
-	}
 	return 0;
 }
 
@@ -99,7 +120,7 @@ int cliptund_create_listener(short port, const char *clipname)
 	HANDLE ev;
 	SOCKET lsock, asock;
 
-	newdata = (data_accept *)malloc(sizeof(data_accept));
+	newdata = new data_accept();
 	if (!newdata) {
 		pSysError(ERR, "malloc() failed");
 		return -1;
@@ -133,7 +154,7 @@ int cliptund_create_listener(short port, const char *clipname)
 		goto cleanup4;
 	}
 
-	newdata->overlap.hEvent = ev = evloop_addlistener(_cliptund_accept_func, newdata);
+	newdata->overlap.hEvent = ev = evloop_addlistener(newdata);
 
 	strcpy(newdata->clipname, clipname);
 

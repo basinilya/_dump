@@ -2,9 +2,23 @@
 #define _MY_EVENTLOOP_H
 
 #include <windows.h>
-#include <atlbase.h>
+//#include <atlbase.h>
 
-struct IEventPin : IUnknown {
+struct ISimpleRefcount {
+	virtual void addref() = 0;
+	virtual void deref() = 0;
+};
+
+struct SimpleRefcount : virtual ISimpleRefcount {
+	volatile LONG refcount;
+	void addref();
+	void deref();
+	inline SimpleRefcount() : refcount(1) {}
+protected:
+	virtual ~SimpleRefcount() {}
+};
+
+struct IEventPin : virtual ISimpleRefcount {
 	virtual void onEvent() = 0;
 };
 
@@ -13,15 +27,13 @@ struct IEventPin : IUnknown {
 extern "C" {
 #endif
 
-typedef int (*evloop_func_t)(void *param);
-
 /** init */
 int evloop_init();
 
 /** Add event listener
  *  Waiting threads are notified.
  */
-HANDLE evloop_addlistener(evloop_func_t func, void *param);
+HANDLE evloop_addlistener(IEventPin *pin);
 
 /** Remove event listener
  *  Waiting threads are notified.

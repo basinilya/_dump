@@ -4,7 +4,7 @@
 #include "myeventloop.h"
 #include "rfifo.h"
 
-#include <atlbase.h>
+//#include <atlbase.h>
 
 namespace cliptund {
 
@@ -12,11 +12,12 @@ struct Tunnel;
 struct Pump;
 
 struct Connection {
-	IUnknown *owner;
+	ISimpleRefcount *owner;
 	Pump *pump_src;
 	Pump *pump_dst;
 	virtual void recv() = 0;
 	virtual void send() = 0;
+	virtual ~Connection() = 0;
 };
 
 struct Pump {
@@ -28,9 +29,7 @@ struct Pump {
 	void havedata();
 };
 
-struct Tunnel : IUnknown {
-	ULONG STDMETHODCALLTYPE AddRef(void);
-	ULONG STDMETHODCALLTYPE Release(void);
+struct Tunnel : SimpleRefcount {
 
 	Pump pump_cl2srv;
 	Pump pump_srv2cl;
@@ -38,7 +37,6 @@ struct Tunnel : IUnknown {
 	Tunnel();
 	void connected();
 private:
-	volatile LONG refcount;
 	~Tunnel();
 };
 

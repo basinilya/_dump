@@ -2,23 +2,6 @@
 
 using namespace cliptund;
 
-ULONG STDMETHODCALLTYPE Tunnel::AddRef(void)
-{
-	return InterlockedIncrement(&this->refcount);
-}
-
-ULONG STDMETHODCALLTYPE Tunnel::Release(void)
-{
-	LONG newrefcount = InterlockedDecrement(&this->refcount);
-	if (newrefcount == 0) {
-		delete this;
-	}
-	return newrefcount;
-}
-
-Tunnel::Tunnel() : refcount(1)
-{
-}
 
 Tunnel::~Tunnel()
 {
