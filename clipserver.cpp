@@ -16,17 +16,6 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
-struct ClipConnection : Connection {
-	void recv() {};
-	void send() {};
-
-	cnnstate state;
-	union {
-		char clipname[40+1];
-	} a;
-
-};
-
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
 static struct {
@@ -34,7 +23,7 @@ static struct {
 		net_uuid_t net;
 		UUID _align;
 	} localclipuuid;
-	int nchannel;
+	volatile LONG nchannel;
 	HWND hwnd;
 	HANDLE havedata_ev;
 	int havedata;
@@ -344,9 +333,14 @@ void clipsrv_connect(cliptund::Tunnel *tun, const char clipname[40+1])
 	ClipConnection *cnn = new ClipConnection();
 	cnn->tun = tun;
 	cnn->state = STATE_SYN;
-	strcpy(cnn->a.clipname, clipname);
+	strcpy(cnn->remote.clipname, clipname);
 	_clipsrv_reg_cnn(cnn);
 	_clipsrv_havenewdata();
+}
+
+ClipConnection::ClipConnection()
+{
+	this->local_nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
 }
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
@@ -371,12 +365,11 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 			switch (state) {
 				case STATE_SYN:
 					u_long netstate, netchannel;
-					size_t clipnamesize = strlen(conn->a.clipname)+1;
+					size_t clipnamesize = strlen(conn->remote.clipname)+1;
 					SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
 					if (pend - p < sz) goto break_loop;
 
-					ctx.nchannel++;
-					netchannel = htonl(ctx.nchannel);
+					netchannel = conn->local_nchannel;
 					memcpy(p, &netchannel, sizeof(netchannel));
 					p += sizeof(netchannel);
 
@@ -384,7 +377,7 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 					memcpy(p, &netstate, sizeof(netstate));
 					p += sizeof(netstate);
 
-					strcpy(p, conn->a.clipname);
+					strcpy(p, conn->remote.clipname);
 					p += clipnamesize;
 					//aaa;
 			}

@@ -91,7 +91,13 @@ static int enumformats() {
 								for (vector<cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
 									cliplistener *liplistener = *it;
 									if (0 == strncmp(p, liplistener->clipname, pend - p)) {
-										//clipsrv_reg_cnn(
+										ClipConnection *cnn = new ClipConnection();
+										cnn->state = STATE_EST;
+										cnn->remote.clipaddr.addr = remoteaddr;
+										cnn->remote.clipaddr.nchannel = netchannel;
+										Tunnel *tun = new Tunnel(cnn);
+										_clipsrv_reg_cnn(cnn);
+										tun->deref();
 										break;
 									}
 								}
@@ -256,5 +262,6 @@ int clipsrv_create_listener(const char clipname[40+1], const char host[40+1], sh
 	strcpy(listener->host, host);
 	listener->port = port;
 	listeners.push_back(listener);
+	winet_log(INFO, "listening on clip %s\n", clipname);
 	return 0;
 }
