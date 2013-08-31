@@ -59,10 +59,10 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 #endif
 
 struct ClipConnection : Connection {
+	ClipConnection(Tunnel *tun);
+
 	void recv() {};
 	void send() {};
-
-	ClipConnection();
 
 	cnnstate state;
 	u_long local_nchannel;

@@ -331,7 +331,7 @@ void _clipsrv_havenewdata()
 struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
-		ClipConnection *cnn = new ClipConnection();
+		ClipConnection *cnn = new ClipConnection(tun);
 		cnn->state = STATE_SYN;
 		strcpy(cnn->remote.clipname, clipname);
 
@@ -348,7 +348,7 @@ ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
 	return connfact;
 }
 
-ClipConnection::ClipConnection()
+ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun)
 {
 	this->local_nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
 }

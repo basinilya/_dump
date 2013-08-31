@@ -95,12 +95,12 @@ static void parsepacket() {
 				for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
 					Cliplistener *cliplistener = *it;
 					if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
-						ClipConnection *cnn = new ClipConnection();
+						ClipConnection *cnn = new ClipConnection(NULL);
+						Tunnel *tun = cnn->tun;
 						cnn->state = STATE_EST;
 						cnn->remote.clipaddr.addr = remoteaddr;
 						cnn->remote.clipaddr.nchannel = netchannel;
 						_clipsrv_reg_cnn(cnn);
-						Tunnel *tun = new Tunnel(cnn);
 						cliplistener->connfact->connect(tun);
 						tun->deref();
 						break;

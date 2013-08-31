@@ -8,21 +8,7 @@
 
 namespace cliptund {
 
-struct Tunnel;
-struct Pump;
-
-struct Connection {
-	Tunnel *tun;
-	Pump *pump_src;
-	Pump *pump_dst;
-	virtual void recv() = 0;
-	virtual void send() = 0;
-	virtual ~Connection() {};
-};
-
-struct ConnectionFactory {
-	virtual void connect(Tunnel *tun) = 0;
-};
+struct Connection;
 
 struct Pump {
 	rfifo_t buf;
@@ -43,7 +29,21 @@ private:
 	~Tunnel();
 };
 
-}
+struct Connection {
+	Tunnel *tun;
+	Connection(Tunnel *_tun);
 
+	Pump *pump_src;
+	Pump *pump_dst;
+	virtual void recv() = 0;
+	virtual void send() = 0;
+	virtual ~Connection() {};
+};
+
+struct ConnectionFactory {
+	virtual void connect(Tunnel *tun) = 0;
+};
+
+}
 
 #endif

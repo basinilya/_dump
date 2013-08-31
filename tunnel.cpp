@@ -47,3 +47,6 @@ void Pump::havedata()
 {
 	this->cnn_dst->send();
 }
+
+#pragma warning ( disable : 4355 )
+Connection::Connection(Tunnel *_tun) : tun(_tun ? _tun : new Tunnel(this)) { }

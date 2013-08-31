@@ -26,20 +26,54 @@ using namespace cliptund;
 
 static int _cliptund_accept_func(void *param);
 
-struct TCPConnection : Connection {
+struct PinRecv : IEventPin, virtual Connection {
+	virtual void onEventRecv() = 0;
+	void onEvent() { onEventRecv(); }
+	PinRecv() : Connection(NULL) { abort(); }
+};
+
+struct PinSend : IEventPin, virtual Connection {
+	virtual void onEventSend() = 0;
+	void onEvent() { onEventSend(); }
+	PinSend() : Connection(NULL) { abort(); }
+};
+
+struct TCPConnection : PinRecv, PinSend {
+	void addref() { tun->addref(); }
+	void deref() { tun->deref(); }
+
+	OVERLAPPED overlap_recv, overlap_send;
+
 	void recv() {
 		rfifo_t *rfifo = &pump_src->buf;
 		size_t nb = rfifo_availwrite(rfifo);
 		char *data = rfifo_pfree(rfifo);
 		//WSARecv(sock, 
 	};
+
 	void send() {
 		rfifo_t *rfifo = &pump_dst->buf;
 		size_t nb = rfifo_availread(rfifo);
 		char *data = rfifo_pdata(rfifo);
 	};
 
+	void onEventRecv() { printf("1\n"); };
+
+	void onEventSend() { printf("2\n"); };
+
+	TCPConnection(Tunnel *tun, SOCKET _sock) : Connection(tun), sock(_sock) {
+		memset(&overlap_recv, 0, sizeof(OVERLAPPED));
+		memset(&overlap_send, 0, sizeof(OVERLAPPED));
+		overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
+		overlap_send.hEvent = evloop_addlistener(static_cast<PinSend*>(this));
+		/* make it weak. Be sure not to set evs while destroying */
+		tun->deref();
+		tun->deref();
+	}
+
 	~TCPConnection() {
+		evloop_removelistener(overlap_recv.hEvent);
+		evloop_removelistener(overlap_send.hEvent);
 		closesocket(sock);
 	}
 	SOCKET sock;
@@ -89,9 +123,8 @@ struct data_accept : SimpleRefcount, IEventPin {
 		}
 
 		{
-			TCPConnection *conn = new TCPConnection();
-			conn->sock = data->asock;
-			Tunnel *tun = new Tunnel(conn);
+			TCPConnection *conn = new TCPConnection(NULL, data->asock);
+			Tunnel *tun = conn->tun;
 			connfact->connect(tun);
 			tun->deref();
 		}
@@ -143,6 +176,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 	if (0 == getaddrinfo(conn->a.toresolv.hostname, NULL, &hints, &pres)) {
 		if (0 == connect(conn->sock, pres->ai_addr, pres->ai_addrlen)) {
+			conn->tun->connected(conn);
 		} else {
 			pWinsockError(WARN, "connect() failed");
 		}
@@ -160,8 +194,8 @@ struct TCPConnectionFactory : ConnectionFactory {
 	short port;
 	void connect(Tunnel *tun) {
 		DWORD tid;
-		TCPConnection *conn = new TCPConnection();
-		conn->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		TCPConnection *conn = new TCPConnection(tun, sock);
 		strcpy(conn->a.toresolv.hostname, host);
 		conn->a.toresolv.port = port;
 		conn->tun = tun;
