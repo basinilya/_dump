@@ -315,11 +315,6 @@ static int _clipserv_havedata_func(void *_param)
 }
 */
 
-void _clipsrv_havenewdata()
-{
-	SetEvent(ctx.havedata_ev);
-}
-
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	EnterCriticalSection(&ctx.lock);
@@ -328,14 +323,28 @@ void _clipsrv_reg_cnn(ClipConnection *conn)
 	LeaveCriticalSection(&ctx.lock);
 }
 
-void clipsrv_connect(cliptund::Tunnel *tun, const char clipname[40+1])
+void _clipsrv_havenewdata()
 {
-	ClipConnection *cnn = new ClipConnection();
-	cnn->tun = tun;
-	cnn->state = STATE_SYN;
-	strcpy(cnn->remote.clipname, clipname);
-	_clipsrv_reg_cnn(cnn);
-	_clipsrv_havenewdata();
+	SetEvent(ctx.havedata_ev);
+}
+
+struct ClipsrvConnectionFactory : ConnectionFactory {
+	char clipname[40+1];
+	void connect(Tunnel *tun) {
+		ClipConnection *cnn = new ClipConnection();
+		cnn->tun = tun;
+		cnn->state = STATE_SYN;
+		strcpy(cnn->remote.clipname, clipname);
+		_clipsrv_reg_cnn(cnn);
+		_clipsrv_havenewdata();
+	}
+};
+
+ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
+{
+	ClipsrvConnectionFactory *connfact = new ClipsrvConnectionFactory();
+	strcpy(connfact->clipname, clipname);
+	return connfact;
 }
 
 ClipConnection::ClipConnection()
@@ -345,11 +354,12 @@ ClipConnection::ClipConnection()
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
+	int wantmore = 1;
 	for(;;) {
 		WaitForSingleObject(ctx.havedata_ev, INFINITE);
-		HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, 4096);
+		HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
 		char *pbeg = (char*)GlobalLock(hglob);
-		char *pend = pbeg + 4096;
+		char *pend = pbeg + MAXPACKETSIZE;
 		char *p = pbeg;
 
 		memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
@@ -359,7 +369,11 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		p += sizeof(ctx.localclipuuid.net);
 
 		EnterCriticalSection(&ctx.lock);
-		for(vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+		for(vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) {
+			if (it == ctx.connections.end()) {
+				wantmore = 0;
+				break;
+			}
 			ClipConnection *conn = *it;
 			cnnstate state = conn->state;
 			switch (state) {
@@ -387,6 +401,9 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		GlobalUnlock(hglob);
 		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
 		senddata(hglob);
+		if (wantmore) {
+			_clipsrv_havenewdata();
+		}
 		Sleep(1000);
 	}
 	return 0;

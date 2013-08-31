@@ -1,14 +1,9 @@
 #ifndef _MYPORTLISTENER_H
 #define _MYPORTLISTENER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "mytunnel.h"
 
-int cliptund_create_listener(short port, const char *clipname);
-
-#ifdef __cplusplus
-}
-#endif
+cliptund::ConnectionFactory *tcp_CreateConnectionFactory(const char host[40+1], short port);
+int tcp_create_listener(short port, cliptund::ConnectionFactory *connfact);
 
 #endif

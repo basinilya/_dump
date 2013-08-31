@@ -21,13 +21,15 @@ static HWND nextWnd = NULL;
 
 volatile HWND global_hwnd = NULL;
 
-typedef struct cliplistener {
+struct Cliplistener {
 	char clipname[40+1];
-	char host[40+1];
-	short port;
-} cliplistener;
+	ConnectionFactory *connfact;
+	~Cliplistener() {
+		delete connfact;
+	}
+};
 
-static vector<cliplistener*> listeners;
+static vector<Cliplistener*> listeners;
 
 static void unreg()
 {
@@ -43,76 +45,68 @@ static void unreg()
 
 DWORD clipsrv_nseq = 0;
 
-static int enumformats() {
-	UINT fmtid;
+static void parsepacket() {
+	char buf[MAXPACKETSIZE];
+	const char *pbeg, *pend, *p;
+	net_uuid_t remoteaddr;
+	int flag = 0;
+
 	while (!OpenClipboard(global_hwnd)) {
-		//pWin32Error(ERR, "OpenClipboard() failed");
 		Sleep(1);
 	}
 
-	for (fmtid = 0;;) {
-		fmtid = EnumClipboardFormats(fmtid);
-		if (fmtid == 0) {
-			if (GetLastError() != ERROR_SUCCESS) {
-				pWin32Error(ERR, "EnumClipboardFormats() failed");
-				goto err;
+	HGLOBAL hglob = GetClipboardData(MY_CF);
+	if (hglob) {
+		SIZE_T sz = GlobalSize(hglob);
+		if (sz > sizeof(cliptun_data_header) + sizeof(net_uuid_t)) {
+			p = pbeg = (char*)GlobalLock(hglob);
+			pend = pbeg + sz;
+			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
+				p += sizeof(cliptun_data_header);
+
+				memcpy(&remoteaddr, p, sizeof(net_uuid_t));
+				p += sizeof(net_uuid_t);
+
+				memcpy(buf, p, pend - p);
+				p = buf;
+				pend = buf + (pend - p);
+				flag = 1;
 			}
-			break;
+			GlobalUnlock(hglob);
 		}
-		printf("%6d %d\n", counter, (int)fmtid);
-		if (fmtid == MY_CF) {
-			HGLOBAL hglob = GetClipboardData(fmtid);
-			SIZE_T sz = GlobalSize(hglob);
-			if (sz > sizeof(cliptun_data_header) + sizeof(net_uuid_t)) {
-				const char *pbeg = (char*)GlobalLock(hglob);
-				const char *pend = pbeg + sz;
-				const char *p = pbeg;
-				if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
-					p += sizeof(cliptun_data_header);
+	}
+	if (!CloseClipboard()) {
+		pWin32Error(WARN, "CloseClipboard() failed");
+	}
+	if (flag) for (;;) {
+		u_long netstate, netchannel;
 
-					net_uuid_t remoteaddr;
-					memcpy(&remoteaddr, p, sizeof(net_uuid_t));
-					p += sizeof(net_uuid_t);
+		if (pend - p < sizeof(netchannel) + sizeof(netstate)) break;
 
-					for(;;) {
-						u_long netstate, netchannel;
+		memcpy(&netchannel, p, sizeof(netchannel));
+		p += sizeof(netchannel);
 
-						if (pend - p < sizeof(netchannel) + sizeof(netstate)) break;
+		memcpy(&netstate, p, sizeof(netstate));
+		p += sizeof(netstate);
 
-						memcpy(&netchannel, p, sizeof(netchannel));
-						p += sizeof(netchannel);
-
-						memcpy(&netstate, p, sizeof(netstate));
-						p += sizeof(netstate);
-
-						cnnstate state = (cnnstate)ntohl(netstate);
-						switch(state) {
-							case STATE_SYN:
-								for (vector<cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
-									cliplistener *liplistener = *it;
-									if (0 == strncmp(p, liplistener->clipname, pend - p)) {
-										ClipConnection *cnn = new ClipConnection();
-										cnn->state = STATE_EST;
-										cnn->remote.clipaddr.addr = remoteaddr;
-										cnn->remote.clipaddr.nchannel = netchannel;
-										Tunnel *tun = new Tunnel(cnn);
-										_clipsrv_reg_cnn(cnn);
-										tun->deref();
-										break;
-									}
-								}
-								p += strlen(p)+1;
-						}
+		cnnstate state = (cnnstate)ntohl(netstate);
+		switch(state) {
+			case STATE_SYN:
+				for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
+					Cliplistener *liplistener = *it;
+					if (0 == strncmp(p, liplistener->clipname, pend - p)) {
+						ClipConnection *cnn = new ClipConnection();
+						cnn->state = STATE_EST;
+						cnn->remote.clipaddr.addr = remoteaddr;
+						cnn->remote.clipaddr.nchannel = netchannel;
+						Tunnel *tun = new Tunnel(cnn);
+						_clipsrv_reg_cnn(cnn);
+						tun->deref();
+						break;
 					}
 				}
-				GlobalUnlock(hglob);
-			}
-		};
-	}
-err:
-	if (!CloseClipboard()) {
-		pWin32Error(ERR, "CloseClipboard() failed");
-		return -1;
+				p += strlen(p)+1;
+		}
 	}
 }
 
@@ -141,7 +135,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			counter++;
 			// counter++; if (counter > 4) exit(0);
 			printf("%6d WM_DRAWCLIPBOARD, clip seq = %d\n", counter, GetClipboardSequenceNumber());
-			enumformats();
+			parsepacket();
 			if (nextWnd) {
 				printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
 				return SendMessage(nextWnd,uMsg,wParam,lParam);
@@ -255,12 +249,11 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 	return 0;
 }
 
-int clipsrv_create_listener(const char clipname[40+1], const char host[40+1], short port)
+int clipsrv_create_listener(ConnectionFactory *connfact, const char clipname[40+1])
 {
-	cliplistener *listener = (cliplistener*)malloc(sizeof(cliplistener));
+	Cliplistener *listener = new Cliplistener();
+	listener->connfact = connfact;
 	strcpy(listener->clipname, clipname);
-	strcpy(listener->host, host);
-	listener->port = port;
 	listeners.push_back(listener);
 	winet_log(INFO, "listening on clip %s\n", clipname);
 	return 0;

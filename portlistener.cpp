@@ -1,4 +1,5 @@
 #include "cliptund.h"
+#include "mytunnel.h"
 #include "myeventloop.h"
 #include "myportlistener.h"
 #include "myclipserver.h"
@@ -14,19 +15,39 @@
 
 #include "mylastheader.h"
 
+using namespace cliptund;
+
 #define ADDRESSLENGTH (sizeof(struct sockaddr_in)+16)
 #define LSN_BKLOG 128
 
 static int _cliptund_accept_func(void *param);
 
-static void _cliptund_sock_to_clip(SOCKET sock, const char *clipname);
+struct TCPConnection : Connection {
+	void recv() {};
+	void send() {};
+
+	TCPConnection(const char *host, short port) { abort(); }
+	TCPConnection(SOCKET _sock) : sock(_sock) {}
+
+	~TCPConnection() {
+		closesocket(sock);
+	}
+private:
+	SOCKET sock;
+};
 
 struct data_accept : SimpleRefcount, IEventPin {
 	SOCKET lsock;
 	SOCKET asock;
 	OVERLAPPED overlap;
 	char buf[ADDRESSLENGTH*2];
-	char clipname[40+1];
+	ConnectionFactory *connfact;
+
+	~data_accept() {
+		if (lsock != INVALID_SOCKET) closesocket(lsock);
+		if (asock != INVALID_SOCKET) closesocket(asock);
+		delete connfact;
+	}
 
 	void addref() { SimpleRefcount::addref(); };
 	void deref() { SimpleRefcount::deref(); };
@@ -51,7 +72,13 @@ struct data_accept : SimpleRefcount, IEventPin {
 			winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
 			winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
 		}
-		_cliptund_sock_to_clip(data->asock, data->clipname);
+
+		{
+			TCPConnection *conn = new TCPConnection(data->asock);
+			Tunnel *tun = new Tunnel(conn);
+			connfact->connect(tun);
+			tun->deref();
+		}
 
 		if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
 			pWinsockError(ERR, "socket() failed");
@@ -83,41 +110,22 @@ static int _cliptund_connection_func(void *param)
 }
 */
 
-#include "mytunnel.h"
-using namespace cliptund;
-
-struct TCPConnection : Connection {
-	void recv() {};
-	void send() {};
-
-	TCPConnection(const char *host, short port) { abort(); }
-	TCPConnection(SOCKET _sock) : sock(_sock) {}
-
-	~TCPConnection() {
-		closesocket(sock);
+struct TCPConnectionFactory : ConnectionFactory {
+	char host[40+1];
+	short port;
+	void connect(Tunnel *tun) {
 	}
-private:
-	SOCKET sock;
 };
 
-
-static void _cliptund_sock_to_clip(SOCKET sock, const char *clipname)
+ConnectionFactory *tcp_CreateConnectionFactory(const char host[40+1], short port)
 {
-	TCPConnection *conn = new TCPConnection(sock);
-	Tunnel *tun = new Tunnel(conn);
-	clipsrv_connect(tun, clipname);
-	//new ClipConnection();
-	//tun->
-	//newdata->ev = evloop_addlistener(_cliptund_connection_func, newdata);
-	//newdata->conn.state = STATE_SYN;
-	//strcpy(newdata->conn.a.clipname, clipname);
-	//clipsrv_reg_cnn(&newdata->conn);
-	//clipsrv_havenewdata();
-	//clipsrv_connect(clipname, newdata->ev, &newdata->remote);
-	tun->deref();
+	TCPConnectionFactory *connfact = new TCPConnectionFactory();
+	strcpy(connfact->host, host);
+	connfact->port = port;
+	return connfact;
 }
 
-int cliptund_create_listener(short port, const char *clipname)
+int tcp_create_listener(short port, ConnectionFactory *connfact)
 {
 	int rc = -1;
 	struct sockaddr_in saddr;
@@ -127,10 +135,8 @@ int cliptund_create_listener(short port, const char *clipname)
 	SOCKET lsock, asock;
 
 	newdata = new data_accept();
-	if (!newdata) {
-		pSysError(ERR, "malloc() failed");
-		return -1;
-	}
+
+	newdata->connfact = connfact;
 
 	memset(&newdata->overlap, 0, sizeof(OVERLAPPED));
 
@@ -161,8 +167,6 @@ int cliptund_create_listener(short port, const char *clipname)
 	}
 
 	newdata->overlap.hEvent = ev = evloop_addlistener(newdata);
-
-	strcpy(newdata->clipname, clipname);
 
 	if (!AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
 		pWinsockError(ERR, "AcceptEx() failed");

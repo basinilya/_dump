@@ -46,6 +46,8 @@
 
 #include "mylastheader.h"
 
+using namespace cliptund;
+
 #define CFGFILENAME "cliptund.conf"
 //#define ACCEPT_TIMEOUT 4
 
@@ -294,7 +296,8 @@ static int winet_load_cfg(char const *cfgfilename) {
 			&& 0 == strcmp(s4, "forward")
 			&& 0 == strcmp(s5, "clip"))
 		{
-			rc = cliptund_create_listener(port, s6);
+			ConnectionFactory *connfact = clipsrv_CreateConnectionFactory(s6);
+			rc = tcp_create_listener(port, connfact);
 			if (rc == -1) {
 				fclose(conf_file);
 				return -1;
@@ -308,7 +311,8 @@ static int winet_load_cfg(char const *cfgfilename) {
 			&& 0 == strcmp(s5, "host")
 			&& 0 == strcmp(s7, "port"))
 		{
-			rc = clipsrv_create_listener(s3, s6, port);
+			ConnectionFactory *connfact = tcp_CreateConnectionFactory(s6, port);
+			rc = clipsrv_create_listener(connfact, s3);
 			if (rc == -1) {
 				fclose(conf_file);
 				return -1;

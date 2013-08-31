@@ -20,6 +20,10 @@ struct Connection {
 	virtual ~Connection() {};
 };
 
+struct ConnectionFactory {
+	virtual void connect(Tunnel *tun) = 0;
+};
+
 struct Pump {
 	rfifo_t buf;
 	Connection *cnn_src;

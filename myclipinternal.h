@@ -7,12 +7,12 @@
 
 using namespace cliptund;
 
+#define MY_CF CF_RIFF
+#define MAXPACKETSIZE 4096
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
-#define MY_CF CF_RIFF
 
 extern DWORD clipsrv_nseq;
 
