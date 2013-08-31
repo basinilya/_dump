@@ -28,7 +28,10 @@
 #include "myclipserver.h"
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
 #include <windows.h>
+
 #include <tchar.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -342,6 +345,31 @@ static void winet_cleanup(void) {
 	*/
 }
 
+int winet_inet_aton(const char *cp, struct in_addr *inp)
+{
+	static const ADDRINFO hints = {
+		AI_NUMERICHOST, /*  int             ai_flags;*/
+		AF_INET,        /*  int             ai_family;*/
+		0,              /*  int             ai_socktype;*/
+		0,              /*  int             ai_protocol;*/
+		0,              /*  size_t          ai_addrlen;*/
+		NULL,           /*  char            *ai_canonname;*/
+		NULL,           /*  struct sockaddr  *ai_addr;*/
+		NULL            /*  struct addrinfo  *ai_next;*/
+	};
+	ADDRINFO *pres;
+	int i;
+
+	if (!cp || cp[0] == '\0') return 0;
+	i = getaddrinfo(cp, NULL, &hints, &pres);
+
+	if (i == 0) {
+		inp->S_un.S_addr = ((struct sockaddr_in *)pres->ai_addr)->sin_addr.S_un.S_addr;
+		freeaddrinfo(pres);
+	}
+
+	return !i;
+}
 
 _TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size) {
 	char const *ip;

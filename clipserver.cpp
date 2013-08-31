@@ -332,9 +332,10 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
 		ClipConnection *cnn = new ClipConnection();
-		cnn->tun = tun;
 		cnn->state = STATE_SYN;
 		strcpy(cnn->remote.clipname, clipname);
+
+		cnn->tun = tun;
 		_clipsrv_reg_cnn(cnn);
 		_clipsrv_havenewdata();
 	}

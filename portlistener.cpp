@@ -6,8 +6,12 @@
 #include "mylogging.h"
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
 #include <mswsock.h>
 #include <windows.h>
+
+
 #include <stdio.h>
 
 //#include <vector>
@@ -26,14 +30,19 @@ struct TCPConnection : Connection {
 	void recv() {};
 	void send() {};
 
-	TCPConnection(const char *host, short port) { abort(); }
-	TCPConnection(SOCKET _sock) : sock(_sock) {}
+	//TCPConnection(const char *host, short port) { abort(); }
+	//TCPConnection(SOCKET _sock) : sock(_sock) {}
 
 	~TCPConnection() {
 		closesocket(sock);
 	}
-private:
 	SOCKET sock;
+	union {
+		struct {
+			char hostname[40+1];
+			short port;
+		} toresolv;
+	} a;
 };
 
 struct data_accept : SimpleRefcount, IEventPin {
@@ -74,7 +83,8 @@ struct data_accept : SimpleRefcount, IEventPin {
 		}
 
 		{
-			TCPConnection *conn = new TCPConnection(data->asock);
+			TCPConnection *conn = new TCPConnection();
+			conn->sock = data->asock;
 			Tunnel *tun = new Tunnel(conn);
 			connfact->connect(tun);
 			tun->deref();
@@ -110,10 +120,62 @@ static int _cliptund_connection_func(void *param)
 }
 */
 
+static DWORD WINAPI resolvethread(LPVOID param) {
+	TCPConnection *conn = (TCPConnection *)param;
+
+	static const ADDRINFO hints = {
+		0,              /*  int             ai_flags;*/
+		AF_INET,        /*  int             ai_family;*/
+		0,              /*  int             ai_socktype;*/
+		0,              /*  int             ai_protocol;*/
+		0,              /*  size_t          ai_addrlen;*/
+		NULL,           /*  char            *ai_canonname;*/
+		NULL,           /*  struct sockaddr  *ai_addr;*/
+		NULL            /*  struct addrinfo  *ai_next;*/
+	};
+	ADDRINFO *pres;
+
+	if (0 == getaddrinfo(conn->a.toresolv.hostname, NULL, &hints, &pres)) {
+		if (0 == connect(conn->sock, pres->ai_addr, pres->ai_addrlen)) {
+		} else {
+			pWinsockError(WARN, "connect() failed");
+		}
+		freeaddrinfo(pres);
+	} else {
+		pWinsockError(WARN, "getaddrinfo() failed");
+	}
+	conn->tun->deref();
+
+	return 0;
+}
+
 struct TCPConnectionFactory : ConnectionFactory {
 	char host[40+1];
 	short port;
 	void connect(Tunnel *tun) {
+		DWORD tid;
+		TCPConnection *conn = new TCPConnection();
+		conn->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		strcpy(conn->a.toresolv.hostname, host);
+		conn->a.toresolv.port = port;
+		conn->tun = tun;
+
+		tun->addref();
+		CreateThread(NULL, 0, resolvethread, conn, 0, &tid);
+
+		//WSAAsyncGetHostByName(
+		//struct sockaddr_in addr;
+		//if (!winet_inet_aton(host, &addr.sin_addr)) {
+			//gethostbyname(NULL)->
+		//}
+
+		// addr.sin_addr.S_un.S_addr = 
+		//unsigned long addr = inet_addr(host);
+
+		//if (addr == INADDR_ANY)
+		//	INADDR_NONE 
+		//addr == INADDR_NONE || 
+		//if (addr.sin_addr.S_un.S_addr 
 	}
 };
 
