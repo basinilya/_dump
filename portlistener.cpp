@@ -27,11 +27,17 @@ using namespace cliptund;
 static int _cliptund_accept_func(void *param);
 
 struct TCPConnection : Connection {
-	void recv() {};
-	void send() {};
-
-	//TCPConnection(const char *host, short port) { abort(); }
-	//TCPConnection(SOCKET _sock) : sock(_sock) {}
+	void recv() {
+		rfifo_t *rfifo = &pump_src->buf;
+		size_t nb = rfifo_availwrite(rfifo);
+		char *data = rfifo_pfree(rfifo);
+		//WSARecv(sock, 
+	};
+	void send() {
+		rfifo_t *rfifo = &pump_dst->buf;
+		size_t nb = rfifo_availread(rfifo);
+		char *data = rfifo_pdata(rfifo);
+	};
 
 	~TCPConnection() {
 		closesocket(sock);
@@ -162,20 +168,6 @@ struct TCPConnectionFactory : ConnectionFactory {
 
 		tun->addref();
 		CreateThread(NULL, 0, resolvethread, conn, 0, &tid);
-
-		//WSAAsyncGetHostByName(
-		//struct sockaddr_in addr;
-		//if (!winet_inet_aton(host, &addr.sin_addr)) {
-			//gethostbyname(NULL)->
-		//}
-
-		// addr.sin_addr.S_un.S_addr = 
-		//unsigned long addr = inet_addr(host);
-
-		//if (addr == INADDR_ANY)
-		//	INADDR_NONE 
-		//addr == INADDR_NONE || 
-		//if (addr.sin_addr.S_un.S_addr 
 	}
 };
 
