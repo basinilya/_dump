@@ -29,13 +29,13 @@ static int _cliptund_accept_func(void *param);
 struct PinRecv : IEventPin, virtual Connection {
 	virtual void onEventRecv() = 0;
 	void onEvent() { onEventRecv(); }
-	PinRecv() : Connection(NULL) { abort(); }
+	PinRecv() : Connection((abort(),NULL)) { }
 };
 
 struct PinSend : IEventPin, virtual Connection {
 	virtual void onEventSend() = 0;
 	void onEvent() { onEventSend(); }
-	PinSend() : Connection(NULL) { abort(); }
+	PinSend() : Connection((abort(),NULL)) { }
 };
 
 struct TCPConnection : PinRecv, PinSend {
@@ -44,24 +44,71 @@ struct TCPConnection : PinRecv, PinSend {
 
 	OVERLAPPED overlap_recv, overlap_send;
 
-	void recv() {
-		rfifo_t *rfifo = &pump_src->buf;
+	volatile LONG lock_recv;
+
+	void bufferavail() {
+		rfifo_t *rfifo = &pump_recv->buf;
 		size_t nb = rfifo_availwrite(rfifo);
-		char *data = rfifo_pfree(rfifo);
-		//WSARecv(sock, 
-	};
+		if (nb != 0) {
+			if (0 == InterlockedExchange(&lock_recv, 1)) {
+				char *data = rfifo_pfree(rfifo);
+				if (ReadFile((HANDLE)sock, data, nb, NULL, &overlap_recv) || GetLastError() == ERROR_IO_PENDING) {
+					addref();
+				} else {
+					pWin32Error(ERR, "ReadFile() failed");
+					InterlockedExchange(&lock_recv, 0);
+				}
+			}
+		}
+	}
 
-	void send() {
-		rfifo_t *rfifo = &pump_dst->buf;
+	void onEventRecv() {
+		DWORD nb;
+		rfifo_t *rfifo = &pump_recv->buf;
+		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
+		rfifo_markwrite(rfifo, nb);
+		InterlockedExchange(&lock_recv, 0);
+		pump_send->havedata();
+		bufferavail();
+		deref();
+	}
+
+	volatile LONG lock_send;
+
+	void havedata() {
+		rfifo_t *rfifo = &pump_send->buf;
 		size_t nb = rfifo_availread(rfifo);
-		char *data = rfifo_pdata(rfifo);
-	};
+		if (nb != 0) {
+			if (0 == InterlockedExchange(&lock_send, 1)) {
+				char *data = rfifo_pdata(rfifo);
+				rfifo_markread(rfifo, nb);
+				if (WriteFile((HANDLE)sock, data, nb, NULL, &overlap_send) || GetLastError() == ERROR_IO_PENDING) {
+					addref();
+				} else {
+					pWin32Error(ERR, "WriteFile() failed");
+					InterlockedExchange(&lock_send, 0);
+				}
+			}
+		}
+	}
 
-	void onEventRecv() { printf("1\n"); };
+	void onEventSend() {
+		DWORD nb;
+		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_send, &nb, FALSE);
+		b = 0;
+		rfifo_t *rfifo = &pump_send->buf;
+		rfifo_confirmread(rfifo, nb);
+		InterlockedExchange(&lock_send, 0);
+		pump_recv->bufferavail();
+		havedata();
+		deref();
+	}
 
-	void onEventSend() { printf("2\n"); };
-
-	TCPConnection(Tunnel *tun, SOCKET _sock) : Connection(tun), sock(_sock) {
+	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
+			Connection(_tun),
+			sock(_sock),
+			lock_send(0),lock_recv(0)
+	{
 		memset(&overlap_recv, 0, sizeof(OVERLAPPED));
 		memset(&overlap_send, 0, sizeof(OVERLAPPED));
 		overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
@@ -121,7 +168,20 @@ struct data_accept : SimpleRefcount, IEventPin {
 			winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
 			winet_log(INFO, "accepted %s:%d\n", buf, ntohs(remoteSockaddr.sin_port));
 		}
-
+/*
+			{
+				SOCKET sock;
+				char buf[100];
+				OVERLAPPED overlap_recv = { 0 };
+				overlap_recv.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				sock = data->asock;
+				if (ReadFile((HANDLE)sock, buf, 100, NULL, &overlap_recv) || GetLastError() == ERROR_IO_PENDING) {
+					pWin32Error(ERR, "ReadFile() ok");
+				} else {
+					pWin32Error(ERR, "ReadFile() failed");
+				}
+			}
+*/
 		{
 			TCPConnection *conn = new TCPConnection(NULL, data->asock);
 			Tunnel *tun = conn->tun;
@@ -175,7 +235,23 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 	ADDRINFO *pres;
 
 	if (0 == getaddrinfo(conn->a.toresolv.hostname, NULL, &hints, &pres)) {
+		struct sockaddr_in *inaddr ((struct sockaddr_in*)pres->ai_addr);
+		inaddr->sin_port = htons(conn->a.toresolv.port);
 		if (0 == connect(conn->sock, pres->ai_addr, pres->ai_addrlen)) {
+/*
+			{
+				SOCKET sock;
+				char data[100];
+				OVERLAPPED overlap_recv = { 0 };
+				overlap_recv.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				sock = conn->sock;
+				if (ReadFile((HANDLE)sock, data, 100, NULL, &overlap_recv) || GetLastError() == ERROR_IO_PENDING) {
+					pWin32Error(ERR, "ReadFile() ok");
+				} else {
+					pWin32Error(ERR, "ReadFile() failed");
+				}
+			}
+			*/
 			conn->tun->connected(conn);
 		} else {
 			pWinsockError(WARN, "connect() failed");
@@ -198,7 +274,7 @@ struct TCPConnectionFactory : ConnectionFactory {
 		TCPConnection *conn = new TCPConnection(tun, sock);
 		strcpy(conn->a.toresolv.hostname, host);
 		conn->a.toresolv.port = port;
-		conn->tun = tun;
+		//conn->tun = tun;
 
 		tun->addref();
 		CreateThread(NULL, 0, resolvethread, conn, 0, &tid);

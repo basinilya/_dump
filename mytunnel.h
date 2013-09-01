@@ -15,15 +15,15 @@ struct Pump {
 	Connection *cnn_src;
 	Connection *cnn_dst;
 	Pump();
-	void bufferavail();
 	void havedata();
+	void bufferavail();
 };
 
 struct Tunnel : SimpleRefcount {
 
 	Tunnel(Connection  *cnn_cl);
 	void connected(Connection  *cnn_srv);
-private:
+//private:
 	Pump pump_cl2srv;
 	Pump pump_srv2cl;
 	~Tunnel();
@@ -33,10 +33,10 @@ struct Connection {
 	Tunnel *tun;
 	Connection(Tunnel *_tun);
 
-	Pump *pump_src;
-	Pump *pump_dst;
-	virtual void recv() = 0;
-	virtual void send() = 0;
+	Pump *pump_recv;
+	Pump *pump_send;
+	virtual void bufferavail() = 0;
+	virtual void havedata() = 0;
 	virtual ~Connection() {};
 };
 

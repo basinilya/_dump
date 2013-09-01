@@ -1,13 +1,13 @@
 #include "rfifo.h"
 
-size_t rfifo_availread(rfifo_t *rfifo)
+rfifo_long rfifo_availread(rfifo_t *rfifo)
 {
-	size_t ofs_end = rfifo->ofs_end;
-	size_t ofs_beg = rfifo->ofs_mid;
+	rfifo_long ofs_end = rfifo->ofs_end;
+	rfifo_long ofs_beg = rfifo->ofs_mid;
 
 	if (ofs_end != ofs_beg) {
-		size_t rem_end = ofs_end % RFIFO_BUFSZ;
-		size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
+		unsigned rem_end = (unsigned)ofs_end % RFIFO_BUFSZ;
+		unsigned rem_beg = (unsigned)ofs_beg % RFIFO_BUFSZ;
 
 		return (rem_end <= rem_beg ? RFIFO_BUFSZ : rem_end) - rem_beg;
 	}
@@ -16,18 +16,18 @@ size_t rfifo_availread(rfifo_t *rfifo)
 
 char *rfifo_pdata(rfifo_t *rfifo)
 {
-	return rfifo->data + (rfifo->ofs_mid % RFIFO_BUFSZ);
+	return rfifo->data + ((unsigned)rfifo->ofs_mid % RFIFO_BUFSZ);
 }
 
-size_t rfifo_availwrite(rfifo_t *rfifo)
+rfifo_long rfifo_availwrite(rfifo_t *rfifo)
 {
-	size_t ofs_end = rfifo->ofs_end;
-	size_t ofs_beg = rfifo->ofs_beg;
+	rfifo_long ofs_end = rfifo->ofs_end;
+	rfifo_long ofs_beg = rfifo->ofs_beg;
 
-	size_t rem_end = ofs_end % RFIFO_BUFSZ;
+	unsigned rem_end = (unsigned)ofs_end % RFIFO_BUFSZ;
 
 	if (ofs_end != ofs_beg) {
-		size_t rem_beg = ofs_beg % RFIFO_BUFSZ;
+		unsigned rem_beg = (unsigned)ofs_beg % RFIFO_BUFSZ;
 		if (rem_end <= rem_beg) {
 			return rem_beg - rem_end;
 		}
@@ -37,7 +37,7 @@ size_t rfifo_availwrite(rfifo_t *rfifo)
 
 char *rfifo_pfree(rfifo_t *rfifo)
 {
-	return rfifo->data + (rfifo->ofs_end % RFIFO_BUFSZ);
+	return rfifo->data + ((unsigned)rfifo->ofs_end % RFIFO_BUFSZ);
 }
 
 void rfifo_init(rfifo_t *rfifo)
@@ -47,41 +47,41 @@ void rfifo_init(rfifo_t *rfifo)
 	rfifo->ofs_mid = 0;
 }
 
-void rfifo_markwrite(rfifo_t *rfifo, size_t count)
+void rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
 {
-    rfifo->ofs_end += count;
+    InterlockedExchangeAdd(&rfifo->ofs_end, count);
 }
 
-void rfifo_markread(rfifo_t *rfifo, size_t count)
+void rfifo_markread(rfifo_t *rfifo, rfifo_long count)
 {
-	rfifo->ofs_mid += count;
+	InterlockedExchangeAdd(&rfifo->ofs_mid, count);
 }
 
-void rfifo_confirmread(rfifo_t *rfifo, size_t count)
+void rfifo_confirmread(rfifo_t *rfifo, rfifo_long count)
 {
-	rfifo->ofs_beg += count;
+	InterlockedExchangeAdd(&rfifo->ofs_beg, count);
 }
 
 #if 0
 
-static void test_rfifo_markread(rfifo_t *rfifo, size_t count)
+static void test_rfifo_markread(rfifo_t *rfifo, rfifo_long count)
 {
 	rfifo_markread(rfifo, count);
 	rfifo_confirmread(rfifo, count);
 }
 
-size_t availread;
-size_t pdata;
-size_t availwrite;
-size_t pfree;
+rfifo_long availread;
+rfifo_long pdata;
+rfifo_long availwrite;
+rfifo_long pfree;
 
 
 /* RFIFO_BUFSZ must be 8 */
 static struct {
-	size_t availread;
-	size_t pdata;
-	size_t availwrite;
-	size_t pfree;
+	rfifo_long availread;
+	rfifo_long pdata;
+	rfifo_long availwrite;
+	rfifo_long pfree;
 	rfifo_t rfifo;
 } x[] = {
 	{ 7,1,0,1, { 1,9 } },
@@ -105,15 +105,15 @@ static void rfifo_test()
     rfifo_t buf;
     char cw = 0;
     char cr_prev = cw;
-    size_t dw;
+    rfifo_long dw;
 	/* for overflow */
 	rfifo_init(&buf);
 	buf.ofs_beg = -RFIFO_BUFSZ;
 	buf.ofs_mid = -RFIFO_BUFSZ;
 	buf.ofs_end = -RFIFO_BUFSZ;
 	for(; (int)buf.ofs_beg < RFIFO_BUFSZ*4;) {
-        size_t avread = rfifo_availread(&buf);
-        size_t avwrite = rfifo_availwrite(&buf);
+        rfifo_long avread = rfifo_availread(&buf);
+        rfifo_long avwrite = rfifo_availwrite(&buf);
 
         assert(avread<=RFIFO_BUFSZ);
         assert(avwrite<=RFIFO_BUFSZ);
@@ -121,7 +121,7 @@ static void rfifo_test()
 
         if (rand() < (RAND_MAX / 2)) {
 			char *pdata;
-            size_t toread = 0xFFFFFFFF & (rand()*(avread+1)/((long long)RAND_MAX+1));
+            rfifo_long toread = 0xFFFFFFFF & (rand()*(avread+1)/((long long)RAND_MAX+1));
             assert(toread <= avread);
 
 			pdata = rfifo_pdata(&buf);
@@ -132,7 +132,7 @@ static void rfifo_test()
             test_rfifo_markread(&buf, toread);
         } else {
 			char *pfree;
-            size_t towrite = rand()*(avwrite+1)/((long long)RAND_MAX+1);
+            rfifo_long towrite = rand()*(avwrite+1)/((long long)RAND_MAX+1);
             assert(towrite <= avwrite);
 			pfree = rfifo_pfree(&buf);
             for (dw = 0; dw < towrite; dw++) {

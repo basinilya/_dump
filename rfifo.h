@@ -2,6 +2,7 @@
 #define _RFIFO_H
 
 #include <stdlib.h>
+#include <windows.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,22 +10,24 @@ extern "C" {
 
 #define RFIFO_BUFSZ 2048
 
+typedef LONG rfifo_long;
+
 typedef struct rfifo_t {
-    size_t ofs_beg;
-    size_t ofs_end;
-	size_t ofs_mid;
-    char data[RFIFO_BUFSZ];
+	volatile rfifo_long ofs_beg;
+	volatile rfifo_long ofs_end;
+	volatile rfifo_long ofs_mid;
+	char data[RFIFO_BUFSZ];
 } rfifo_t;
 
-size_t rfifo_availread(rfifo_t *rfifo);
+rfifo_long rfifo_availread(rfifo_t *rfifo);
 char *rfifo_pdata(rfifo_t *rfifo);
-size_t rfifo_availwrite(rfifo_t *rfifo);
+rfifo_long rfifo_availwrite(rfifo_t *rfifo);
 char *rfifo_pfree(rfifo_t *rfifo);
 void rfifo_init(rfifo_t *rfifo);
-void rfifo_markwrite(rfifo_t *rfifo, size_t count);
+void rfifo_markwrite(rfifo_t *rfifo, rfifo_long count);
 
-void rfifo_markread(rfifo_t *rfifo, size_t count);
-void rfifo_confirmread(rfifo_t *rfifo, size_t count);
+void rfifo_markread(rfifo_t *rfifo, rfifo_long count);
+void rfifo_confirmread(rfifo_t *rfifo, rfifo_long count);
 
 #ifdef __cplusplus
 }

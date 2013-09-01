@@ -14,11 +14,11 @@ Pump::Pump()
 	rfifo_init(&this->buf);
 }
 
-Tunnel::Tunnel(Connection  *cnn_cl)
+Tunnel::Tunnel(Connection *cnn_cl)
 {
+	cnn_cl->tun = this;
 	pump_cl2srv.cnn_src = cnn_cl;
 	pump_srv2cl.cnn_dst = cnn_cl;
-	cnn_cl->tun = this;
 }
 
 void Tunnel::connected(Connection  *cnn_srv)
@@ -28,11 +28,11 @@ void Tunnel::connected(Connection  *cnn_srv)
 	pump_cl2srv.cnn_dst = cnn_srv;
 	pump_srv2cl.cnn_src = cnn_srv;
 
-	cnn_cl->pump_src = &pump_srv2cl;
-	cnn_srv->pump_dst = &pump_srv2cl;
+	cnn_cl->pump_recv = &pump_srv2cl;
+	cnn_srv->pump_send = &pump_srv2cl;
 
-	cnn_cl->pump_dst = &pump_cl2srv;
-	cnn_srv->pump_src = &pump_cl2srv;
+	cnn_cl->pump_send = &pump_cl2srv;
+	cnn_srv->pump_recv = &pump_cl2srv;
 
 	pump_cl2srv.bufferavail();
 	pump_srv2cl.bufferavail();
@@ -40,12 +40,12 @@ void Tunnel::connected(Connection  *cnn_srv)
 
 void Pump::bufferavail()
 {
-	this->cnn_src->recv();
+	this->cnn_src->bufferavail();
 }
 
 void Pump::havedata()
 {
-	this->cnn_dst->send();
+	this->cnn_dst->havedata();
 }
 
 #pragma warning ( disable : 4355 )

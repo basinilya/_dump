@@ -116,7 +116,7 @@ static void __pWin32Error(int level, char mode, DWORD eNum, const char* fmt, va_
 		if (u >= count) break;
 		count -= u;
 
-		u = (unsigned)_snprintf(pend - count, count, ": ");
+		u = (unsigned)_snprintf(pend - count, count, ": 0x%08x (%d): ", eNum, eNum);
 		if (u >= count) break;
 		count -= u;
 
@@ -128,9 +128,11 @@ static void __pWin32Error(int level, char mode, DWORD eNum, const char* fmt, va_
 		} else if (mode == 's') {
 			u = (unsigned)_snprintf(pend - count, count, "%s", strerror(eNum));
 		}
+		/*
 		if (u == 0) {
 			u = (unsigned)_snprintf(pend - count, count, "0x%08x (%d)", eNum, eNum);
 		}
+		*/
 	} while(0);
 
 	emsg[sizeof(emsg)-1] = '\0';
@@ -278,7 +280,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 	int rc;
 	FILE *conf_file;
 	short port;
-	word_t s1, s2, s3, s4, s5, s6, s7, s8;
+	word_t words[8];
 	int npmaps;
 
 	if (!(conf_file = fopen(cfgfilename, "rt"))) {
@@ -290,9 +292,46 @@ static int winet_load_cfg(char const *cfgfilename) {
 	npmaps = 0;
 	while (!feof(conf_file)) {
 		rc = fscanf(conf_file, SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD SKIPSP SCANWRD
-			, s1, s2, s3, s4, s5, s6, s7, s8);
+			, words[0], words[1], words[2], words[3], words[4], words[5], words[6], words[7]);
 		fscanf(conf_file, "%*[^\n]"); /* read till EOL */
-		fscanf(conf_file, "\n"); /* read till EOL */
+		fscanf(conf_file, "\n"); /* read EOL */
+
+		int n = 0;
+		word_t *pword = words, *pwordend = &words[rc+1];
+		if (pword < pwordend && 0 == strcmp(*pword, "forward")) {
+			pword++;
+			if (pword < pwordend) {
+				ConnectionFactory *connfact;
+				if (0 == strcmp(*pword, "host")) {
+					word_t *host;
+					pword++;
+					if (pword < pwordend) {
+						host = pword;
+						pword++;
+						if (pword < pwordend && 0 == strcmp(*pword, "port")) {
+							pword++;
+							if (pword < pwordend && sscanf(*pword, "%hd", &port) == 1) {
+								pword++;
+								connfact = tcp_CreateConnectionFactory(*host, port);
+								goto aaa;
+							}
+						}
+					}
+				}
+				aaa:
+				if (pword < pwordend && 0 == strcmp(*pword, "listen")) {
+					pword++;
+					if (pword < pwordend && 0 == strcmp(*pword, "port")) {
+						pword++;
+						if (pword < pwordend && sscanf(*pword, "%hd", &port) == 1) {
+							tcp_create_listener(port, connfact);
+							npmaps++;
+						}
+					}
+				}
+			}
+		}
+#if 0
 		if (rc == 6 && sscanf(s3, "%hd", &port) == 1
 			&& 0 == strcmp(s1, "listen")
 			&& 0 == strcmp(s2, "port")
@@ -322,6 +361,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 			}
 			if (rc == 0) npmaps++;
 		}
+#endif
 
 	}
 	fclose(conf_file);

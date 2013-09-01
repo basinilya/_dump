@@ -61,8 +61,8 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 struct ClipConnection : Connection {
 	ClipConnection(Tunnel *tun);
 
-	void recv() {};
-	void send() {};
+	void bufferavail() {};
+	void havedata() {};
 
 	cnnstate state;
 	u_long local_nchannel;
