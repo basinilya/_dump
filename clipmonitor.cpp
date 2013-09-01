@@ -135,13 +135,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case WM_DRAWCLIPBOARD:
 			counter++;
 			// counter++; if (counter > 4) exit(0);
-			printf("%6d WM_DRAWCLIPBOARD, clip seq = %d\n", counter, GetClipboardSequenceNumber());
+			//printf("%6d WM_DRAWCLIPBOARD, clip seq = %d\n", counter, GetClipboardSequenceNumber());
 			parsepacket();
 			if (nextWnd) {
-				printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
+				//printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
 				return SendMessage(nextWnd,uMsg,wParam,lParam);
 			} else {
-				printf("%6d not notifying next window %p\n", counter, (void*)nextWnd);
+				//printf("%6d not notifying next window %p\n", counter, (void*)nextWnd);
 			}
 			break;
 		case WM_USER:
@@ -226,13 +226,13 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 	createutilitywindowwithproc(&global_hwnd, WindowProc, _T("myclipmonitor"));
 	if (global_hwnd == NULL) return 1;
 
-	printf("hwnd = %p\n", (void*)global_hwnd);
+	//printf("hwnd = %p\n", (void*)global_hwnd);
 	nextWnd = SetClipboardViewer(global_hwnd);
 	if (!nextWnd && GetLastError() != 0) {
 		pWin32Error(ERR, "SetClipboardViewer() failed");
 		return -1;
 	}
-	printf("nextWnd = %p\n", (void*)nextWnd);
+	//printf("nextWnd = %p\n", (void*)nextWnd);
 
 	atexit(exitproc);
 

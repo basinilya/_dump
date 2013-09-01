@@ -12,6 +12,7 @@ struct Connection;
 
 struct Pump {
 	rfifo_t buf;
+	int eof;
 	Connection *cnn_src;
 	Connection *cnn_dst;
 	Pump();

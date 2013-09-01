@@ -18,12 +18,16 @@ static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
 #endif /* _DEBUG */
 
+#include "mylogging.h"
+#include "mylastheader.h"
 void SimpleRefcount::addref() {
-	InterlockedIncrement(&this->refcount);
+	LONG newrefcount = InterlockedIncrement(&this->refcount);
+	//winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
 }
 
 void SimpleRefcount::deref() {
 	LONG newrefcount = InterlockedDecrement(&this->refcount);
+	//winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
 	if (newrefcount == 0) {
 		delete this;
 	}
@@ -193,7 +197,10 @@ int evloop_processnext()
 		default:
 			dwrslt -= (WAIT_OBJECT_0 + 1);
 			pin = phandlerswrap->a[dwrslt].pin;
-			if (pin) pin->addref();
+			if (pin) {
+				pin->addref();
+				winet_log(INFO, "event triggered %p\n", (void*)handles[dwrslt+1]);
+			}
 	}
 
 	phandlerswrap->deref();
