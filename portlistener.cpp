@@ -49,18 +49,41 @@ struct TCPConnection : PinRecv, PinSend {
 
 	void bufferavail() {
 		rfifo_t *rfifo = &pump_recv->buf;
-		size_t nb = rfifo_availwrite(rfifo);
+		DWORD nb = rfifo_availwrite(rfifo);
 		if (nb != 0) {
 			if (0 == InterlockedExchange(&lock_recv, 1)) {
 				char *data = rfifo_pfree(rfifo);
 				memset(&overlap_recv, 0, sizeof(OVERLAPPED));
 				overlap_recv.hEvent = ev_recv;
+
 				BOOL b;
-				//WSARecv(0, 0, 0, 
-				b = ReadFile((HANDLE)sock, data, nb, NULL, &overlap_recv);
-				DWORD dw = GetLastError();
-				winet_log(INFO, "ReadFile(sock=%d, n=%d, ev=%p) == %d; err = %d\n", (int)sock, nb, (void*)overlap_recv.hEvent, b, dw);
-				SetLastError(dw);
+				DWORD dw;
+				if (1) {
+					DWORD bufsz = nb;
+					b = ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
+					dw = GetLastError();
+					winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
+					static int i;
+					i++;
+					if (i == 2) {
+						WaitForSingleObject(overlap_recv.hEvent, INFINITE);
+						GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
+						dw = 0;
+					}
+				} else if (0) {
+					WSABUF wsabuf;
+					wsabuf.buf = data;
+					wsabuf.len = nb;
+					DWORD flags = 0;
+					int i = WSARecv(sock, &wsabuf, 1, &nb, &flags, &overlap_recv, NULL);
+					dw = WSAGetLastError();
+					winet_log(INFO, "WSARecv(sock=%d, n=%d, ev=%p) == %d; err = %d\n", (int)sock, nb, (void*)overlap_recv.hEvent, i, dw);
+					WSASetLastError(dw);
+					b = !i;
+				} else {
+					nb = recv(sock, data, nb, 0);
+					nb = 0;
+				}
 				if (b || dw == ERROR_IO_PENDING) {
 					addref();
 				} else {
@@ -270,6 +293,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 			winet_log(INFO, "connected sock=%d, %s:%hd\n", (int)conn->sock, conn->a.toresolv.hostname, conn->a.toresolv.port);
 			if (0) {
+				BOOL b;
 				DWORD nb;
 				SOCKET sock;
 				char data[2048];
@@ -279,7 +303,8 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 				if (ReadFile((HANDLE)sock, data, sizeof(data), NULL, &overlap_recv) || GetLastError() == ERROR_IO_PENDING) {
 					pWin32Error(ERR, "ReadFile() ok");
 					WaitForSingleObject(overlap_recv.hEvent, INFINITE);
-					GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
+					b = GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
+					nb = 0;
 				} else {
 					pWin32Error(ERR, "ReadFile() failed");
 				}
