@@ -42,6 +42,8 @@ struct TCPConnection : PinRecv, PinSend {
 	void addref() { tun->addref(); }
 	void deref() { tun->deref(); }
 
+	int firstread;
+
 	HANDLE ev_recv, ev_send;
 	OVERLAPPED overlap_recv, overlap_send;
 
@@ -58,32 +60,12 @@ struct TCPConnection : PinRecv, PinSend {
 
 				BOOL b;
 				DWORD dw;
-				if (1) {
-					DWORD bufsz = nb;
-					b = ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
-					dw = GetLastError();
-					winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
-					static int i;
-					i++;
-					if (i == 2) {
-						WaitForSingleObject(overlap_recv.hEvent, INFINITE);
-						GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
-						dw = 0;
-					}
-				} else if (0) {
-					WSABUF wsabuf;
-					wsabuf.buf = data;
-					wsabuf.len = nb;
-					DWORD flags = 0;
-					int i = WSARecv(sock, &wsabuf, 1, &nb, &flags, &overlap_recv, NULL);
-					dw = WSAGetLastError();
-					winet_log(INFO, "WSARecv(sock=%d, n=%d, ev=%p) == %d; err = %d\n", (int)sock, nb, (void*)overlap_recv.hEvent, i, dw);
-					WSASetLastError(dw);
-					b = !i;
-				} else {
-					nb = recv(sock, data, nb, 0);
-					nb = 0;
-				}
+
+				DWORD bufsz = nb;
+				b = ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
+				dw = GetLastError();
+				winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
+
 				if (b || dw == ERROR_IO_PENDING) {
 					addref();
 				} else {
@@ -95,6 +77,12 @@ struct TCPConnection : PinRecv, PinSend {
 	}
 
 	void onEventRecv() {
+		if (firstread) {
+			firstread = 0;
+			tun->connected(this);
+			deref();
+			return;
+		}
 		DWORD nb;
 		rfifo_t *rfifo = &pump_recv->buf;
 		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
@@ -160,6 +148,7 @@ struct TCPConnection : PinRecv, PinSend {
 	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
 			Connection(_tun),
 			sock(_sock),
+			firstread(0),
 			lock_send(0),lock_recv(0)
 	{
 		ev_recv = evloop_addlistener(static_cast<PinRecv*>(this));
@@ -309,8 +298,12 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 					pWin32Error(ERR, "ReadFile() failed");
 				}
 			}
-			
-			conn->tun->connected(conn);
+
+			conn->firstread = 1;
+
+			conn->addref();
+			SetEvent(conn->ev_recv);
+
 		} else {
 			pWinsockError(WARN, "connect() failed");
 		}
