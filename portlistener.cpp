@@ -71,7 +71,7 @@ struct TCPConnection : PinRecv, PinSend {
 				winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
 
 				if (b || dw == ERROR_IO_PENDING) {
-					addref();
+					//addref();
 				} else {
 					pWin32Error(ERR, "ReadFile() failed");
 					InterlockedExchange(&lock_recv, 0);
@@ -84,7 +84,7 @@ struct TCPConnection : PinRecv, PinSend {
 		if (firstread) {
 			firstread = 0;
 			tun->connected(this);
-			deref();
+			//deref();
 			return;
 		}
 		DWORD nb;
@@ -103,7 +103,7 @@ struct TCPConnection : PinRecv, PinSend {
 			pump_send->havedata();
 			bufferavail();
 		}
-		deref();
+		//deref();
 	}
 
 	volatile LONG lock_send;
@@ -120,7 +120,7 @@ struct TCPConnection : PinRecv, PinSend {
 						pWinsockError(ERR, "shutdown(%d, SD_SEND) failed", (int)sock);
 					}
 					InterlockedExchange(&lock_send, 0);
-					evloop_removelistener(ev_send);
+					if (ev_send) evloop_removelistener(ev_send);
 				} else {
 					char *data = rfifo_pdata(rfifo);
 					rfifo_markread(rfifo, nb);
@@ -133,7 +133,7 @@ struct TCPConnection : PinRecv, PinSend {
 					DWORD dw = GetLastError();
 					winet_log(INFO, "WriteFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_send.hEvent, b, dw);
 					if (b || dw == ERROR_IO_PENDING) {
-						addref();
+						//addref();
 					} else {
 						pWin32Error(ERR, "WriteFile() failed");
 						InterlockedExchange(&lock_send, 0);
@@ -153,7 +153,7 @@ struct TCPConnection : PinRecv, PinSend {
 		InterlockedExchange(&lock_send, 0);
 		pump_recv->bufferavail();
 		havedata();
-		deref();
+		//deref();
 	}
 
 	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
@@ -275,7 +275,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 			conn->firstread = 1;
 
-			conn->addref();
+			//conn->addref();
 			conn->ev_recv = evloop_addlistener(static_cast<PinRecv*>(conn));
 			SetEvent(conn->ev_recv);
 
