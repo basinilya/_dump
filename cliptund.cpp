@@ -317,14 +317,32 @@ static int winet_load_cfg(char const *cfgfilename) {
 							}
 						}
 					}
+				} else if (0 == strcmp(*pword, "clip")) {
+					word_t *clipname;
+					pword++;
+					if (pword < pwordend) {
+						clipname = pword;
+						pword++;
+						connfact = clipsrv_CreateConnectionFactory(*clipname);
+						goto aaa;
+					}
 				}
+				continue;
 				aaa:
 				if (pword < pwordend && 0 == strcmp(*pword, "listen")) {
 					pword++;
 					if (pword < pwordend && 0 == strcmp(*pword, "port")) {
 						pword++;
 						if (pword < pwordend && sscanf(*pword, "%hd", &port) == 1) {
-							tcp_create_listener(port, connfact);
+							tcp_create_listener(connfact, port);
+							npmaps++;
+						}
+					} else if (pword < pwordend && 0 == strcmp(*pword, "clip")) {
+						word_t *clipname;
+						pword++;
+						if (pword < pwordend) {
+							clipname = pword;
+							clipsrv_create_listener(connfact, *clipname);
 							npmaps++;
 						}
 					}

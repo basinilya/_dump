@@ -4,6 +4,6 @@
 #include "mytunnel.h"
 
 cliptund::ConnectionFactory *tcp_CreateConnectionFactory(const char host[40+1], short port);
-int tcp_create_listener(short port, cliptund::ConnectionFactory *connfact);
+int tcp_create_listener(cliptund::ConnectionFactory *connfact, short port);
 
 #endif

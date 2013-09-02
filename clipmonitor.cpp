@@ -68,8 +68,8 @@ static void parsepacket() {
 				p += sizeof(net_uuid_t);
 
 				memcpy(buf, p, pend - p);
-				p = buf;
 				pend = buf + (pend - p);
+				p = buf;
 				flag = 1;
 			}
 			GlobalUnlock(hglob);

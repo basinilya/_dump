@@ -315,7 +315,7 @@ ConnectionFactory *tcp_CreateConnectionFactory(const char host[40+1], short port
 	return connfact;
 }
 
-int tcp_create_listener(short port, ConnectionFactory *connfact)
+int tcp_create_listener(ConnectionFactory *connfact, short port)
 {
 	int rc = -1;
 	struct sockaddr_in saddr;
