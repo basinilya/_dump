@@ -20,7 +20,7 @@ extern DWORD clipsrv_nseq;
 extern const char cliptun_data_header[sizeof(CLIPTUN_DATA_HEADER)];
 
 typedef enum cnnstate {
-	STATE_SYN, STATE_EST
+	STATE_NEW_CL, STATE_NEW_SRV, STATE_SYN, STATE_FIRST_ACK, STATE_EST
 } cnnstate;
 
 typedef struct net_uuid_t {
@@ -61,8 +61,8 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 struct ClipConnection : Connection {
 	ClipConnection(Tunnel *tun);
 
-	void bufferavail() {};
-	void havedata() {};
+	void bufferavail();
+	void havedata();
 
 	cnnstate state;
 	u_long local_nchannel;

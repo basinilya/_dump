@@ -97,16 +97,17 @@ static void parsepacket() {
 					if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
 						ClipConnection *cnn = new ClipConnection(NULL);
 						Tunnel *tun = cnn->tun;
-						cnn->state = STATE_EST;
+						cnn->state = STATE_NEW_SRV;
 						cnn->remote.clipaddr.addr = remoteaddr;
 						cnn->remote.clipaddr.nchannel = netchannel;
-						_clipsrv_reg_cnn(cnn);
 						cliplistener->connfact->connect(tun);
 						tun->deref();
 						break;
 					}
 				}
 				p += strlen(p)+1;
+			default:
+				abort();
 		}
 	}
 }

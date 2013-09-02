@@ -332,7 +332,7 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
 		ClipConnection *cnn = new ClipConnection(tun);
-		cnn->state = STATE_SYN;
+		cnn->state = STATE_NEW_CL;
 		strcpy(cnn->remote.clipname, clipname);
 
 		cnn->tun = tun;
@@ -346,6 +346,20 @@ ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
 	ClipsrvConnectionFactory *connfact = new ClipsrvConnectionFactory();
 	strcpy(connfact->clipname, clipname);
 	return connfact;
+}
+
+void ClipConnection::bufferavail() {
+	if (state == STATE_NEW_SRV) {
+		state = STATE_FIRST_ACK;
+		_clipsrv_reg_cnn(this);
+		_clipsrv_havenewdata();
+		return;
+	}
+	abort();
+}
+
+void ClipConnection::havedata() {
+	abort();
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun)
@@ -378,23 +392,44 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 			ClipConnection *conn = *it;
 			cnnstate state = conn->state;
 			switch (state) {
+				case STATE_NEW_CL:
+					{
+						u_long netstate, netchannel;
+						size_t clipnamesize = strlen(conn->remote.clipname)+1;
+						SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
+						if (pend - p < sz) goto break_loop;
+
+						netchannel = conn->local_nchannel;
+						memcpy(p, &netchannel, sizeof(netchannel));
+						p += sizeof(netchannel);
+
+						netstate = htonl(STATE_SYN);
+						memcpy(p, &netstate, sizeof(netstate));
+						p += sizeof(netstate);
+
+						strcpy(p, conn->remote.clipname);
+						p += clipnamesize;
+
+						conn->state = STATE_SYN;
+					}
+					break;
 				case STATE_SYN:
-					u_long netstate, netchannel;
-					size_t clipnamesize = strlen(conn->remote.clipname)+1;
-					SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
-					if (pend - p < sz) goto break_loop;
-
-					netchannel = conn->local_nchannel;
-					memcpy(p, &netchannel, sizeof(netchannel));
-					p += sizeof(netchannel);
-
-					netstate = htonl(state);
-					memcpy(p, &netstate, sizeof(netstate));
-					p += sizeof(netstate);
-
-					strcpy(p, conn->remote.clipname);
-					p += clipnamesize;
-					//aaa;
+					break;
+				case STATE_FIRST_ACK:
+					conn->state = STATE_EST;
+					/* fallthrough ? */
+				case STATE_EST:
+					{
+						abort();
+						rfifo_t *rfifo;
+						rfifo = &conn->pump_send->buf;
+						DWORD nb = rfifo_availread(rfifo);
+						if (nb != 0) {
+							nb = 0;
+						}
+					}
+				default:
+					abort();
 			}
 		}
 		break_loop:
