@@ -45,7 +45,9 @@ struct handlerswrap {
 	handlerswrap(const vector<evloop_handler> &from) : refcount(1), a(from) {}
 
 	inline
-	void addref() { this->refcount++; }
+	void addref() {
+		this->refcount++;
+	}
 
 	void deref() {
 		this->refcount--;
@@ -105,6 +107,7 @@ HANDLE evloop_addlistener(IEventPin *pin)
 		//CloseHandle(newev);
 		//newev = NULL;
 	}
+	//winet_log(INFO, "evloop_addlistener %p, new size: %d\n", ctx.current_handlers, ctx.current_handlers->a.size());
 	_evloop_notifyall();
 	LeaveCriticalSection(&ctx.lock);
 
@@ -142,6 +145,7 @@ int evloop_removelistener(HANDLE ev)
 	}
 	ctx.events.erase(ctx.events.begin()+i);
 	phandlerswrap->a.erase(phandlerswrap->a.begin()+i);
+	//winet_log(INFO, "evloop_removelistener %p, new size: %d\n", phandlerswrap, phandlerswrap->a.size());
 	LeaveCriticalSection(&ctx.lock);
 	return 0;
 }
@@ -191,15 +195,14 @@ int evloop_processnext()
 			printf("WaitForMultipleObjects() failed\n");
 			abort();
 		case WAIT_OBJECT_0:
-			phandlerswrap->deref();
 			break;
-			//goto notified_retry;
+			//phandlerswrap->deref(); goto notified_retry;
 		default:
 			dwrslt -= (WAIT_OBJECT_0 + 1);
 			pin = phandlerswrap->a[dwrslt].pin;
 			if (pin) {
 				pin->addref();
-				winet_log(INFO, "event triggered %p\n", (void*)handles[dwrslt+1]);
+				//winet_log(INFO, "event triggered %p\n", (void*)handles[dwrslt+1]);
 			}
 	}
 

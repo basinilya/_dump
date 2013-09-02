@@ -59,6 +59,7 @@ struct TCPConnection : PinRecv, PinSend {
 			if (0 == InterlockedExchange(&lock_recv, 1)) {
 				char *data = rfifo_pfree(rfifo);
 				memset(&overlap_recv, 0, sizeof(OVERLAPPED));
+				if (!ev_recv) ev_recv = evloop_addlistener(static_cast<PinRecv*>(this));
 				overlap_recv.hEvent = ev_recv;
 
 				BOOL b;
@@ -94,6 +95,7 @@ struct TCPConnection : PinRecv, PinSend {
 		if (nb == 0) {
 			pump_recv->eof = 1;
 			InterlockedExchange(&lock_recv, 0);
+			evloop_removelistener(ev_recv);
 			pump_send->havedata();
 		} else {
 			rfifo_markwrite(rfifo, nb);
@@ -118,10 +120,12 @@ struct TCPConnection : PinRecv, PinSend {
 						pWinsockError(ERR, "shutdown(%d, SD_SEND) failed", (int)sock);
 					}
 					InterlockedExchange(&lock_send, 0);
+					evloop_removelistener(ev_send);
 				} else {
 					char *data = rfifo_pdata(rfifo);
 					rfifo_markread(rfifo, nb);
 					memset(&overlap_send, 0, sizeof(OVERLAPPED));
+					if (!ev_send) ev_send = evloop_addlistener(static_cast<PinSend*>(this));
 					overlap_send.hEvent = ev_send;
 
 					DWORD bufsz = nb;
@@ -156,20 +160,12 @@ struct TCPConnection : PinRecv, PinSend {
 			Connection(_tun),
 			sock(_sock),
 			firstread(0),
+			ev_recv(0), ev_send(0),
 			lock_send(0),lock_recv(0)
 	{
-		ev_recv = evloop_addlistener(static_cast<PinRecv*>(this));
-		ev_send = evloop_addlistener(static_cast<PinSend*>(this));
-
-		/* make it weak. Be sure not to set evs while destroying */
-		tun->deref();
-		tun->deref();
 	}
 
 	~TCPConnection() {
-		evloop_removelistener(ev_recv);
-		evloop_removelistener(ev_send);
-		/* negative refcount is ok */
 		closesocket(sock);
 	}
 	SOCKET sock;
@@ -280,6 +276,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 			conn->firstread = 1;
 
 			conn->addref();
+			conn->ev_recv = evloop_addlistener(static_cast<PinRecv*>(conn));
 			SetEvent(conn->ev_recv);
 
 		} else {
