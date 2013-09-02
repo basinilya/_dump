@@ -22,12 +22,12 @@ static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 #include "mylastheader.h"
 void SimpleRefcount::addref() {
 	LONG newrefcount = InterlockedIncrement(&this->refcount);
-	//winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
+	winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
 }
 
 void SimpleRefcount::deref() {
 	LONG newrefcount = InterlockedDecrement(&this->refcount);
-	//winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
+	winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
 	if (newrefcount == 0) {
 		delete this;
 	}
