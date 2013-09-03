@@ -14,13 +14,11 @@ using namespace cliptund;
 extern "C" {
 #endif
 
-extern DWORD clipsrv_nseq;
-
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 extern const char cliptun_data_header[sizeof(CLIPTUN_DATA_HEADER)];
 
 typedef enum cnnstate {
-	STATE_NEW_CL, STATE_NEW_SRV, STATE_SYN, STATE_FIRST_ACK, STATE_EST
+	/* STATE_NEW_CL, */  STATE_NEW_SRV, STATE_SYN, STATE_FIRST_ACK, STATE_EST
 } cnnstate;
 
 typedef struct net_uuid_t {
@@ -59,13 +57,17 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 #endif
 
 struct ClipConnection : Connection {
+	cnnstate state;
+	rfifo_long prev_recv_pos;
 	ClipConnection(Tunnel *tun);
 
 	void bufferavail();
 	void havedata();
 
-	cnnstate state;
-	u_long local_nchannel;
+	struct {
+		u_long nchannel;
+		char clipname[40+1];
+	} local;
 	union {
 		char clipname[40+1];
 		clipaddr clipaddr;
@@ -73,5 +75,22 @@ struct ClipConnection : Connection {
 };
 
 void _clipsrv_reg_cnn(ClipConnection *conn);
+
+#include <vector>
+
+extern struct clipsrvctx {
+	DWORD clipsrv_nseq;
+	union {
+		net_uuid_t net;
+		UUID _align;
+	} localclipuuid;
+	volatile LONG nchannel;
+	HWND hwnd;
+	HANDLE havedata_ev;
+	int havedata;
+	UINT_PTR nTimer;
+	CRITICAL_SECTION lock;
+	std::vector<ClipConnection *> connections;
+} ctx;
 
 #endif

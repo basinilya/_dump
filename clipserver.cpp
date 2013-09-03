@@ -18,19 +18,7 @@ using namespace std;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
-static struct {
-	union {
-		net_uuid_t net;
-		UUID _align;
-	} localclipuuid;
-	volatile LONG nchannel;
-	HWND hwnd;
-	HANDLE havedata_ev;
-	int havedata;
-	UINT_PTR nTimer;
-	CRITICAL_SECTION lock;
-	vector<ClipConnection *> connections;
-} ctx;
+clipsrvctx ctx;
 
 
 static HBITMAP dupbitmap(HBITMAP hbitmap)
@@ -271,7 +259,7 @@ int senddata(HGLOBAL hdata) {
 	}
 	newnseq = GetClipboardSequenceNumber();
 	printf("before %d\n", newnseq);
-	if (clipsrv_nseq != newnseq) {
+	if (ctx.clipsrv_nseq != newnseq) {
 		if (dupandreplace() < 0) {
 			goto err;
 		}
@@ -286,8 +274,8 @@ err:
 	if (!CloseClipboard()) {
 		pWin32Error(ERR, "CloseClipboard() failed");
 	}
-	clipsrv_nseq = GetClipboardSequenceNumber();
-	printf("after %d\n", clipsrv_nseq);
+	ctx.clipsrv_nseq = GetClipboardSequenceNumber();
+	printf("after %d\n", ctx.clipsrv_nseq);
 	return rc;
 }
 
@@ -332,7 +320,8 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
 		ClipConnection *cnn = new ClipConnection(tun);
-		cnn->state = STATE_NEW_CL;
+		cnn->local.nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
+		cnn->state = STATE_SYN;
 		strcpy(cnn->remote.clipname, clipname);
 
 		cnn->tun = tun;
@@ -350,8 +339,8 @@ ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
 
 void ClipConnection::bufferavail() {
 	if (state == STATE_NEW_SRV) {
-		state = STATE_FIRST_ACK;
-		_clipsrv_reg_cnn(this);
+		prev_recv_pos--;
+		state = STATE_EST;
 		_clipsrv_havenewdata();
 		return;
 	}
@@ -362,9 +351,8 @@ void ClipConnection::havedata() {
 	abort();
 }
 
-ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun)
+ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
 {
-	this->local_nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
 }
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
@@ -372,6 +360,7 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 	int wantmore = 1;
 	for(;;) {
 		WaitForSingleObject(ctx.havedata_ev, INFINITE);
+
 		HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
 		char *pbeg = (char*)GlobalLock(hglob);
 		char *pend = pbeg + MAXPACKETSIZE;
@@ -392,14 +381,16 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 			ClipConnection *conn = *it;
 			cnnstate state = conn->state;
 			switch (state) {
-				case STATE_NEW_CL:
+				case STATE_SYN:
 					{
+						/* send SYNs repeatedly, until we get ACK */
+						/* TODO: add delay and max tries */
 						u_long netstate, netchannel;
 						size_t clipnamesize = strlen(conn->remote.clipname)+1;
 						SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
 						if (pend - p < sz) goto break_loop;
 
-						netchannel = conn->local_nchannel;
+						netchannel = conn->local.nchannel;
 						memcpy(p, &netchannel, sizeof(netchannel));
 						p += sizeof(netchannel);
 
@@ -410,16 +401,17 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 						strcpy(p, conn->remote.clipname);
 						p += clipnamesize;
 
-						conn->state = STATE_SYN;
 					}
 					break;
-				case STATE_SYN:
+				case STATE_NEW_SRV:
 					break;
-				case STATE_FIRST_ACK:
-					conn->state = STATE_EST;
-					/* fallthrough ? */
 				case STATE_EST:
 					{
+						rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
+						if (cur_pos != conn->prev_recv_pos) {
+							// send ack
+						}
+						//conn->forceack
 						abort();
 						rfifo_t *rfifo;
 						rfifo = &conn->pump_send->buf;
