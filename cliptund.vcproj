@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="8.00"
 	Name="cliptund"
 	ProjectGUID="{8DD81953-8B0B-4767-9BBE-2133BA4D4A32}"
 	RootNamespace="cliptund"
@@ -250,7 +250,7 @@
 				>
 			</File>
 			<File
-				RelativePath="service.c"
+				RelativePath=".\service.cpp"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"

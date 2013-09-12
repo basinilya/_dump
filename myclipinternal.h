@@ -56,10 +56,14 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 }
 #endif
 
-struct ClipConnection : Connection {
+struct ClipConnection : Connection, ISimpleRefcount {
 	cnnstate state;
 	rfifo_long prev_recv_pos;
 	ClipConnection(Tunnel *tun);
+
+	ULONG STDMETHODCALLTYPE AddRef() { return tun->AddRef(); }
+	ULONG STDMETHODCALLTYPE Release() { return tun->Release(); }
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 
 	void bufferavail();
 	void havedata();
@@ -78,6 +82,8 @@ void _clipsrv_reg_cnn(ClipConnection *conn);
 
 #include <vector>
 
+typedef std::vector<CComPtr<ClipConnection>> connections_t;
+
 extern struct clipsrvctx {
 	DWORD clipsrv_nseq;
 	union {
@@ -90,7 +96,7 @@ extern struct clipsrvctx {
 	int havedata;
 	UINT_PTR nTimer;
 	CRITICAL_SECTION lock;
-	std::vector<ClipConnection *> connections;
+	connections_t connections;
 } ctx;
 
 #endif

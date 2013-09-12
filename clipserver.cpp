@@ -306,7 +306,7 @@ static int _clipserv_havedata_func(void *_param)
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	EnterCriticalSection(&ctx.lock);
-	conn->tun->addref();
+	//conn->tun->AddRef();
 	ctx.connections.push_back(conn);
 	LeaveCriticalSection(&ctx.lock);
 }
@@ -355,6 +355,13 @@ ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
 {
 }
 
+static void aaa() {
+	HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
+	char *pbeg = (char*)GlobalLock(hglob);
+	char *pend = pbeg + MAXPACKETSIZE;
+	char *p = pbeg;
+}
+
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
 	int wantmore = 1;
@@ -373,8 +380,11 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		p += sizeof(ctx.localclipuuid.net);
 
 		EnterCriticalSection(&ctx.lock);
-		for(vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) {
-			if (it == ctx.connections.end()) {
+		connections_t connections(ctx.connections);
+		LeaveCriticalSection(&ctx.lock);
+
+		for(connections_t::iterator it = connections.begin();; it++) {
+			if (it == connections.end()) {
 				wantmore = 0;
 				break;
 			}
@@ -425,7 +435,6 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 			}
 		}
 		break_loop:
-		LeaveCriticalSection(&ctx.lock);
 		GlobalUnlock(hglob);
 		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
 		senddata(hglob);

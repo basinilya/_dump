@@ -39,8 +39,9 @@ struct PinSend : IEventPin, virtual Connection {
 };
 
 struct TCPConnection : PinRecv, PinSend {
-	void addref() { tun->addref(); }
-	void deref() { tun->deref(); }
+	ULONG STDMETHODCALLTYPE AddRef() { return tun->AddRef(); }
+	ULONG STDMETHODCALLTYPE Release() { return tun->Release(); }
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 
 	int firstread;
 
@@ -71,7 +72,7 @@ struct TCPConnection : PinRecv, PinSend {
 				winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
 
 				if (b || dw == ERROR_IO_PENDING) {
-					//addref();
+					//AddRef();
 				} else {
 					pWin32Error(ERR, "ReadFile() failed");
 					InterlockedExchange(&lock_recv, 0);
@@ -84,7 +85,7 @@ struct TCPConnection : PinRecv, PinSend {
 		if (firstread) {
 			firstread = 0;
 			tun->connected(this);
-			//deref();
+			//Release();
 			return;
 		}
 		DWORD nb;
@@ -103,7 +104,7 @@ struct TCPConnection : PinRecv, PinSend {
 			pump_send->havedata();
 			bufferavail();
 		}
-		//deref();
+		//Release();
 	}
 
 	volatile LONG lock_send;
@@ -133,7 +134,7 @@ struct TCPConnection : PinRecv, PinSend {
 					DWORD dw = GetLastError();
 					winet_log(INFO, "WriteFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_send.hEvent, b, dw);
 					if (b || dw == ERROR_IO_PENDING) {
-						//addref();
+						//AddRef();
 					} else {
 						pWin32Error(ERR, "WriteFile() failed");
 						InterlockedExchange(&lock_send, 0);
@@ -153,7 +154,7 @@ struct TCPConnection : PinRecv, PinSend {
 		InterlockedExchange(&lock_send, 0);
 		pump_recv->bufferavail();
 		havedata();
-		//deref();
+		//Release();
 	}
 
 	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
@@ -190,8 +191,9 @@ struct data_accept : SimpleRefcount, IEventPin {
 		delete connfact;
 	}
 
-	void addref() { SimpleRefcount::addref(); };
-	void deref() { SimpleRefcount::deref(); };
+	ULONG STDMETHODCALLTYPE AddRef() { return SimpleRefcount::AddRef(); };
+	ULONG STDMETHODCALLTYPE Release() { return SimpleRefcount::Release(); };
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 
 	void onEvent() {
 		data_accept *data = this;
@@ -218,7 +220,7 @@ struct data_accept : SimpleRefcount, IEventPin {
 			TCPConnection *conn = new TCPConnection(NULL, data->asock);
 			Tunnel *tun = conn->tun;
 			connfact->connect(tun);
-			tun->deref();
+			tun->Release();
 		}
 
 		if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
@@ -275,7 +277,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 			conn->firstread = 1;
 
-			//conn->addref();
+			//conn->AddRef();
 			conn->ev_recv = evloop_addlistener(static_cast<PinRecv*>(conn));
 			SetEvent(conn->ev_recv);
 
@@ -286,7 +288,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 	} else {
 		pWinsockError(WARN, "getaddrinfo() failed");
 	}
-	conn->tun->deref();
+	conn->tun->Release();
 
 	return 0;
 }
@@ -302,7 +304,7 @@ struct TCPConnectionFactory : ConnectionFactory {
 		conn->a.toresolv.port = port;
 		//conn->tun = tun;
 
-		tun->addref();
+		tun->AddRef();
 		CreateThread(NULL, 0, resolvethread, conn, 0, &tid);
 	}
 };
