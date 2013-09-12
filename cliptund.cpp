@@ -108,7 +108,7 @@ static void __pWin32Error(int level, char mode, DWORD eNum, const char* fmt, va_
 	unsigned u;
 
 	do {
-		u = (unsigned)_snprintf(pend - count, count, "[%s] ", WINET_APPNAME);
+		u = _snprintf(pend - count, count, "[%s] ", WINET_APPNAME);
 		if (u >= count) break;
 		count -= u;
 
