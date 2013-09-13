@@ -355,11 +355,34 @@ ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
 {
 }
 
-static void aaa() {
-	HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
-	char *pbeg = (char*)GlobalLock(hglob);
-	char *pend = pbeg + MAXPACKETSIZE;
-	char *p = pbeg;
+static void aaa(HGLOBAL *_hglob, char **_pbeg, char **_p, char **_pend) {
+	HGLOBAL hglob = *_hglob;
+	char *pbeg = *_pbeg;
+	char *p = *_p;
+	char *pend = *_pend;
+
+	if (hglob) {
+		GlobalUnlock(hglob);
+		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
+		senddata(hglob);
+		Sleep(1000);
+	}
+
+	hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
+	pbeg = (char*)GlobalLock(hglob);
+	pend = pbeg + MAXPACKETSIZE;
+	p = pbeg;
+
+	memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
+	p += sizeof(cliptun_data_header);
+
+	memcpy(p, &ctx.localclipuuid.net, sizeof(ctx.localclipuuid.net));
+	p += sizeof(ctx.localclipuuid.net);
+
+	*_hglob = hglob;
+	*_pbeg = pbeg;
+	*_p = p;
+	*_pend = pend;
 }
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
