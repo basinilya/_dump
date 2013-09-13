@@ -383,6 +383,31 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 	wantmore = 1;
 }
 
+struct subpackheader_base {
+	u_long net_src_channel;
+	u_long net_state;
+};
+
+struct subpack_syn : subpackheader_base {
+	char dst_clipname[1];
+};
+
+#define subpack_syn_size(dst_clipname_size) (sizeof(subpack_syn) - sizeof( ((subpack_syn*)0)->dst_clipname ) + (dst_clipname_size))
+
+struct subpackheader : subpackheader_base {
+	u_long net_dst_channel;
+};
+
+struct subpack_ack : subpackheader {
+	u_long net_prev_pos;
+	u_long net_pos;
+};
+
+struct subpack_data : subpackheader {
+	u_long net_size;
+	char data[1];
+};
+
 void clipsrvctx::bbb()
 {
 	newbuf();
@@ -402,21 +427,19 @@ void clipsrvctx::bbb()
 						{
 							/* send SYNs repeatedly, until we get ACK */
 							/* TODO: add delay and max tries */
-							u_long netstate, netchannel;
+							// u_long netchannel, netstate;
 							size_t clipnamesize = strlen(conn->remote.clipname)+1;
-							SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
+							SSIZE_T sz = subpack_syn_size(clipnamesize);
 							if (pend - p < sz) {
 								unlock_and_send_and_newbuf();
 								EnterCriticalSection(&lock);
 							}
 
-							netchannel = conn->local.nchannel;
-							memcpy(p, &netchannel, sizeof(netchannel));
-							p += sizeof(netchannel);
+							subpack_syn subpack;
+							subpack.net_src_channel = conn->local.nchannel;
+							subpack.net_state = htonl(STATE_SYN);
 
-							netstate = htonl(STATE_SYN);
-							memcpy(p, &netstate, sizeof(netstate));
-							p += sizeof(netstate);
+							memcpy(p, &subpack, subpack_syn_size(0));
 
 							strcpy(p, conn->remote.clipname);
 							p += clipnamesize;
@@ -430,6 +453,7 @@ void clipsrvctx::bbb()
 							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
 							if (cur_pos != conn->prev_recv_pos) {
 								// send ack
+								//SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
 							}
 							//conn->forceack
 							abort();
