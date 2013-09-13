@@ -355,19 +355,8 @@ ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
 {
 }
 
-static void aaa(HGLOBAL *_hglob, char **_pbeg, char **_p, char **_pend) {
-	HGLOBAL hglob = *_hglob;
-	char *pbeg = *_pbeg;
-	char *p = *_p;
-	char *pend = *_pend;
-
-	if (hglob) {
-		GlobalUnlock(hglob);
-		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
-		senddata(hglob);
-		Sleep(1000);
-	}
-
+void clipsrvctx::newbuf()
+{
 	hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
 	pbeg = (char*)GlobalLock(hglob);
 	pend = pbeg + MAXPACKETSIZE;
@@ -376,94 +365,97 @@ static void aaa(HGLOBAL *_hglob, char **_pbeg, char **_p, char **_pend) {
 	memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
 	p += sizeof(cliptun_data_header);
 
-	memcpy(p, &ctx.localclipuuid.net, sizeof(ctx.localclipuuid.net));
-	p += sizeof(ctx.localclipuuid.net);
+	memcpy(p, &localclipuuid.net, sizeof(localclipuuid.net));
+	p += sizeof(localclipuuid.net);
+}
 
-	*_hglob = hglob;
-	*_pbeg = pbeg;
-	*_p = p;
-	*_pend = pend;
+void clipsrvctx::unlock_and_send_and_newbuf()
+{
+	LeaveCriticalSection(&lock);
+
+	GlobalUnlock(hglob);
+	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
+	senddata(hglob);
+	Sleep(1000);
+
+	newbuf();
+
+	wantmore = 1;
+}
+
+void clipsrvctx::bbb()
+{
+	newbuf();
+
+	for(;;) {
+		WaitForSingleObject(havedata_ev, INFINITE);
+
+		EnterCriticalSection(&lock);
+
+		do {
+			wantmore = 0;
+			for(unsigned u = 0; u < connections.size(); u++) {
+				ClipConnection *conn = connections[u];
+				cnnstate state = conn->state;
+				switch (state) {
+					case STATE_SYN:
+						{
+							/* send SYNs repeatedly, until we get ACK */
+							/* TODO: add delay and max tries */
+							u_long netstate, netchannel;
+							size_t clipnamesize = strlen(conn->remote.clipname)+1;
+							SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
+							if (pend - p < sz) {
+								unlock_and_send_and_newbuf();
+								EnterCriticalSection(&lock);
+							}
+
+							netchannel = conn->local.nchannel;
+							memcpy(p, &netchannel, sizeof(netchannel));
+							p += sizeof(netchannel);
+
+							netstate = htonl(STATE_SYN);
+							memcpy(p, &netstate, sizeof(netstate));
+							p += sizeof(netstate);
+
+							strcpy(p, conn->remote.clipname);
+							p += clipnamesize;
+
+						}
+						break;
+					case STATE_NEW_SRV:
+						break;
+					case STATE_EST:
+						{
+							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
+							if (cur_pos != conn->prev_recv_pos) {
+								// send ack
+							}
+							//conn->forceack
+							abort();
+							rfifo_t *rfifo;
+							rfifo = &conn->pump_send->buf;
+							DWORD nb = rfifo_availread(rfifo);
+							if (nb != 0) {
+								nb = 0;
+							}
+						}
+					default:
+						abort();
+				}
+			}
+		} while (wantmore);
+		if (p - pbeg != sizeof(cliptun_data_header) + sizeof(localclipuuid.net)) {
+			unlock_and_send_and_newbuf();
+		} else {
+			LeaveCriticalSection(&lock);
+		}
+	}
 }
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
-	int wantmore = 1;
-	for(;;) {
-		WaitForSingleObject(ctx.havedata_ev, INFINITE);
-
-		HGLOBAL hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
-		char *pbeg = (char*)GlobalLock(hglob);
-		char *pend = pbeg + MAXPACKETSIZE;
-		char *p = pbeg;
-
-		memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
-		p += sizeof(cliptun_data_header);
-
-		memcpy(p, &ctx.localclipuuid.net, sizeof(ctx.localclipuuid.net));
-		p += sizeof(ctx.localclipuuid.net);
-
-		EnterCriticalSection(&ctx.lock);
-		for(vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) {
-			if (it == ctx.connections.end()) {
-				wantmore = 0;
-				break;
-			}
-			ClipConnection *conn = *it;
-			cnnstate state = conn->state;
-			switch (state) {
-				case STATE_SYN:
-					{
-						/* send SYNs repeatedly, until we get ACK */
-						/* TODO: add delay and max tries */
-						u_long netstate, netchannel;
-						size_t clipnamesize = strlen(conn->remote.clipname)+1;
-						SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
-						if (pend - p < sz) goto break_loop;
-
-						netchannel = conn->local.nchannel;
-						memcpy(p, &netchannel, sizeof(netchannel));
-						p += sizeof(netchannel);
-
-						netstate = htonl(STATE_SYN);
-						memcpy(p, &netstate, sizeof(netstate));
-						p += sizeof(netstate);
-
-						strcpy(p, conn->remote.clipname);
-						p += clipnamesize;
-
-					}
-					break;
-				case STATE_NEW_SRV:
-					break;
-				case STATE_EST:
-					{
-						rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
-						if (cur_pos != conn->prev_recv_pos) {
-							// send ack
-						}
-						//conn->forceack
-						abort();
-						rfifo_t *rfifo;
-						rfifo = &conn->pump_send->buf;
-						DWORD nb = rfifo_availread(rfifo);
-						if (nb != 0) {
-							nb = 0;
-						}
-					}
-				default:
-					abort();
-			}
-		}
-		break_loop:
-		LeaveCriticalSection(&ctx.lock);
-		GlobalUnlock(hglob);
-		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
-		senddata(hglob);
-		if (wantmore) {
-			_clipsrv_havenewdata();
-		}
-		Sleep(1000);
-	}
+	ctx.bbb();
 	return 0;
 }
 

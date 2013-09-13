@@ -91,6 +91,17 @@ extern struct clipsrvctx {
 	UINT_PTR nTimer;
 	CRITICAL_SECTION lock;
 	std::vector<ClipConnection *> connections;
+
+
+	HGLOBAL hglob;
+	char *pbeg;
+	char *p;
+	char *pend;
+	int wantmore;
+
+	void newbuf();
+	void unlock_and_send_and_newbuf();
+	void bbb();
 } ctx;
 
 #endif
