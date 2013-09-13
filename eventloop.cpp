@@ -5,33 +5,11 @@
 #include <vector>
 #include <stdlib.h> /* for abort() */
 
-using namespace std;
-
-#ifdef _DEBUG
-static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
-	if (!CloseHandle(hObject)) {
-		printf("CloseHandle() failed at %s:%d\n", file, line);
-		abort();
-	}
-}
-
-#define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
-#endif /* _DEBUG */
-
 #include "mylogging.h"
-#include "mylastheader.h"
-void SimpleRefcount::addref() {
-	LONG newrefcount = InterlockedIncrement(&this->refcount);
-	winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
-}
 
-void SimpleRefcount::deref() {
-	LONG newrefcount = InterlockedDecrement(&this->refcount);
-	winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
-	if (newrefcount == 0) {
-		delete this;
-	}
-}
+#include "mylastheader.h"
+
+using namespace std;
 
 typedef struct evloop_handler {
 	IEventPin *pin;

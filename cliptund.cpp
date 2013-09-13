@@ -176,22 +176,6 @@ void pWinsockError(int lvl, char const *fmt, ...)
 	va_end(args);
 }
 
-#ifdef _DEBUG
-static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
-	if (!CloseHandle(hObject)) {
-		pWin32Error(WARN, "CloseHandle() failed at %s:%d", file, line);
-	}
-}
-static void dbg_closesocket(const char *file, int line, SOCKET s) {
-	if (closesocket(s) == SOCKET_ERROR) {
-		pWinsockError(WARN, "closesocket() failed at %s:%d", file, line);
-	}
-}
-#define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
-#define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
-#endif /* _DEBUG */
-
-
 static void winet_evtlog(char const *logmsg, long type) {
 	DWORD err;
 	HANDLE hesrc;
@@ -502,3 +486,15 @@ int winet_main(int argc, char const **argv) {
 	return rc;
 }
 
+void SimpleRefcount::addref() {
+	LONG newrefcount = InterlockedIncrement(&this->refcount);
+	winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
+}
+
+void SimpleRefcount::deref() {
+	LONG newrefcount = InterlockedDecrement(&this->refcount);
+	winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
+	if (newrefcount == 0) {
+		delete this;
+	}
+}

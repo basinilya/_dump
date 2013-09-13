@@ -60,5 +60,19 @@ wsaevent_handler *datas_get(DWORD index);
 }
 #endif
 
+struct ISimpleRefcount {
+	virtual void addref() = 0;
+	virtual void deref() = 0;
+};
+
+struct SimpleRefcount : ISimpleRefcount {
+	volatile LONG refcount;
+	void addref();
+	void deref();
+	inline SimpleRefcount() : refcount(1) {}
+protected:
+	virtual ~SimpleRefcount() {}
+};
+
 #endif /* #if !defined(_CLIPTUND_H) */
 
