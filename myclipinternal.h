@@ -126,11 +126,10 @@ struct subpackheader : subpackheader_base {
 
 struct subpack_ack : subpackheader {
 	u_long net_prev_pos;
-	u_long net_pos;
+	u_long net_count;
 };
 
-struct subpack_data : subpackheader {
-	u_long net_size;
+struct subpack_data : subpack_ack {
 	char data[1];
 };
 

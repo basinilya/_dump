@@ -431,7 +431,6 @@ void clipsrvctx::bbb()
 						{
 							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
 							if (conn->prev_recv_pos != cur_pos) {
-								conn->prev_recv_pos = cur_pos;
 								/* if this ack is lost, they will just resend the data */
 
 								subpack_ack subpack;
@@ -442,8 +441,9 @@ void clipsrvctx::bbb()
 								subpack.net_src_channel = conn->local.nchannel;
 								subpack.net_packtype = htonl(PACK_ACK);
 								subpack.dst = conn->remote.clipaddr;
+								subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
 								subpack.net_prev_pos = htonl(conn->prev_recv_pos);
-								subpack.net_pos = htonl(cur_pos);
+								conn->prev_recv_pos = cur_pos;
 
 								memcpy(p, &subpack, sizeof(subpack));
 								p += sizeof(subpack);
@@ -463,7 +463,8 @@ void clipsrvctx::bbb()
 								subpack.net_src_channel = conn->local.nchannel;
 								subpack.net_packtype = htonl(PACK_ACK);
 								subpack.dst = conn->remote.clipaddr;
-								subpack.net_size = htonl(datasz);
+								subpack.net_prev_pos = htonl(rfifo->ofs_mid);
+								subpack.net_count = htonl(datasz);
 								memcpy(p, &subpack, subpack_data_size(0));
 								p += subpack_data_size(0);
 

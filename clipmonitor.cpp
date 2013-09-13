@@ -57,7 +57,6 @@ static void parsepacket() {
 				char c[1];
 				subpackheader header;
 				subpack_syn syn;
-				subpack_ack ack;
 				subpack_data data;
 			};
 		};
@@ -142,11 +141,11 @@ static void parsepacket() {
 						)
 					{
 						rfifo_t *rfifo = &cnn->pump_send->buf;
-						int prev_pos = (int)ntohl(u.ack.net_prev_pos);
-						int pos = (int)ntohl(u.ack.net_pos);
+						int prev_pos = (int)ntohl(u.data.net_prev_pos);
+						int count = (int)ntohl(u.data.net_count);
 						int ofs_beg = (int)rfifo->ofs_beg;
 						if (ofs_beg - prev_pos < 0) {
-							rfifo_confirmread(rfifo, pos - ofs_beg);
+							rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
 							cnn->pump_recv->bufferavail();
 						}
 						break;
@@ -166,6 +165,8 @@ static void parsepacket() {
 						)
 					{
 						rfifo_t *rfifo = &cnn->pump_recv->buf;
+						int prev_pos = (int)ntohl(u.data.net_prev_pos);
+						int count = (int)ntohl(u.data.net_count);
 						break;
 					}
 				}
