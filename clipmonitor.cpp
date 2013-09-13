@@ -54,7 +54,8 @@ static void parsepacket() {
 		struct {
 			net_uuid_t addr;
 			union {
-				subpackheader_base header_base;
+				char c[1];
+				subpackheader header;
 				subpack_syn syn;
 				subpack_ack ack;
 				subpack_data data;
@@ -95,10 +96,10 @@ static void parsepacket() {
 
 		if (pend - p < sizeof(subpackheader_base)) break;
 
-		memcpy(&u.header_base, p, sizeof(subpackheader_base));
+		memcpy(&u.header, p, sizeof(subpackheader_base));
 		p += sizeof(subpackheader_base);
 
-		packtype_t packtype = (packtype_t)ntohl(u.header_base.net_packtype);
+		packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
 		switch(packtype) {
 			case PACK_SYN:
 				EnterCriticalSection(&ctx.lock);
@@ -129,8 +130,47 @@ static void parsepacket() {
 				after_clipname:
 				p += strlen(p)+1;
 				break;
-			//case PACK_ACK:
-			//	break;
+			case PACK_ACK:
+				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
+				EnterCriticalSection(&ctx.lock);
+				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+					ClipConnection *cnn = *it;
+					if (
+						0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))
+						&& 0 == memcmp(&ctx.localclipuuid.net, &u.header.dst.addr, sizeof(net_uuid_t))
+						&& cnn->local.nchannel == u.header.dst.nchannel
+						)
+					{
+						rfifo_t *rfifo = &cnn->pump_send->buf;
+						int prev_pos = (int)ntohl(u.ack.net_prev_pos);
+						int pos = (int)ntohl(u.ack.net_pos);
+						int ofs_beg = (int)rfifo->ofs_beg;
+						if (ofs_beg - prev_pos < 0) {
+							rfifo_confirmread(rfifo, pos - ofs_beg);
+							cnn->pump_recv->bufferavail();
+						}
+						break;
+					}
+				}
+				LeaveCriticalSection(&ctx.lock);
+				break;
+			case PACK_DATA:
+				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_data) - sizeof(subpackheader_base));
+				EnterCriticalSection(&ctx.lock);
+				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+					ClipConnection *cnn = *it;
+					if (
+						0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))
+						&& 0 == memcmp(&ctx.localclipuuid.net, &u.header.dst.addr, sizeof(net_uuid_t))
+						&& cnn->local.nchannel == u.header.dst.nchannel
+						)
+					{
+						rfifo_t *rfifo = &cnn->pump_recv->buf;
+						break;
+					}
+				}
+				LeaveCriticalSection(&ctx.lock);
+				break;
 			default:
 				abort();
 		}
