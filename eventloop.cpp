@@ -70,7 +70,7 @@ HANDLE evloop_addlistener(IEventPin *pin)
 		printf("CreateEvent() failed\n");
 		abort();
 	}
-	pin->addref();
+	pin->AddRef();
 	handler.pin = pin;
 
 	EnterCriticalSection(&ctx.lock);
@@ -107,7 +107,7 @@ int evloop_removelistener(HANDLE ev)
 
 	handlerswrap *phandlerswrap = ctx.current_handlers;
 	evloop_handler &handler = phandlerswrap->a[i];
-	handler.pin->deref();
+	handler.pin->Release();
 	handler.pin = NULL;
 	if (!ctx.controlEvents.empty()) {
 		/* ev is not used anymore, but someone is waiting for it. Can't close it now */
@@ -179,7 +179,7 @@ int evloop_processnext()
 			dwrslt -= (WAIT_OBJECT_0 + 1);
 			pin = phandlerswrap->a[dwrslt].pin;
 			if (pin) {
-				pin->addref();
+				pin->AddRef();
 				//winet_log(INFO, "event triggered %p\n", (void*)handles[dwrslt+1]);
 			}
 	}
@@ -201,7 +201,7 @@ int evloop_processnext()
 
 	if (pin) {
 		pin->onEvent();
-		pin->deref();
+		pin->Release();
 	}
 
 	return 0;

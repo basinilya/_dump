@@ -60,19 +60,32 @@ wsaevent_handler *datas_get(DWORD index);
 }
 #endif
 
+#include <atlbase.h>
+
+typedef IUnknown ISimpleRefcount;
+
+/*
 struct ISimpleRefcount {
-	virtual void addref() = 0;
-	virtual void deref() = 0;
+	virtual ULONG STDMETHODCALLTYPE AddRef() = 0;
+	virtual ULONG STDMETHODCALLTYPE Release() = 0;
+	//virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) = 0;
 };
+*/
 
 struct SimpleRefcount : ISimpleRefcount {
 	volatile LONG refcount;
-	void addref();
-	void deref();
+	ULONG STDMETHODCALLTYPE AddRef();
+	ULONG STDMETHODCALLTYPE Release();
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 	inline SimpleRefcount() : refcount(1) {}
 protected:
 	virtual ~SimpleRefcount() {}
 };
+
+#define DeclRefcountMethods(x) \
+	ULONG STDMETHODCALLTYPE AddRef() { return x AddRef(); } \
+	ULONG STDMETHODCALLTYPE Release() { return x Release(); } \
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 
 #endif /* #if !defined(_CLIPTUND_H) */
 

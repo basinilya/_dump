@@ -306,7 +306,7 @@ static int _clipserv_havedata_func(void *_param)
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	EnterCriticalSection(&ctx.lock);
-	conn->tun->addref();
+	conn->tun->AddRef();
 	ctx.connections.push_back(conn);
 	LeaveCriticalSection(&ctx.lock);
 }
