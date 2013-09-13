@@ -380,7 +380,13 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 
 	newbuf();
 
+}
+
+void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
+{
+	unlock_and_send_and_newbuf();
 	wantmore = 1;
+	EnterCriticalSection(&lock);
 }
 
 struct subpackheader_base {
@@ -395,7 +401,7 @@ struct subpack_syn : subpackheader_base {
 #define subpack_syn_size(dst_clipname_size) (sizeof(subpack_syn) - sizeof( ((subpack_syn*)0)->dst_clipname ) + (dst_clipname_size))
 
 struct subpackheader : subpackheader_base {
-	u_long net_dst_channel;
+	clipaddr dst;
 };
 
 struct subpack_ack : subpackheader {
@@ -407,6 +413,8 @@ struct subpack_data : subpackheader {
 	u_long net_size;
 	char data[1];
 };
+
+#define subpack_data_size(data_size) (sizeof(subpack_data) - sizeof( ((subpack_data*)0)->data) + (data_size))
 
 void clipsrvctx::bbb()
 {
@@ -427,12 +435,9 @@ void clipsrvctx::bbb()
 						{
 							/* send SYNs repeatedly, until we get ACK */
 							/* TODO: add delay and max tries */
-							// u_long netchannel, netstate;
 							size_t clipnamesize = strlen(conn->remote.clipname)+1;
-							SSIZE_T sz = subpack_syn_size(clipnamesize);
-							if (pend - p < sz) {
-								unlock_and_send_and_newbuf();
-								EnterCriticalSection(&lock);
+							if (p + subpack_syn_size(clipnamesize) > pend) {
+								unlock_and_send_and_newbuf_and_lock();
 							}
 
 							subpack_syn subpack;
@@ -440,6 +445,7 @@ void clipsrvctx::bbb()
 							subpack.net_state = htonl(STATE_SYN);
 
 							memcpy(p, &subpack, subpack_syn_size(0));
+							p += subpack_syn_size(0);
 
 							strcpy(p, conn->remote.clipname);
 							p += clipnamesize;
@@ -451,17 +457,46 @@ void clipsrvctx::bbb()
 					case STATE_EST:
 						{
 							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
-							if (cur_pos != conn->prev_recv_pos) {
-								// send ack
-								//SSIZE_T sz = sizeof(netchannel) + sizeof(netstate) + clipnamesize;
+							if (conn->prev_recv_pos != cur_pos) {
+								conn->prev_recv_pos = cur_pos;
+								/* if this ack is lost, they will just resend the data */
+
+								subpack_ack subpack;
+
+								if (p + sizeof(subpack) > pend) {
+									unlock_and_send_and_newbuf_and_lock();
+								}
+								subpack.net_src_channel = conn->local.nchannel;
+								subpack.net_state = htonl(STATE_ACK);
+								subpack.dst = conn->remote.clipaddr;
+								subpack.net_prev_pos = htonl(conn->prev_recv_pos);
+								subpack.net_pos = htonl(cur_pos);
+
+								memcpy(p, &subpack, sizeof(subpack));
+								p += sizeof(subpack);
+
 							}
-							//conn->forceack
-							abort();
 							rfifo_t *rfifo;
 							rfifo = &conn->pump_send->buf;
-							DWORD nb = rfifo_availread(rfifo);
-							if (nb != 0) {
-								nb = 0;
+							int datasz = rfifo_availread(rfifo);
+							if (datasz != 0) {
+								if (p + subpack_data_size(1) > pend) {
+									unlock_and_send_and_newbuf_and_lock();
+								}
+								subpack_data subpack;
+
+								int bufsz = (int)(pend - p - subpack_data_size(0));
+								if (datasz > bufsz) datasz = bufsz;
+								subpack.net_src_channel = conn->local.nchannel;
+								subpack.net_state = htonl(STATE_ACK);
+								subpack.dst = conn->remote.clipaddr;
+								subpack.net_size = htonl(datasz);
+								memcpy(p, &subpack, subpack_data_size(0));
+								p += subpack_data_size(0);
+
+								memcpy(p, rfifo_pdata(rfifo), datasz);
+								p += datasz;
+								rfifo_markread(rfifo, datasz);
 							}
 						}
 					default:

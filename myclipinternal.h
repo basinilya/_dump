@@ -18,7 +18,7 @@ extern "C" {
 extern const char cliptun_data_header[sizeof(CLIPTUN_DATA_HEADER)];
 
 typedef enum cnnstate {
-	/* STATE_NEW_CL, */  STATE_NEW_SRV, STATE_SYN, STATE_FIRST_ACK, STATE_EST
+	/* STATE_NEW_CL, */  STATE_NEW_SRV, STATE_SYN, STATE_ACK, STATE_EST
 } cnnstate;
 
 typedef struct net_uuid_t {
@@ -101,6 +101,7 @@ extern struct clipsrvctx {
 
 	void newbuf();
 	void unlock_and_send_and_newbuf();
+	void unlock_and_send_and_newbuf_and_lock();
 	void bbb();
 } ctx;
 
