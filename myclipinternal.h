@@ -17,9 +17,13 @@ extern "C" {
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 extern const char cliptun_data_header[sizeof(CLIPTUN_DATA_HEADER)];
 
-typedef enum cnnstate {
-	/* STATE_NEW_CL, */  STATE_NEW_SRV, STATE_SYN, STATE_ACK, STATE_EST
-} cnnstate;
+typedef enum cnnstate_t {
+	STATE_NEW_SRV, STATE_SYN, STATE_EST
+} cnnstate_t;
+
+typedef enum packtype_t {
+	PACK_SYN, PACK_ACK, PACK_DATA
+} packtype_t;
 
 typedef struct net_uuid_t {
 	unsigned char   __u_bits[16];
@@ -57,7 +61,7 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 #endif
 
 struct ClipConnection : Connection {
-	cnnstate state;
+	cnnstate_t state;
 	rfifo_long prev_recv_pos;
 	ClipConnection(Tunnel *tun);
 
@@ -104,5 +108,33 @@ extern struct clipsrvctx {
 	void unlock_and_send_and_newbuf_and_lock();
 	void bbb();
 } ctx;
+
+struct subpackheader_base {
+	u_long net_src_channel;
+	u_long net_packtype;
+};
+
+struct subpack_syn : subpackheader_base {
+	char dst_clipname[1];
+};
+
+#define subpack_syn_size(dst_clipname_size) (sizeof(subpack_syn) - sizeof( ((subpack_syn*)0)->dst_clipname ) + (dst_clipname_size))
+
+struct subpackheader : subpackheader_base {
+	clipaddr dst;
+};
+
+struct subpack_ack : subpackheader {
+	u_long net_prev_pos;
+	u_long net_pos;
+};
+
+struct subpack_data : subpackheader {
+	u_long net_size;
+	char data[1];
+};
+
+#define subpack_data_size(data_size) (sizeof(subpack_data) - sizeof( ((subpack_data*)0)->data) + (data_size))
+
 
 #endif

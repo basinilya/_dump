@@ -389,33 +389,6 @@ void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
 	EnterCriticalSection(&lock);
 }
 
-struct subpackheader_base {
-	u_long net_src_channel;
-	u_long net_state;
-};
-
-struct subpack_syn : subpackheader_base {
-	char dst_clipname[1];
-};
-
-#define subpack_syn_size(dst_clipname_size) (sizeof(subpack_syn) - sizeof( ((subpack_syn*)0)->dst_clipname ) + (dst_clipname_size))
-
-struct subpackheader : subpackheader_base {
-	clipaddr dst;
-};
-
-struct subpack_ack : subpackheader {
-	u_long net_prev_pos;
-	u_long net_pos;
-};
-
-struct subpack_data : subpackheader {
-	u_long net_size;
-	char data[1];
-};
-
-#define subpack_data_size(data_size) (sizeof(subpack_data) - sizeof( ((subpack_data*)0)->data) + (data_size))
-
 void clipsrvctx::bbb()
 {
 	newbuf();
@@ -429,7 +402,7 @@ void clipsrvctx::bbb()
 			wantmore = 0;
 			for(unsigned u = 0; u < connections.size(); u++) {
 				ClipConnection *conn = connections[u];
-				cnnstate state = conn->state;
+				cnnstate_t state = conn->state;
 				switch (state) {
 					case STATE_SYN:
 						{
@@ -442,7 +415,7 @@ void clipsrvctx::bbb()
 
 							subpack_syn subpack;
 							subpack.net_src_channel = conn->local.nchannel;
-							subpack.net_state = htonl(STATE_SYN);
+							subpack.net_packtype = htonl(PACK_SYN);
 
 							memcpy(p, &subpack, subpack_syn_size(0));
 							p += subpack_syn_size(0);
@@ -467,7 +440,7 @@ void clipsrvctx::bbb()
 									unlock_and_send_and_newbuf_and_lock();
 								}
 								subpack.net_src_channel = conn->local.nchannel;
-								subpack.net_state = htonl(STATE_ACK);
+								subpack.net_packtype = htonl(PACK_ACK);
 								subpack.dst = conn->remote.clipaddr;
 								subpack.net_prev_pos = htonl(conn->prev_recv_pos);
 								subpack.net_pos = htonl(cur_pos);
@@ -488,7 +461,7 @@ void clipsrvctx::bbb()
 								int bufsz = (int)(pend - p - subpack_data_size(0));
 								if (datasz > bufsz) datasz = bufsz;
 								subpack.net_src_channel = conn->local.nchannel;
-								subpack.net_state = htonl(STATE_ACK);
+								subpack.net_packtype = htonl(PACK_ACK);
 								subpack.dst = conn->remote.clipaddr;
 								subpack.net_size = htonl(datasz);
 								memcpy(p, &subpack, subpack_data_size(0));

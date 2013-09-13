@@ -47,9 +47,21 @@ static void unreg()
 static void parsepacket() {
 	char buf[MAXPACKETSIZE];
 	const char *pbeg, *pend, *p;
-	clipaddr remote;
-	//net_uuid_t remoteaddr;
-	//netchannel
+
+
+	union {
+		clipaddr remote;
+		struct {
+			net_uuid_t addr;
+			union {
+				subpackheader_base header_base;
+				subpack_syn syn;
+				subpack_ack ack;
+				subpack_data data;
+			};
+		};
+	} u;
+
 	int flag = 0;
 
 	while (!OpenClipboard(global_hwnd)) {
@@ -65,7 +77,7 @@ static void parsepacket() {
 			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
 				p += sizeof(cliptun_data_header);
 
-				memcpy(&remote.addr, p, sizeof(net_uuid_t));
+				memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
 				p += sizeof(net_uuid_t);
 
 				memcpy(buf, p, pend - p);
@@ -80,26 +92,22 @@ static void parsepacket() {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
 	if (flag) for (;;) {
-		u_long netstate;
 
-		if (pend - p < sizeof(remote.nchannel) + sizeof(netstate)) break;
+		if (pend - p < sizeof(subpackheader_base)) break;
 
-		memcpy(&remote.nchannel, p, sizeof(remote.nchannel));
-		p += sizeof(remote.nchannel);
+		memcpy(&u.header_base, p, sizeof(subpackheader_base));
+		p += sizeof(subpackheader_base);
 
-		memcpy(&netstate, p, sizeof(netstate));
-		p += sizeof(netstate);
-
-		cnnstate state = (cnnstate)ntohl(netstate);
-		switch(state) {
-			case STATE_SYN:
+		packtype_t packtype = (packtype_t)ntohl(u.header_base.net_packtype);
+		switch(packtype) {
+			case PACK_SYN:
 				EnterCriticalSection(&ctx.lock);
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					ClipConnection *cnn = *it;
-					if (0 == memcmp(&cnn->remote.clipaddr, &remote, sizeof(clipaddr)) && 0 == strncmp(p, cnn->local.clipname, pend - p)) {
+					if (0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr)) && 0 == strncmp(p, cnn->local.clipname, pend - p)) {
 						cnn->prev_recv_pos--;
 						LeaveCriticalSection(&ctx.lock);
-						goto break_switch;
+						goto after_clipname;
 					}
 				}
 				LeaveCriticalSection(&ctx.lock);
@@ -111,20 +119,21 @@ static void parsepacket() {
 						strcpy(cnn->local.clipname, cliplistener->clipname);
 						cnn->local.nchannel = cliplistener->net_channel;
 						cnn->state = STATE_NEW_SRV;
-						cnn->remote.clipaddr = remote;
+						cnn->remote.clipaddr = u.remote;
 						_clipsrv_reg_cnn(cnn);
 						cliplistener->connfact->connect(tun);
 						tun->Release();
 						break;
 					}
 				}
+				after_clipname:
 				p += strlen(p)+1;
 				break;
+			//case PACK_ACK:
+			//	break;
 			default:
 				abort();
 		}
-		break_switch:
-		;
 	}
 }
 
