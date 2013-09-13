@@ -306,7 +306,7 @@ static int _clipserv_havedata_func(void *_param)
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	EnterCriticalSection(&ctx.lock);
-	//conn->tun->AddRef();
+	conn->tun->addref();
 	ctx.connections.push_back(conn);
 	LeaveCriticalSection(&ctx.lock);
 }
@@ -403,11 +403,8 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 		p += sizeof(ctx.localclipuuid.net);
 
 		EnterCriticalSection(&ctx.lock);
-		connections_t connections(ctx.connections);
-		LeaveCriticalSection(&ctx.lock);
-
-		for(connections_t::iterator it = connections.begin();; it++) {
-			if (it == connections.end()) {
+		for(vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) {
+			if (it == ctx.connections.end()) {
 				wantmore = 0;
 				break;
 			}
@@ -458,6 +455,7 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 			}
 		}
 		break_loop:
+		LeaveCriticalSection(&ctx.lock);
 		GlobalUnlock(hglob);
 		hglob = GlobalReAlloc(hglob, p - pbeg, 0);
 		senddata(hglob);

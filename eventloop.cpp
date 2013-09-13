@@ -5,10 +5,33 @@
 #include <vector>
 #include <stdlib.h> /* for abort() */
 
+using namespace std;
+
+#ifdef _DEBUG
+static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
+	if (!CloseHandle(hObject)) {
+		printf("CloseHandle() failed at %s:%d\n", file, line);
+		abort();
+	}
+}
+
+#define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
+#endif /* _DEBUG */
+
 #include "mylogging.h"
 #include "mylastheader.h"
+void SimpleRefcount::addref() {
+	LONG newrefcount = InterlockedIncrement(&this->refcount);
+	winet_log(INFO, "SimpleRefcount::addref %p %ld\n", this, (long)newrefcount);
+}
 
-using namespace std;
+void SimpleRefcount::deref() {
+	LONG newrefcount = InterlockedDecrement(&this->refcount);
+	winet_log(INFO, "SimpleRefcount::deref %p %ld\n", this, (long)newrefcount);
+	if (newrefcount == 0) {
+		delete this;
+	}
+}
 
 typedef struct evloop_handler {
 	IEventPin *pin;
@@ -69,7 +92,7 @@ HANDLE evloop_addlistener(IEventPin *pin)
 		printf("CreateEvent() failed\n");
 		abort();
 	}
-	pin->AddRef();
+	pin->addref();
 	handler.pin = pin;
 
 	EnterCriticalSection(&ctx.lock);
@@ -106,7 +129,7 @@ int evloop_removelistener(HANDLE ev)
 
 	handlerswrap *phandlerswrap = ctx.current_handlers;
 	evloop_handler &handler = phandlerswrap->a[i];
-	handler.pin->Release();
+	handler.pin->deref();
 	handler.pin = NULL;
 	if (!ctx.controlEvents.empty()) {
 		/* ev is not used anymore, but someone is waiting for it. Can't close it now */
@@ -178,7 +201,7 @@ int evloop_processnext()
 			dwrslt -= (WAIT_OBJECT_0 + 1);
 			pin = phandlerswrap->a[dwrslt].pin;
 			if (pin) {
-				pin->AddRef();
+				pin->addref();
 				//winet_log(INFO, "event triggered %p\n", (void*)handles[dwrslt+1]);
 			}
 	}
@@ -200,7 +223,7 @@ int evloop_processnext()
 
 	if (pin) {
 		pin->onEvent();
-		pin->Release();
+		pin->deref();
 	}
 
 	return 0;

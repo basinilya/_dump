@@ -35,7 +35,7 @@ static vector<Cliplistener*> listeners;
 static void unreg()
 {
 	HWND hwnd;
-	hwnd = (HWND)InterlockedExchangePointer((void**)&global_hwnd, NULL); /* ignore the "cast to greater size" warning */
+	hwnd = (HWND)InterlockedExchangePointer(&global_hwnd, NULL); /* ignore the "cast to greater size" warning */
 	if (hwnd) {
 		printf("Removing self from chain: %p <- %p\n", (void*)hwnd, (void*)nextWnd);
 		if (!ChangeClipboardChain(hwnd, nextWnd) && GetLastError() != 0) {
@@ -94,7 +94,7 @@ static void parsepacket() {
 		switch(state) {
 			case STATE_SYN:
 				EnterCriticalSection(&ctx.lock);
-				for (connections_t::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					ClipConnection *cnn = *it;
 					if (0 == memcmp(&cnn->remote.clipaddr, &remote, sizeof(clipaddr)) && 0 == strncmp(p, cnn->local.clipname, pend - p)) {
 						cnn->prev_recv_pos--;
@@ -114,7 +114,7 @@ static void parsepacket() {
 						cnn->remote.clipaddr = remote;
 						_clipsrv_reg_cnn(cnn);
 						cliplistener->connfact->connect(tun);
-						tun->Release();
+						tun->deref();
 						break;
 					}
 				}
