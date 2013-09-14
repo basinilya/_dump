@@ -1,3 +1,5 @@
+#define CONSTRHDR
+
 #include "myclipserver.h"
 #include "myclipinternal.h"
 
@@ -344,11 +346,11 @@ void ClipConnection::bufferavail() {
 		_clipsrv_havenewdata();
 		return;
 	}
-	abort();
+	_clipsrv_havenewdata();
 }
 
 void ClipConnection::havedata() {
-	abort();
+	_clipsrv_havenewdata();
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
@@ -375,6 +377,7 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 
 	GlobalUnlock(hglob);
 	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
+	printf("sending %d\n", (int)(p - pbeg));
 	senddata(hglob);
 	Sleep(1000);
 
@@ -461,7 +464,7 @@ void clipsrvctx::bbb()
 								int bufsz = (int)(pend - p - subpack_data_size(0));
 								if (datasz > bufsz) datasz = bufsz;
 								subpack.net_src_channel = conn->local.nchannel;
-								subpack.net_packtype = htonl(PACK_ACK);
+								subpack.net_packtype = htonl(PACK_DATA);
 								subpack.dst = conn->remote.clipaddr;
 								subpack.net_prev_pos = htonl(rfifo->ofs_mid);
 								subpack.net_count = htonl(datasz);

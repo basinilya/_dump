@@ -23,7 +23,7 @@ struct Pump {
 struct Tunnel : SimpleRefcount {
 
 	Tunnel(Connection  *cnn_cl);
-	void connected(Connection  *cnn_srv);
+	void connected();
 //private:
 	Pump pump_cl2srv;
 	Pump pump_srv2cl;

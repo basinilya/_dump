@@ -488,13 +488,13 @@ int winet_main(int argc, char const **argv) {
 
 ULONG SimpleRefcount::AddRef() {
 	LONG newrefcount = InterlockedIncrement(&this->refcount);
-	winet_log(INFO, "SimpleRefcount::AddRef %p %ld\n", this, (long)newrefcount);
+	//winet_log(INFO, "SimpleRefcount::AddRef %p %ld\n", this, (long)newrefcount);
 	return newrefcount;
 }
 
 ULONG SimpleRefcount::Release() {
 	LONG newrefcount = InterlockedDecrement(&this->refcount);
-	winet_log(INFO, "SimpleRefcount::Release %p %ld\n", this, (long)newrefcount);
+	//winet_log(INFO, "SimpleRefcount::Release %p %ld\n", this, (long)newrefcount);
 	if (newrefcount == 0) {
 		delete this;
 	}

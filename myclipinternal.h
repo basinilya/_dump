@@ -32,6 +32,7 @@ typedef struct net_uuid_t {
 
 typedef struct clipaddr {
 	net_uuid_t addr;
+	char _hdr[4];
 	u_long nchannel;
 } clipaddr;
 
@@ -110,8 +111,14 @@ extern struct clipsrvctx {
 } ctx;
 
 struct subpackheader_base {
+	char _hdr[4];
 	u_long net_src_channel;
 	u_long net_packtype;
+#ifdef CONSTRHDR
+	subpackheader_base() {
+		strncpy(_hdr, "pack", 4);
+	}
+#endif
 };
 
 struct subpack_syn : subpackheader_base {

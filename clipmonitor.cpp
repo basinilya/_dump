@@ -84,6 +84,7 @@ static void parsepacket() {
 				pend = buf + (pend - p);
 				p = buf;
 				flag = 1;
+				printf("received %d\n", (int)sz);
 			}
 			GlobalUnlock(hglob);
 		}
@@ -132,30 +133,42 @@ static void parsepacket() {
 				break;
 			case PACK_ACK:
 				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
+				p += sizeof(subpack_ack) - sizeof(subpackheader_base);
 				EnterCriticalSection(&ctx.lock);
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					ClipConnection *cnn = *it;
 					if (
-						0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))
+						1
+						//&& 0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))
 						&& 0 == memcmp(&ctx.localclipuuid.net, &u.header.dst.addr, sizeof(net_uuid_t))
 						&& cnn->local.nchannel == u.header.dst.nchannel
 						)
 					{
-						rfifo_t *rfifo = &cnn->pump_send->buf;
-						long prev_pos = ntohl(u.data.net_prev_pos);
-						long count = ntohl(u.data.net_count);
-						long ofs_beg = (u_long)rfifo->ofs_beg;
-						if (ofs_beg - prev_pos >= 0) {
-							rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
-							cnn->pump_recv->bufferavail();
+						if (cnn->state == STATE_SYN) {
+							cnn->state = STATE_EST;
+							cnn->remote.clipaddr = u.remote;
+							cnn->tun->connected();
+							break;
+						} else if (0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))) {
+							rfifo_t *rfifo = &cnn->pump_send->buf;
+							long prev_pos = ntohl(u.data.net_prev_pos);
+							long count = ntohl(u.data.net_count);
+							long ofs_beg = (u_long)rfifo->ofs_beg;
+							if (ofs_beg - prev_pos >= 0) {
+								rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
+								cnn->pump_recv->bufferavail();
+							}
+							break;
 						}
-						break;
 					}
 				}
 				LeaveCriticalSection(&ctx.lock);
 				break;
 			case PACK_DATA:
-				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_data) - sizeof(subpackheader_base));
+				memcpy(u.c + sizeof(subpackheader_base), p, subpack_data_size(0) - sizeof(subpackheader_base));
+				p += subpack_data_size(0) - sizeof(subpackheader_base);
+				long count;
+				count = ntohl(u.data.net_count);
 				EnterCriticalSection(&ctx.lock);
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					ClipConnection *cnn = *it;
@@ -167,11 +180,19 @@ static void parsepacket() {
 					{
 						rfifo_t *rfifo = &cnn->pump_recv->buf;
 						long prev_pos = ntohl(u.data.net_prev_pos);
-						long count = ntohl(u.data.net_count);
 						long ofs_end = (u_long)rfifo->ofs_end;
 						if (ofs_end - prev_pos >= 0) {
-							rfifo_markwrite(rfifo, prev_pos + count - ofs_end);
-							cnn->prev_recv_pos = ofs_end;
+							long n = (u_long)cnn->prev_recv_pos;
+							n -= prev_pos;
+							if (n > 0) {
+								cnn->prev_recv_pos -= n;
+							}
+
+							long datasz = prev_pos + count - ofs_end;
+							long bufsz = rfifo_availwrite(rfifo);
+							if (datasz > bufsz) datasz = bufsz;
+							memcpy(rfifo_pfree(rfifo), p, datasz);
+							rfifo_markwrite(rfifo, datasz);
 							_clipsrv_havenewdata();
 							cnn->pump_send->havedata();
 						}
@@ -179,6 +200,7 @@ static void parsepacket() {
 					}
 				}
 				LeaveCriticalSection(&ctx.lock);
+				p += count;
 				break;
 			default:
 				abort();

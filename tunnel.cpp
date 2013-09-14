@@ -21,12 +21,10 @@ Tunnel::Tunnel(Connection *cnn_cl)
 	pump_srv2cl.cnn_dst = cnn_cl;
 }
 
-void Tunnel::connected(Connection  *cnn_srv)
+void Tunnel::connected()
 {
 	Connection *cnn_cl = pump_cl2srv.cnn_src;
-
-	pump_cl2srv.cnn_dst = cnn_srv;
-	pump_srv2cl.cnn_src = cnn_srv;
+	Connection  *cnn_srv = pump_cl2srv.cnn_dst;
 
 	cnn_cl->pump_recv = &pump_srv2cl;
 	cnn_srv->pump_send = &pump_srv2cl;
@@ -49,4 +47,9 @@ void Pump::havedata()
 }
 
 #pragma warning ( disable : 4355 )
-Connection::Connection(Tunnel *_tun) : tun(_tun ? _tun : new Tunnel(this)) { }
+Connection::Connection(Tunnel *_tun) : tun(_tun ? _tun : new Tunnel(this)) {
+	if (_tun) {
+		_tun->pump_cl2srv.cnn_dst = this;
+		_tun->pump_srv2cl.cnn_src = this;
+	}
+}

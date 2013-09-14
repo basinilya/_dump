@@ -82,7 +82,7 @@ struct TCPConnection : PinRecv, PinSend {
 	void onEventRecv() {
 		if (firstread) {
 			firstread = 0;
-			tun->connected(this);
+			tun->connected();
 			//Release();
 			return;
 		}
