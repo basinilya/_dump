@@ -473,6 +473,7 @@ void clipsrvctx::bbb()
 								rfifo_markread(rfifo, datasz);
 							}
 						}
+						break;
 					default:
 						abort();
 				}

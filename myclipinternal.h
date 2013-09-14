@@ -118,7 +118,7 @@ struct subpack_syn : subpackheader_base {
 	char dst_clipname[1];
 };
 
-#define subpack_syn_size(dst_clipname_size) (sizeof(subpack_syn) - sizeof( ((subpack_syn*)0)->dst_clipname ) + (dst_clipname_size))
+#define subpack_syn_size(dst_clipname_size) (sizeof(subpackheader_base) + (dst_clipname_size))
 
 struct subpackheader : subpackheader_base {
 	clipaddr dst;
@@ -133,7 +133,7 @@ struct subpack_data : subpack_ack {
 	char data[1];
 };
 
-#define subpack_data_size(data_size) (sizeof(subpack_data) - sizeof( ((subpack_data*)0)->data) + (data_size))
+#define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
 
 void _clipsrv_havenewdata();
 
