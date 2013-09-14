@@ -106,6 +106,7 @@ static void parsepacket() {
 					ClipConnection *cnn = *it;
 					if (0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr)) && 0 == strncmp(p, cnn->local.clipname, pend - p)) {
 						cnn->prev_recv_pos--;
+						_clipsrv_havenewdata();
 						LeaveCriticalSection(&ctx.lock);
 						goto after_clipname;
 					}
@@ -141,10 +142,10 @@ static void parsepacket() {
 						)
 					{
 						rfifo_t *rfifo = &cnn->pump_send->buf;
-						int prev_pos = (int)ntohl(u.data.net_prev_pos);
-						int count = (int)ntohl(u.data.net_count);
-						int ofs_beg = (int)rfifo->ofs_beg;
-						if (ofs_beg - prev_pos < 0) {
+						long prev_pos = ntohl(u.data.net_prev_pos);
+						long count = ntohl(u.data.net_count);
+						long ofs_beg = (u_long)rfifo->ofs_beg;
+						if (ofs_beg - prev_pos >= 0) {
 							rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
 							cnn->pump_recv->bufferavail();
 						}
@@ -165,8 +166,15 @@ static void parsepacket() {
 						)
 					{
 						rfifo_t *rfifo = &cnn->pump_recv->buf;
-						int prev_pos = (int)ntohl(u.data.net_prev_pos);
-						int count = (int)ntohl(u.data.net_count);
+						long prev_pos = ntohl(u.data.net_prev_pos);
+						long count = ntohl(u.data.net_count);
+						long ofs_end = (u_long)rfifo->ofs_end;
+						if (ofs_end - prev_pos >= 0) {
+							rfifo_markwrite(rfifo, prev_pos + count - ofs_end);
+							cnn->prev_recv_pos = ofs_end;
+							_clipsrv_havenewdata();
+							cnn->pump_send->havedata();
+						}
 						break;
 					}
 				}

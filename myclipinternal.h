@@ -135,5 +135,6 @@ struct subpack_data : subpack_ack {
 
 #define subpack_data_size(data_size) (sizeof(subpack_data) - sizeof( ((subpack_data*)0)->data) + (data_size))
 
+void _clipsrv_havenewdata();
 
 #endif
