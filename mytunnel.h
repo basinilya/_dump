@@ -10,6 +10,7 @@
 namespace cliptund {
 
 struct Connection;
+struct Tunnel;
 
 struct Pump {
 	rfifo_t buf;
@@ -21,16 +22,6 @@ struct Pump {
 	void bufferavail();
 };
 
-struct Tunnel : SimpleRefcount {
-
-	Tunnel(Connection  *cnn_cl);
-	void connected();
-//private:
-	Pump pump_cl2srv;
-	Pump pump_srv2cl;
-	~Tunnel();
-};
-
 struct Connection {
 	Tunnel *tun;
 	Connection(Tunnel *_tun);
@@ -40,6 +31,16 @@ struct Connection {
 	virtual void bufferavail() = 0;
 	virtual void havedata() = 0;
 	virtual ~Connection() {};
+};
+
+struct Tunnel : SimpleRefcount {
+	void connected();
+	Pump pump_cl2srv;
+	Pump pump_srv2cl;
+	~Tunnel();
+	friend Connection::Connection(Tunnel *);
+private:
+	Tunnel(Connection  *cnn_cl);
 };
 
 struct ConnectionFactory {
