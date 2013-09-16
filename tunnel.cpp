@@ -6,7 +6,7 @@ using namespace cliptund;
 Tunnel::~Tunnel()
 {
 	delete this->pump_cl2srv.cnn_src;
-	delete this->pump_cl2srv.cnn_dst;
+	if (this->pump_cl2srv.cnn_dst) delete this->pump_cl2srv.cnn_dst;
 }
 
 Pump::Pump() : eof(0)
