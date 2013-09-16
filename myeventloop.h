@@ -1,18 +1,11 @@
 #ifndef _MY_EVENTLOOP_H
 #define _MY_EVENTLOOP_H
 
-#include "cliptund.h"
 #include <windows.h>
-//#include <atlbase.h>
 
-struct IEventPin : ISimpleRefcount {
+struct IEventPin : IUnknown {
 	virtual void onEvent() = 0;
 };
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /** init */
 int evloop_init();
@@ -30,10 +23,5 @@ int evloop_removelistener(HANDLE ev);
 
 /** wait for events and process next event */
 int evloop_processnext();
-
-#ifdef __cplusplus
-}
-#endif
-
 
 #endif

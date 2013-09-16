@@ -5,8 +5,6 @@
 #include <vector>
 #include <stdlib.h> /* for abort() */
 
-#include "mylogging.h"
-
 #include "mylastheader.h"
 
 using namespace std;

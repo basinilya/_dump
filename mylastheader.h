@@ -1,3 +1,5 @@
+#include "mylogging.h"
+
 /* local */
 #undef INFO
 #undef WARN

@@ -1,6 +1,7 @@
 #ifndef _MYTUNNEL_H
 #define _MYTUNNEL_H
 
+#include "cliptund.h"
 #include "myeventloop.h"
 #include "rfifo.h"
 
