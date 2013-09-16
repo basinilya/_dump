@@ -428,8 +428,6 @@ void clipsrvctx::bbb()
 
 						}
 						break;
-					case STATE_NEW_SRV:
-						break;
 					case STATE_EST:
 						{
 							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
@@ -476,6 +474,21 @@ void clipsrvctx::bbb()
 								rfifo_markread(rfifo, datasz);
 							}
 						}
+						if (conn->pump_send->eof) {
+							if (p + sizeof(subpackheader) > pend) {
+								unlock_and_send_and_newbuf_and_lock();
+							}
+							subpackheader subpack;
+
+							subpack.net_src_channel = conn->local.nchannel;
+							subpack.net_packtype = htonl(PACK_FIN);
+							subpack.dst = conn->remote.clipaddr;
+
+							memcpy(p, &subpack, sizeof(subpack));
+							p += sizeof(subpack);
+						}
+						break;
+					case STATE_NEW_SRV:
 						break;
 					default:
 						abort();

@@ -22,7 +22,7 @@ typedef enum cnnstate_t {
 } cnnstate_t;
 
 typedef enum packtype_t {
-	PACK_SYN, PACK_ACK, PACK_DATA
+	PACK_SYN, PACK_ACK, PACK_DATA, PACK_FIN
 } packtype_t;
 
 typedef struct net_uuid_t {

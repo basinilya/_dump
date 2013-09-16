@@ -202,6 +202,24 @@ static void parsepacket() {
 				LeaveCriticalSection(&ctx.lock);
 				p += count;
 				break;
+			case PACK_FIN:
+				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpackheader) - sizeof(subpackheader_base));
+				p += sizeof(subpackheader) - sizeof(subpackheader_base);
+				EnterCriticalSection(&ctx.lock);
+				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+					ClipConnection *cnn = *it;
+					if (
+						0 == memcmp(&cnn->remote.clipaddr, &u.remote, sizeof(clipaddr))
+						&& 0 == memcmp(&ctx.localclipuuid.net, &u.header.dst.addr, sizeof(net_uuid_t))
+						&& cnn->local.nchannel == u.header.dst.nchannel
+						)
+					{
+						cnn->pump_recv->eof = 1;
+						cnn->pump_send->havedata();
+						break;
+					}
+				}
+				break;
 			default:
 				abort();
 		}
