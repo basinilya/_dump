@@ -11,7 +11,7 @@
 #ifdef _DEBUG
 static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 	if (!CloseHandle(hObject)) {
-		printf("CloseHandle() failed at %s:%d\n", file, line);
+		pWin32Error(ERR, "CloseHandle() failed at %s:%d", file, line);
 		abort();
 	}
 }
@@ -24,15 +24,28 @@ static void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LP
 	BOOL b = GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait);
 	DWORD dw = GetLastError();
 	winet_log(INFO, "GetOverlappedResult(hFile=%p(%lld), nb=%d, ev=%p) == %d; err = %d\n",
-		(void*)hFile, (long long)hFile, lpNumberOfBytesTransferred, (void*)lpOverlapped->hEvent, b, dw);
+		(void*)hFile, (long long)hFile, *lpNumberOfBytesTransferred, (void*)lpOverlapped->hEvent, b, dw);
 	SetLastError(dw);
 	if (!b) {
-		pWin32Error(ERR, "GetOverlappedResult() failed");
+		pWin32Error(ERR, "GetOverlappedResult() failed at %s:%d", file, line);
 		abort();
 	}
+}
+static BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
+	BOOL b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
+	DWORD dw = GetLastError();
+	winet_log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
+		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
+	SetLastError(dw);
+	if (!b && dw != ERROR_IO_PENDING) {
+		pWin32Error(ERR, "WriteFile() failed at %s:%d", file, line);
+		abort();
+	}
+	return b;
 }
 
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
 #define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
 #define GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait) dbg_GetOverlappedResult(__FILE__, __LINE__, hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait)
+#define WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped) dbg_WriteFile(__FILE__, __LINE__, hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped)
 #endif /* _DEBUG */
