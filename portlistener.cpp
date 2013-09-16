@@ -88,9 +88,7 @@ struct TCPConnection : PinRecv, PinSend {
 		}
 		DWORD nb;
 		rfifo_t *rfifo = &pump_recv->buf;
-		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
-		DWORD dw = GetLastError();
-		winet_log(INFO, "GetOverlappedResult(sock=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, nb, (void*)overlap_recv.hEvent, b, dw);
+		GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
 		if (nb == 0) {
 			pump_recv->eof = 1;
 			InterlockedExchange(&lock_recv, 0);
@@ -144,9 +142,7 @@ struct TCPConnection : PinRecv, PinSend {
 
 	void onEventSend() {
 		DWORD nb;
-		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_send, &nb, FALSE);
-		DWORD dw = GetLastError();
-		winet_log(INFO, "GetOverlappedResult(sock=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, nb, (void*)overlap_send.hEvent, b, dw);
+		GetOverlappedResult((HANDLE)sock, &overlap_send, &nb, FALSE);
 		rfifo_t *rfifo = &pump_send->buf;
 		rfifo_confirmread(rfifo, nb);
 		InterlockedExchange(&lock_send, 0);
@@ -198,10 +194,7 @@ struct data_accept : SimpleRefcount, IEventPin {
 		struct sockaddr_in *pLocalSockaddr, *pRemoteSockaddr;
 		int lenL, lenR;
 
-		if (!GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE)) {
-			pWin32Error(ERR, "GetOverlappedResult() failed");
-			abort();
-		}
+		GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE);
 
 		GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
 		memcpy(&localSockaddr, pLocalSockaddr, sizeof(struct sockaddr_in));
