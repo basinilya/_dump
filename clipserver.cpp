@@ -11,10 +11,9 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#include <vector>
-using namespace std;
-
 #include "mylastheader.h"
+
+using namespace std;
 
 #define MAX_FORMATS 100
 

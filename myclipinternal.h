@@ -93,7 +93,6 @@ extern struct clipsrvctx {
 	HWND hwnd;
 	HANDLE havedata_ev;
 	int havedata;
-	UINT_PTR nTimer;
 	CRITICAL_SECTION lock;
 	std::vector<ClipConnection *> connections;
 
