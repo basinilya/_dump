@@ -67,7 +67,6 @@ struct TCPConnection : PinRecv, PinSend {
 				DWORD bufsz = nb;
 				b = ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
 				dw = GetLastError();
-				winet_log(INFO, "ReadFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_recv.hEvent, b, dw);
 
 				if (b || dw == ERROR_IO_PENDING) {
 					//AddRef();
@@ -128,7 +127,6 @@ struct TCPConnection : PinRecv, PinSend {
 					DWORD bufsz = nb;
 					BOOL b = WriteFile((HANDLE)sock, data, bufsz, &nb, &overlap_send);
 					DWORD dw = GetLastError();
-					winet_log(INFO, "WriteFile(sock=%d, bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n", (int)sock, bufsz, nb, (void*)overlap_send.hEvent, b, dw);
 					if (b || dw == ERROR_IO_PENDING) {
 						//AddRef();
 					} else {

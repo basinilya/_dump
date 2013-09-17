@@ -36,11 +36,23 @@ static BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuf
 	DWORD dw = GetLastError();
 	winet_log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
 		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
-	SetLastError(dw);
 	if (!b && dw != ERROR_IO_PENDING) {
 		pWin32Error(ERR, "WriteFile() failed at %s:%d", file, line);
 		abort();
 	}
+	SetLastError(dw);
+	return b;
+}
+static BOOL dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
+	BOOL b = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped);
+	DWORD dw = GetLastError();
+	winet_log(INFO, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
+		(void*)hFile, (long long)hFile, nNumberOfBytesToRead, *lpNumberOfBytesRead, (void*)lpOverlapped->hEvent, b, dw);
+	if (!b && dw != ERROR_IO_PENDING) {
+		pWin32Error(ERR, "ReadFile() failed at %s:%d", file, line);
+		abort();
+	}
+	SetLastError(dw);
 	return b;
 }
 
@@ -48,4 +60,6 @@ static BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuf
 #define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
 #define GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait) dbg_GetOverlappedResult(__FILE__, __LINE__, hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait)
 #define WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped) dbg_WriteFile(__FILE__, __LINE__, hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped)
+#define ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped) dbg_ReadFile(__FILE__, __LINE__,hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped)
+
 #endif /* _DEBUG */
