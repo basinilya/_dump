@@ -119,12 +119,17 @@ struct PinSend : IEventPin, virtual Connection {
 	PinSend() : Connection((abort(),NULL)) { }
 };
 
+static void overlap_reset(LPOVERLAPPED overlap) {
+	HANDLE ev = overlap->hEvent;
+	memset(overlap, 0, sizeof(OVERLAPPED));
+	overlap->hEvent = ev;
+}
+
 struct TCPConnection : PinRecv, PinSend {
 	DeclRefcountMethods(tun->)
 
 	int firstread;
 
-	HANDLE ev_recv, ev_send;
 	OVERLAPPED overlap_recv, overlap_send;
 
 	volatile LONG lock_recv;
@@ -138,9 +143,8 @@ struct TCPConnection : PinRecv, PinSend {
 		if (nb != 0) {
 			if (0 == InterlockedExchange(&lock_recv, 1)) {
 				char *data = rfifo_pfree(rfifo);
-				memset(&overlap_recv, 0, sizeof(OVERLAPPED));
-				if (!ev_recv) ev_recv = evloop_addlistener(static_cast<PinRecv*>(this));
-				overlap_recv.hEvent = ev_recv;
+				if (!overlap_recv.hEvent) overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
+				overlap_reset(&overlap_recv);
 
 				ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
 			}
@@ -159,7 +163,7 @@ struct TCPConnection : PinRecv, PinSend {
 		if (nb == 0) {
 			pump_recv->eof = 1;
 			InterlockedExchange(&lock_recv, 0);
-			evloop_removelistener(ev_recv);
+			evloop_removelistener(overlap_recv.hEvent);
 			pump_send->havedata();
 		} else {
 			rfifo_markwrite(rfifo, nb);
@@ -180,13 +184,12 @@ struct TCPConnection : PinRecv, PinSend {
 				if (nb == 0) {
 					shutdown(sock, SD_SEND);
 					InterlockedExchange(&lock_send, 0);
-					if (ev_send) evloop_removelistener(ev_send);
+					if (overlap_send.hEvent) evloop_removelistener(overlap_send.hEvent);
 				} else {
 					char *data = rfifo_pdata(rfifo);
 					rfifo_markread(rfifo, nb);
-					memset(&overlap_send, 0, sizeof(OVERLAPPED));
-					if (!ev_send) ev_send = evloop_addlistener(static_cast<PinSend*>(this));
-					overlap_send.hEvent = ev_send;
+					if (!overlap_send.hEvent) overlap_send.hEvent = evloop_addlistener(static_cast<PinSend*>(this));
+					overlap_reset(&overlap_send);
 
 					WriteFile((HANDLE)sock, data, nb, &nb, &overlap_send);
 				}
@@ -208,9 +211,10 @@ struct TCPConnection : PinRecv, PinSend {
 			Connection(_tun),
 			sock(_sock),
 			firstread(0),
-			ev_recv(0), ev_send(0),
 			lock_send(0),lock_recv(0)
 	{
+		overlap_send.hEvent = NULL;
+		overlap_recv.hEvent = NULL;
 	}
 
 	~TCPConnection() {
@@ -295,8 +299,8 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 			conn->firstread = 1;
 
-			conn->ev_recv = evloop_addlistener(static_cast<PinRecv*>(conn));
-			SetEvent(conn->ev_recv);
+			HANDLE ev = conn->overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(conn));
+			SetEvent(ev);
 
 		} else {
 			pWinsockError(WARN, "connect() failed");
@@ -339,14 +343,11 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 	struct sockaddr_in saddr;
 	data_accept *newdata;
 	DWORD nb;
-	HANDLE ev;
 	SOCKET lsock, asock;
 
 	newdata = new data_accept();
 
 	newdata->connfact = connfact;
-
-	memset(&newdata->overlap, 0, sizeof(OVERLAPPED));
 
 	newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -367,7 +368,8 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 		goto cleanup4;
 	}
 
-	newdata->overlap.hEvent = ev = evloop_addlistener(newdata);
+	newdata->overlap.hEvent = evloop_addlistener(newdata);
+	overlap_reset(&newdata->overlap);
 
 	AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap);
 	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
