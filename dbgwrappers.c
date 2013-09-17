@@ -28,8 +28,8 @@ void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAP
 		(void*)hFile, (long long)hFile, *lpNumberOfBytesTransferred, (void*)lpOverlapped->hEvent, b, dw);
 	SetLastError(dw);
 	if (!b) {
-		pWin32Error(ERR, "GetOverlappedResult() failed at %s:%d", file, line);
-		abort();
+		pWin32Error(ERR, "GetOverlappedResult() failed");
+		//abort();
 	}
 }
 void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
@@ -38,8 +38,8 @@ void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWO
 	log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
 		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
 	if (!b && dw != ERROR_IO_PENDING) {
-		pWin32Error(ERR, "WriteFile() failed at %s:%d", file, line);
-		abort();
+		pWin32Error(ERR, "WriteFile() failed");
+		//abort();
 	}
 	SetLastError(dw);
 	//return b;
@@ -50,8 +50,8 @@ void dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD
 	log(INFO, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
 		(void*)hFile, (long long)hFile, nNumberOfBytesToRead, *lpNumberOfBytesRead, (void*)lpOverlapped->hEvent, b, dw);
 	if (!b && dw != ERROR_IO_PENDING) {
-		pWin32Error(ERR, "ReadFile() failed at %s:%d", file, line);
-		abort();
+		pWin32Error(ERR, "ReadFile() failed");
+		//abort();
 	}
 	SetLastError(dw);
 	//return b;

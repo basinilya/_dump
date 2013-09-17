@@ -15,6 +15,7 @@ struct Tunnel;
 struct Pump {
 	rfifo_t buf;
 	int eof;
+	int writeerror;
 	Connection *cnn_src;
 	Connection *cnn_dst;
 	Pump();

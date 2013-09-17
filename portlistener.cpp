@@ -50,13 +50,18 @@ struct TCPConnection : PinRecv, PinSend {
 	void bufferavail() {
 		rfifo_t *rfifo = &pump_recv->buf;
 		DWORD nb = rfifo_availwrite(rfifo);
-		if (nb != 0) {
+		if (nb != 0 || pump_recv->writeerror) {
 			if (0 == InterlockedExchange(&lock_recv, 1)) {
-				char *data = rfifo_pfree(rfifo);
-				if (!overlap_recv.hEvent) overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
-				overlap_reset(&overlap_recv);
+				if (pump_recv->writeerror) {
+					shutdown(sock, SD_RECEIVE);
+					if (overlap_recv.hEvent) evloop_removelistener(overlap_recv.hEvent);
+				} else {
+					char *data = rfifo_pfree(rfifo);
+					if (!overlap_recv.hEvent) overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
+					overlap_reset(&overlap_recv);
 
-				ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
+					ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
+				}
 			}
 		}
 	}
@@ -109,11 +114,16 @@ struct TCPConnection : PinRecv, PinSend {
 	void onEventSend() {
 		DWORD nb;
 		GetOverlappedResult((HANDLE)sock, &overlap_send, &nb, FALSE);
-		rfifo_t *rfifo = &pump_send->buf;
-		rfifo_confirmread(rfifo, nb);
-		InterlockedExchange(&lock_send, 0);
-		pump_recv->bufferavail();
-		havedata();
+		if (nb == 0) {
+			evloop_removelistener(overlap_send.hEvent);
+			pump_recv->bufferavail();
+		} else {
+			rfifo_t *rfifo = &pump_send->buf;
+			rfifo_confirmread(rfifo, nb);
+			InterlockedExchange(&lock_send, 0);
+			pump_recv->bufferavail();
+			havedata();
+		}
 	}
 
 	TCPConnection(Tunnel *_tun, SOCKET _sock) :
