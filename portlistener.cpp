@@ -14,8 +14,89 @@
 
 #include <stdio.h>
 
-//#include <vector>
-//using namespace std;
+#ifdef _DEBUG
+
+#undef INFO
+#undef WARN
+#undef ERR
+#define INFO WINET_LOG_MESSAGE
+#define WARN WINET_LOG_WARNING
+#define ERR WINET_LOG_ERROR
+
+void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
+	if (!CloseHandle(hObject)) {
+		pWin32Error(ERR, "CloseHandle() failed at %s:%d", file, line);
+		abort();
+	}
+}
+void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAPPED lpOverlapped, LPDWORD lpNumberOfBytesTransferred, BOOL bWait) {
+	BOOL b = GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait);
+	DWORD dw = GetLastError();
+	winet_log(INFO, "GetOverlappedResult(hFile=%p(%lld), nb=%d, ev=%p) == %d; err = %d\n",
+		(void*)hFile, (long long)hFile, *lpNumberOfBytesTransferred, (void*)lpOverlapped->hEvent, b, dw);
+	SetLastError(dw);
+	if (!b) {
+		pWin32Error(ERR, "GetOverlappedResult() failed at %s:%d", file, line);
+		abort();
+	}
+}
+void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
+	BOOL b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
+	DWORD dw = GetLastError();
+	winet_log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
+		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
+	if (!b && dw != ERROR_IO_PENDING) {
+		pWin32Error(ERR, "WriteFile() failed at %s:%d", file, line);
+		abort();
+	}
+	SetLastError(dw);
+	//return b;
+}
+void dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
+	BOOL b = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped);
+	DWORD dw = GetLastError();
+	winet_log(INFO, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
+		(void*)hFile, (long long)hFile, nNumberOfBytesToRead, *lpNumberOfBytesRead, (void*)lpOverlapped->hEvent, b, dw);
+	if (!b && dw != ERROR_IO_PENDING) {
+		pWin32Error(ERR, "ReadFile() failed at %s:%d", file, line);
+		abort();
+	}
+	SetLastError(dw);
+	//return b;
+}
+
+void dbg_AcceptEx(const char *file, int line, SOCKET sListenSocket,SOCKET sAcceptSocket,PVOID lpOutputBuffer,DWORD dwReceiveDataLength,DWORD dwLocalAddressLength,DWORD dwRemoteAddressLength,LPDWORD lpdwBytesReceived,LPOVERLAPPED lpOverlapped) {
+	BOOL b = AcceptEx(sListenSocket,sAcceptSocket,lpOutputBuffer,dwReceiveDataLength,dwLocalAddressLength,dwRemoteAddressLength,lpdwBytesReceived,lpOverlapped);
+	DWORD dw = WSAGetLastError();
+	if (!b && dw != ERROR_IO_PENDING) {
+		pWinsockError(ERR, "AcceptEx() failed");
+		abort();
+	}
+	WSASetLastError(dw);
+}
+
+void dbg_closesocket(const char *file, int line, SOCKET s) {
+	if (closesocket(s) == SOCKET_ERROR) {
+		pWinsockError(ERR, "closesocket() failed at %s:%d", file, line);
+		abort();
+	}
+}
+void dbg_shutdown(const char *file, int line, SOCKET s, int how) {
+	int rc = shutdown(s, how);
+	if (rc != 0) {
+		pWinsockError(ERR, "shutdown(%d, SD_SEND) failed at %s:%d", (int)s, file, line);
+		abort();
+	}
+}
+SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol) {
+	SOCKET s = socket(af,type,protocol);
+	if (s == INVALID_SOCKET) {
+		pWinsockError(ERR, "socket() failed");
+		abort();
+	}
+	return s;
+}
+#endif /* _DEBUG */
 
 #include "mylastheader.h"
 
@@ -70,7 +151,6 @@ struct TCPConnection : PinRecv, PinSend {
 		if (firstread) {
 			firstread = 0;
 			tun->connected();
-			//Release();
 			return;
 		}
 		DWORD nb;
@@ -87,7 +167,6 @@ struct TCPConnection : PinRecv, PinSend {
 			pump_send->havedata();
 			bufferavail();
 		}
-		//Release();
 	}
 
 	volatile LONG lock_send;
@@ -123,7 +202,6 @@ struct TCPConnection : PinRecv, PinSend {
 		InterlockedExchange(&lock_send, 0);
 		pump_recv->bufferavail();
 		havedata();
-		//Release();
 	}
 
 	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
@@ -187,35 +265,11 @@ struct data_accept : SimpleRefcount, IEventPin {
 			tun->Release();
 		}
 
-		if ((data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-			pWinsockError(ERR, "socket() failed");
-			abort();
-			//goto cleanup3;
-		}
-
-		if (!AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
-			pWinsockError(ERR, "AcceptEx() failed");
-			//evloop_removelistener(ev);
-			//goto cleanup4;
-		}
+		data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap);
 	}
 
 };
-
-/*
-typedef struct data_connection {
-	clip_connection conn;
-	SOCKET sock;
-	HANDLE ev;
-} data_connection;
-*/
-/*
-static int _cliptund_connection_func(void *param)
-{
-	data_connection *data = (data_connection *)param;
-	return 0;
-}
-*/
 
 static DWORD WINAPI resolvethread(LPVOID param) {
 	TCPConnection *conn = (TCPConnection *)param;
@@ -241,7 +295,6 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 
 			conn->firstread = 1;
 
-			//conn->AddRef();
 			conn->ev_recv = evloop_addlistener(static_cast<PinRecv*>(conn));
 			SetEvent(conn->ev_recv);
 
@@ -266,7 +319,6 @@ struct TCPConnectionFactory : ConnectionFactory {
 		TCPConnection *conn = new TCPConnection(tun, sock);
 		strcpy(conn->a.toresolv.hostname, host);
 		conn->a.toresolv.port = port;
-		//conn->tun = tun;
 
 		tun->AddRef();
 		CreateThread(NULL, 0, resolvethread, conn, 0, &tid);
@@ -296,15 +348,8 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 
 	memset(&newdata->overlap, 0, sizeof(OVERLAPPED));
 
-	if ((newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		goto cleanup2;
-	}
-
-	if ((newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
-		goto cleanup3;
-	}
+	newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_addr.S_un.S_addr = INADDR_ANY;
@@ -324,19 +369,12 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 
 	newdata->overlap.hEvent = ev = evloop_addlistener(newdata);
 
-	if (!AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap) && WSAGetLastError() != ERROR_IO_PENDING) {
-		pWinsockError(ERR, "AcceptEx() failed");
-		evloop_removelistener(ev);
-		goto cleanup4;
-	}
+	AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap);
 	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
-	//CreateThread(NULL, 0, foo, lsock, 0, &nb);
 	return 0;
 cleanup4:
 	closesocket(asock);
-cleanup3:
 	closesocket(lsock);
-cleanup2:
 	free(newdata);
 	return rc;
 }
