@@ -9,6 +9,12 @@
 #undef _DEBUG
 #include "mylastheader.h"
 
+void dbg_CloseClipboard() {
+	if (!CloseClipboard()) {
+		pWin32Error(WARN, "CloseClipboard() failed");
+	}
+}
+
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 	if (!CloseHandle(hObject)) {
 		pWin32Error(ERR, "CloseHandle() failed at %s:%d", file, line);

@@ -272,9 +272,7 @@ int senddata(HGLOBAL hdata) {
 
 	rc = 0;
 err:
-	if (!CloseClipboard()) {
-		pWin32Error(ERR, "CloseClipboard() failed");
-	}
+	CloseClipboard();
 	ctx.clipsrv_nseq = GetClipboardSequenceNumber();
 	//printf("after %d\n", ctx.clipsrv_nseq);
 	return rc;

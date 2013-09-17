@@ -99,9 +99,7 @@ static void parsepacket() {
 			GlobalUnlock(hglob);
 		}
 	}
-	if (!CloseClipboard()) {
-		pWin32Error(WARN, "CloseClipboard() failed");
-	}
+	CloseClipboard();
 	if (flag) for (;;) {
 		ClipConnection *cnn;
 		#define FIND(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; } } while(0)
