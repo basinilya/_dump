@@ -118,7 +118,7 @@ static void parsepacket() {
 					if (u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p))
 					{
 						cnn->prev_recv_pos--;
-						_clipsrv_havenewdata();
+						cnn->havedata();
 						LeaveCriticalSection(&ctx.lock);
 						goto after_clipname;
 					}
@@ -195,7 +195,7 @@ static void parsepacket() {
 							if (datasz > bufsz) datasz = bufsz;
 							memcpy(rfifo_pfree(rfifo), p, datasz);
 							rfifo_markwrite(rfifo, datasz);
-							_clipsrv_havenewdata();
+							cnn->havedata();
 							cnn->pump_send->havedata();
 						}
 						break;

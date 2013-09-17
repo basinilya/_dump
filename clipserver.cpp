@@ -310,11 +310,6 @@ void _clipsrv_reg_cnn(ClipConnection *conn)
 	LeaveCriticalSection(&ctx.lock);
 }
 
-void _clipsrv_havenewdata()
-{
-	SetEvent(ctx.havedata_ev);
-}
-
 struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
@@ -325,7 +320,7 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 
 		cnn->tun = tun;
 		_clipsrv_reg_cnn(cnn);
-		_clipsrv_havenewdata();
+		cnn->havedata();
 	}
 };
 
@@ -340,14 +335,12 @@ void ClipConnection::bufferavail() {
 	if (state == STATE_NEW_SRV) {
 		prev_recv_pos--;
 		state = STATE_EST;
-		_clipsrv_havenewdata();
-		return;
 	}
-	_clipsrv_havenewdata();
+	havedata();
 }
 
 void ClipConnection::havedata() {
-	_clipsrv_havenewdata();
+	SetEvent(ctx.havedata_ev);
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
