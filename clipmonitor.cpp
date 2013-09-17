@@ -48,7 +48,6 @@ static void parsepacket() {
 	char buf[MAXPACKETSIZE];
 	const char *pbeg, *pend, *p;
 
-
 	union {
 		clipaddr remote;
 		struct {
@@ -60,17 +59,17 @@ static void parsepacket() {
 				subpack_data data;
 			};
 		};
-
 		bool remoteequal(const ClipConnection *cnn) const {
 			return 0 == memcmp(&cnn->remote.clipaddr, &remote, sizeof(clipaddr));
 		}
-
 		bool localequal(const ClipConnection *cnn) const {
 			return
 				0 == memcmp(&ctx.localclipuuid.net, &header.dst.addr, sizeof(net_uuid_t))
 				&& cnn->local.nchannel == header.dst.nchannel;
 		}
-
+		bool localandremoteequal(const ClipConnection *cnn) const {
+			return localequal(cnn) && remoteequal(cnn);
+		}
 	} u;
 
 	int flag = 0;
@@ -181,7 +180,7 @@ static void parsepacket() {
 				EnterCriticalSection(&ctx.lock);
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					cnn = *it;
-					if (u.remoteequal(cnn) && u.localequal(cnn))
+					if (u.localandremoteequal(cnn))
 					{
 						rfifo_t *rfifo = &cnn->pump_recv->buf;
 						long prev_pos = ntohl(u.data.net_prev_pos);
@@ -213,7 +212,7 @@ static void parsepacket() {
 				EnterCriticalSection(&ctx.lock);
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					cnn = *it;
-					if (u.remoteequal(cnn) && u.localequal(cnn)) {
+					if (u.localandremoteequal(cnn)) {
 						cnn->pump_recv->eof = 1;
 						cnn->pump_send->havedata();
 						break;
