@@ -30,6 +30,7 @@ void dbg_AcceptEx(const char *file, int line, SOCKET sListenSocket,SOCKET sAccep
 void dbg_closesocket(const char *file, int line, SOCKET s);
 void dbg_shutdown(const char *file, int line, SOCKET s, int how);
 SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol);
+void dbg_listen(const char *file, int line, SOCKET s, int backlog);
 
 #ifdef __cplusplus
 }
@@ -46,5 +47,6 @@ SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol);
 #define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
 #define shutdown(s, how) dbg_shutdown(__FILE__, __LINE__, s, how)
 #define socket(af,type,protocol) dbg_socket(__FILE__, __LINE__, af,type,protocol)
+#define listen(s,backlog) dbg_listen(__FILE__, __LINE__, s,backlog)
 
 #endif /* _DEBUG */

@@ -138,14 +138,14 @@ struct TCPConnection : PinRecv, PinSend {
 	} a;
 };
 
-struct data_accept : SimpleRefcount, IEventPin {
+struct TcpListener : SimpleRefcount, IEventPin {
 	SOCKET lsock;
 	SOCKET asock;
 	OVERLAPPED overlap;
 	char buf[ADDRESSLENGTH*2];
 	ConnectionFactory *connfact;
 
-	~data_accept() {
+	~TcpListener() {
 		closesocket(lsock);
 		closesocket(asock);
 		delete connfact;
@@ -154,32 +154,31 @@ struct data_accept : SimpleRefcount, IEventPin {
 	DeclRefcountMethods(SimpleRefcount::)
 
 	void onEvent() {
-		data_accept *data = this;
 		DWORD nb;
 		struct sockaddr_in localSockaddr, remoteSockaddr;
 		struct sockaddr_in *pLocalSockaddr, *pRemoteSockaddr;
 		int lenL, lenR;
 
-		GetOverlappedResult((HANDLE)data->lsock, &data->overlap, &nb, FALSE);
+		GetOverlappedResult((HANDLE)lsock, &overlap, &nb, FALSE);
 
-		GetAcceptExSockaddrs(data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
+		GetAcceptExSockaddrs(buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, (LPSOCKADDR*)&pLocalSockaddr, &lenL, (LPSOCKADDR*)&pRemoteSockaddr, &lenR);
 		memcpy(&localSockaddr, pLocalSockaddr, sizeof(struct sockaddr_in));
 		memcpy(&remoteSockaddr, pRemoteSockaddr, sizeof(struct sockaddr_in));
 		{
 			TCHAR buf[100];
 			winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
-			log(INFO, "accepted sock=%d, %s:%d", (int)data->asock, buf, ntohs(remoteSockaddr.sin_port));
-			setsockopt(data->asock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&data->lsock, sizeof(data->lsock));
+			log(INFO, "accepted sock=%d, %s:%d", (int)asock, buf, ntohs(remoteSockaddr.sin_port));
+			setsockopt(asock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&lsock, sizeof(lsock));
 		}
 		{
-			TCPConnection *conn = new TCPConnection(NULL, data->asock);
+			TCPConnection *conn = new TCPConnection(NULL, asock);
 			Tunnel *tun = conn->tun;
 			connfact->connect(tun);
 			tun->Release();
 		}
 
-		data->asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		AcceptEx(data->lsock, data->asock, data->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &data->overlap);
+		asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		AcceptEx(lsock, asock, buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &overlap);
 	}
 
 };
@@ -248,16 +247,15 @@ ConnectionFactory *tcp_CreateConnectionFactory(const char host[40+1], short port
 
 int tcp_create_listener(ConnectionFactory *connfact, short port)
 {
-	int rc = -1;
 	struct sockaddr_in saddr;
-	data_accept *newdata;
+	TcpListener *listener;
 	DWORD nb;
 	SOCKET lsock, asock;
 
-	newdata = new data_accept();
-	newdata->connfact = connfact;
-	newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	listener = new TcpListener();
+	listener->connfact = connfact;
+	listener->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	listener->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	memset(&saddr, 0, sizeof(saddr));
 	saddr.sin_addr.S_un.S_addr = INADDR_ANY;
@@ -266,22 +264,16 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 
 	if (0 != bind(lsock, (const struct sockaddr *) &saddr, sizeof(saddr))) {
 		pWinsockError(WARN, "failed to bind port %d", port);
-		rc = -2; /* not fatal */
-		goto cleanup4;
+		delete listener;
+		return -2;
 	}
 
-	if (0 != listen(lsock, LSN_BKLOG)) {
-		pWinsockError(ERR, "listen() failed");
-		goto cleanup4;
-	}
+	listen(lsock, LSN_BKLOG);
 
-	newdata->overlap.hEvent = evloop_addlistener(newdata);
-	overlap_reset(&newdata->overlap);
+	listener->overlap.hEvent = evloop_addlistener(listener);
+	overlap_reset(&listener->overlap);
 
-	AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap);
+	AcceptEx(lsock, asock, listener->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &listener->overlap);
 	log(INFO, "listening on port: %d\n", port);
 	return 0;
-cleanup4:
-	delete newdata;
-	return rc;
 }

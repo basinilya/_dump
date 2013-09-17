@@ -82,4 +82,11 @@ SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol) {
 	}
 	return s;
 }
+void dbg_listen(const char *file, int line, SOCKET s, int backlog) {
+	int rc = listen(s,backlog);
+	if (0 != rc) {
+		pWinsockError(ERR, "listen() failed");
+		abort();
+	}
+}
 #endif /* _DEBUG */
