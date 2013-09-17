@@ -465,14 +465,20 @@ void clipsrvctx::mainloop()
 							}
 						}
 						if (conn->pump_send->eof) {
-							if (p + sizeof(subpackheader) > pend) {
+							if (p + sizeof(subpack_ack) > pend) {
 								unlock_and_send_and_newbuf_and_lock();
 							}
-							subpackheader subpack;
+							subpack_ack subpack;
+
+							rfifo_t *rfifo;
+							rfifo = &conn->pump_send->buf;
 
 							subpack.net_src_channel = conn->local.nchannel;
 							subpack.net_packtype = htonl(PACK_FIN);
 							subpack.dst = conn->remote.clipaddr;
+
+							subpack.net_prev_pos = htonl(rfifo->ofs_end);
+							subpack.net_count = htonl(0);
 
 							memcpy(p, &subpack, sizeof(subpack));
 							p += sizeof(subpack);

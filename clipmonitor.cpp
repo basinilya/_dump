@@ -194,13 +194,18 @@ static void parsepacket() {
 					p += count;
 					break;
 				case PACK_FIN:
-					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpackheader) - sizeof(subpackheader_base));
-					p += sizeof(subpackheader) - sizeof(subpackheader_base);
+					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
+					p += sizeof(subpack_ack) - sizeof(subpackheader_base);
 					FIND_cnn(u.localandremoteequal(cnn));
 					if (cnn)
 					{
-						cnn->pump_recv->eof = 1;
-						cnn->pump_send->havedata();
+						rfifo_t *rfifo = &cnn->pump_recv->buf;
+						long prev_pos = ntohl(u.data.net_prev_pos);
+						long ofs_end = (u_long)rfifo->ofs_end;
+						if (ofs_end == prev_pos) {
+							cnn->pump_recv->eof = 1;
+							cnn->pump_send->havedata();
+						}
 					}
 					break;
 				default:
