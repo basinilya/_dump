@@ -100,85 +100,77 @@ static void parsepacket() {
 		}
 	}
 	CloseClipboard();
-	if (flag) for (;;) {
-		ClipConnection *cnn;
-		#define FIND(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; } } while(0)
+	if (flag) {
+		EnterCriticalSection(&ctx.lock);
 
-		if (pend - p < sizeof(subpackheader_base)) break;
+		for (; pend - p >= sizeof(subpackheader_base);) {
+			ClipConnection *cnn;
+			#define FIND_cnn(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { \
+					if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; \
+				} } while(0)
 
-		memcpy(&u.header, p, sizeof(subpackheader_base));
-		p += sizeof(subpackheader_base);
+			memcpy(&u.header, p, sizeof(subpackheader_base));
+			p += sizeof(subpackheader_base);
 
-		packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
-		switch(packtype) {
-			case PACK_SYN:
-				EnterCriticalSection(&ctx.lock);
-				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-					cnn = *it;
-					if (u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p))
-					{
+			packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
+			switch(packtype) {
+				case PACK_SYN:
+					FIND_cnn(u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p));
+					if (cnn) {
 						cnn->prev_recv_pos--;
 						cnn->havedata();
-						LeaveCriticalSection(&ctx.lock);
-						goto after_clipname;
-					}
-				}
-				LeaveCriticalSection(&ctx.lock);
-				for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
-					Cliplistener *cliplistener = *it;
-					if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
-						ClipConnection *cnn = new ClipConnection(NULL);
-						Tunnel *tun = cnn->tun;
-						strcpy(cnn->local.clipname, cliplistener->clipname);
-						cnn->local.nchannel = cliplistener->net_channel;
-						cnn->state = STATE_NEW_SRV;
-						cnn->remote.clipaddr = u.remote;
-						_clipsrv_reg_cnn(cnn);
-						cliplistener->connfact->connect(tun);
-						tun->Release();
-						break;
-					}
-				}
-				after_clipname:
-				p += strlen(p)+1;
-				break;
-			case PACK_ACK:
-				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
-				p += sizeof(subpack_ack) - sizeof(subpackheader_base);
-				EnterCriticalSection(&ctx.lock);
-				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-					cnn = *it;
-					if (u.localequal(cnn))
-					{
-						if (cnn->state == STATE_SYN) {
-							cnn->state = STATE_EST;
-							cnn->remote.clipaddr = u.remote;
-							cnn->tun->connected();
-							break;
-						} else if (u.remoteequal(cnn)) {
-							rfifo_t *rfifo = &cnn->pump_send->buf;
-							long prev_pos = ntohl(u.data.net_prev_pos);
-							long count = ntohl(u.data.net_count);
-							long ofs_beg = (u_long)rfifo->ofs_beg;
-							if (ofs_beg - prev_pos >= 0) {
-								rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
-								cnn->pump_recv->bufferavail();
+					} else {
+						for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
+							Cliplistener *cliplistener = *it;
+							if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
+								ClipConnection *cnn = new ClipConnection(NULL);
+								Tunnel *tun = cnn->tun;
+								strcpy(cnn->local.clipname, cliplistener->clipname);
+								cnn->local.nchannel = cliplistener->net_channel;
+								cnn->state = STATE_NEW_SRV;
+								cnn->remote.clipaddr = u.remote;
+								_clipsrv_reg_cnn(cnn);
+								cliplistener->connfact->connect(tun);
+								tun->Release();
+								break;
 							}
-							break;
 						}
 					}
-				}
-				LeaveCriticalSection(&ctx.lock);
-				break;
-			case PACK_DATA:
-				memcpy(u.c + sizeof(subpackheader_base), p, subpack_data_size(0) - sizeof(subpackheader_base));
-				p += subpack_data_size(0) - sizeof(subpackheader_base);
-				long count;
-				count = ntohl(u.data.net_count);
-				EnterCriticalSection(&ctx.lock);
-				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-					cnn = *it;
-					if (u.localandremoteequal(cnn))
+					p += strlen(p)+1;
+					break;
+				case PACK_ACK:
+					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
+					p += sizeof(subpack_ack) - sizeof(subpackheader_base);
+					for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+						cnn = *it;
+						if (u.localequal(cnn))
+						{
+							if (cnn->state == STATE_SYN) {
+								cnn->state = STATE_EST;
+								cnn->remote.clipaddr = u.remote;
+								cnn->tun->connected();
+								break;
+							} else if (u.remoteequal(cnn)) {
+								rfifo_t *rfifo = &cnn->pump_send->buf;
+								long prev_pos = ntohl(u.data.net_prev_pos);
+								long count = ntohl(u.data.net_count);
+								long ofs_beg = (u_long)rfifo->ofs_beg;
+								if (ofs_beg - prev_pos >= 0) {
+									rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
+									cnn->pump_recv->bufferavail();
+								}
+								break;
+							}
+						}
+					}
+					break;
+				case PACK_DATA:
+					memcpy(u.c + sizeof(subpackheader_base), p, subpack_data_size(0) - sizeof(subpackheader_base));
+					p += subpack_data_size(0) - sizeof(subpackheader_base);
+					long count;
+					count = ntohl(u.data.net_count);
+					FIND_cnn(u.localandremoteequal(cnn));
+					if (cnn)
 					{
 						rfifo_t *rfifo = &cnn->pump_recv->buf;
 						long prev_pos = ntohl(u.data.net_prev_pos);
@@ -198,29 +190,24 @@ static void parsepacket() {
 							cnn->havedata();
 							cnn->pump_send->havedata();
 						}
-						break;
 					}
-				}
-				LeaveCriticalSection(&ctx.lock);
-				p += count;
-				break;
-			case PACK_FIN:
-				memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpackheader) - sizeof(subpackheader_base));
-				p += sizeof(subpackheader) - sizeof(subpackheader_base);
-				EnterCriticalSection(&ctx.lock);
-				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-					cnn = *it;
-					if (u.localandremoteequal(cnn)) {
+					p += count;
+					break;
+				case PACK_FIN:
+					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpackheader) - sizeof(subpackheader_base));
+					p += sizeof(subpackheader) - sizeof(subpackheader_base);
+					FIND_cnn(u.localandremoteequal(cnn));
+					if (cnn)
+					{
 						cnn->pump_recv->eof = 1;
 						cnn->pump_send->havedata();
-						break;
 					}
-				}
-				LeaveCriticalSection(&ctx.lock);
-				break;
-			default:
-				abort();
+					break;
+				default:
+					abort();
+			}
 		}
+		LeaveCriticalSection(&ctx.lock);
 	}
 }
 
