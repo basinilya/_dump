@@ -6,6 +6,18 @@
 #define WARN WINET_LOG_WARNING
 #define ERR WINET_LOG_ERROR
 
+#undef ERROR
+#define ERROR 0 0
+#undef WARNING
+#define WARNING 0 0
+
+#define pSysError     cliptund_pSysError
+#define pWinsockError cliptund_pWinsockError
+#define pWin32Error   cliptund_pWin32Error
+#define log           cliptund_log
+
+#define COUNTOF(a) (sizeof(a) / sizeof(a[0]))
+
 #ifdef __cplusplus
 extern "C" {
 #endif

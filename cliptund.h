@@ -31,13 +31,7 @@
 extern "C" {
 #endif
 
-#define WINET_APPNAME "cliptund"
-#define WINET_VERSION "0.7p.a" /* 'pump' or 'pipes' */
-
-
-#define COUNTOF(a) (sizeof(a) / sizeof(a[0]))
-
-
+#define WINET_VERSION "0.1"
 
 int winet_stop_service(void);
 int winet_main(int argc, char const **argv);

@@ -168,7 +168,7 @@ struct data_accept : SimpleRefcount, IEventPin {
 		{
 			TCHAR buf[100];
 			winet_inet_ntoa(remoteSockaddr.sin_addr, buf, 100);
-			winet_log(INFO, "accepted sock=%d, %s:%d\n", (int)data->asock, buf, ntohs(remoteSockaddr.sin_port));
+			log(INFO, "accepted sock=%d, %s:%d", (int)data->asock, buf, ntohs(remoteSockaddr.sin_port));
 			setsockopt(data->asock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&data->lsock, sizeof(data->lsock));
 		}
 		{
@@ -204,7 +204,7 @@ static DWORD WINAPI resolvethread(LPVOID param) {
 		inaddr->sin_port = htons(conn->a.toresolv.port);
 		if (0 == connect(conn->sock, pres->ai_addr, pres->ai_addrlen)) {
 
-			winet_log(INFO, "connected sock=%d, %s:%hd\n", (int)conn->sock, conn->a.toresolv.hostname, conn->a.toresolv.port);
+			log(INFO, "connected sock=%d, %s:%hd", (int)conn->sock, conn->a.toresolv.hostname, conn->a.toresolv.port);
 
 			conn->firstread = 1;
 
@@ -279,7 +279,7 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 	overlap_reset(&newdata->overlap);
 
 	AcceptEx(lsock, asock, newdata->buf, 0, ADDRESSLENGTH, ADDRESSLENGTH, &nb, &newdata->overlap);
-	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
+	log(INFO, "listening on port: %d\n", port);
 	return 0;
 cleanup4:
 	delete newdata;

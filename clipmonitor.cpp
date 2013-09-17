@@ -84,7 +84,7 @@ static void parsepacket() {
 				pend = buf + (pend - p);
 				p = buf;
 				flag = 1;
-				printf("received %d\n", (int)sz);
+				//printf("received %d\n", (int)sz);
 			}
 			GlobalUnlock(hglob);
 		}
@@ -373,6 +373,6 @@ int clipsrv_create_listener(ConnectionFactory *connfact, const char clipname[40+
 	listener->connfact = connfact;
 	strcpy(listener->clipname, clipname);
 	listeners.push_back(listener);
-	winet_log(INFO, "listening on clip %s\n", clipname);
+	log(INFO, "listening on clip %s", clipname);
 	return 0;
 }

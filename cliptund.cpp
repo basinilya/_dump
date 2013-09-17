@@ -55,8 +55,6 @@ using namespace cliptund;
 //#define ACCEPT_TIMEOUT 4
 
 
-static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size);
-static void winet_evtlog(char const *logmsg, long type);
 static int winet_load_cfg(char const *cfgfile);
 static void winet_cleanup(void);
 
@@ -65,7 +63,8 @@ static int linger_timeo = 60;
 static int stopsvc;
 
 
-static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size) {
+_TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size)
+{
 
 #ifdef _UNICODE
 	MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, size);
@@ -74,147 +73,6 @@ static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size) {
 #endif
 	return buf;
 }
-
-static int _winet_log(int level, char const *emsg)
-{
-	printf("%s", emsg);
-
-	if (level == WINET_LOG_ERROR)
-		winet_evtlog(emsg, EVENTLOG_ERROR_TYPE);
-
-	return 0;
-}
-
-static char *cleanstr(char *s)
-{
-	while(*s) {
-		switch((int)*s){
-			case 13:
-			case 10:
-			*s=' ';
-			break;
-		}
-		s++;
-	}
-	return s;
-}
-
-
-static void __pWin32Error(int level, char mode, DWORD eNum, const char* fmt, va_list args)
-{
-	char emsg[1024];
-	char *pend = emsg + sizeof(emsg);
-	size_t count = sizeof(emsg);
-	unsigned u;
-
-	do {
-		u = _snprintf(pend - count, count, "[%s] ", WINET_APPNAME);
-		if (u >= count) break;
-		count -= u;
-
-		u = (unsigned)_vsnprintf(pend - count, count, fmt, args);
-		if (u >= count) break;
-		count -= u;
-
-		u = (unsigned)_snprintf(pend - count, count, ": 0x%08x (%d): ", eNum, eNum);
-		if (u >= count) break;
-		count -= u;
-
-		if (mode == 'w') {
-			u = FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, eNum,
-																MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-																pend - count, count, NULL );
-		} else if (mode == 's') {
-			u = (unsigned)_snprintf(pend - count, count, "%s", strerror(eNum));
-		}
-		/*
-		if (u == 0) {
-			u = (unsigned)_snprintf(pend - count, count, "0x%08x (%d)", eNum, eNum);
-		}
-		*/
-	} while(0);
-
-	emsg[sizeof(emsg)-1] = '\0';
-	pend = cleanstr(emsg);
-
-	if (pend < emsg + sizeof(emsg)-1) {
-		pend++;
-		*pend = '\0';
-	}
-	pend[-1] = '\n';
-	_winet_log(level, emsg);
-}
-
-void pSysError(int lvl, char const *fmt, ...)
-{
-	va_list args;
-	int myerrno = errno;
-
-	va_start(args, fmt);
-	__pWin32Error(lvl, 's', myerrno, fmt, args);
-	va_end(args);
-}
-
-void pWin32Error(int lvl, char const *fmt, ...)
-{
-	va_list args;
-	DWORD eNum = GetLastError();
-
-	va_start(args, fmt);
-	__pWin32Error(lvl, 'w', eNum, fmt, args);
-	va_end(args);
-}
-
-void pWinsockError(int lvl, char const *fmt, ...)
-{
-	va_list args;
-	DWORD eNum = WSAGetLastError();
-
-	va_start(args, fmt);
-	__pWin32Error(lvl, 'w', eNum, fmt, args);
-	va_end(args);
-}
-
-static void winet_evtlog(char const *logmsg, long type) {
-	DWORD err;
-	HANDLE hesrc;
-	LPTSTR tmsg;
-	_TCHAR lmsg[128];
-	LPCTSTR strs[2];
-	_TCHAR wmsg[1024];
-
-	winet_a2t(logmsg, wmsg, COUNTOF(wmsg));
-	tmsg = wmsg;
-
-	err = GetLastError();
-	hesrc = RegisterEventSource(NULL, _TEXT(WINET_APPNAME));
-
-	_stprintf(lmsg, _TEXT("%s error: 0x%08x"), _TEXT(WINET_APPNAME), err);
-	strs[0] = lmsg;
-	strs[1] = tmsg;
-
-	if (hesrc != NULL) {
-		ReportEvent(hesrc, (WORD) type, 0, 0, NULL, 2, 0, strs, NULL);
-
-		DeregisterEventSource(hesrc);
-	}
-}
-
-
-int winet_log(int level, char const *fmt, ...)
-{
-	va_list args;
-	char emsg[1024];
-
-	va_start(args, fmt);
-	_vsnprintf(emsg, sizeof(emsg) - 1, fmt, args);
-	va_end(args);
-
-	return _winet_log(level, emsg);
-}
-
-
 
 /*
 typedef struct data_recv {
@@ -268,8 +126,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 	int npmaps;
 
 	if (!(conf_file = fopen(cfgfilename, "rt"))) {
-		winet_log(WINET_LOG_ERROR, "[%s] unable to open config file: file='%s'\n",
-			  WINET_APPNAME, cfgfilename);
+		log(ERR, "unable to open config file: '%s'", cfgfilename);
 		return -1;
 	}
 
@@ -368,7 +225,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 	}
 	fclose(conf_file);
 	if (!npmaps) {
-		winet_log(ERR, "[%s] empty config file: file='%s'\n", WINET_APPNAME, cfgfilename);
+		log(ERR, "empty config file: '%s'\n", cfgfilename);
 		return -1;
 	}
 	return 0;
@@ -460,8 +317,7 @@ int winet_main(int argc, char const **argv) {
 	}
 
 	if (WSAStartup(MAKEWORD(2, 0), &WD)) {
-		winet_log(WINET_LOG_ERROR, "[%s] unable to initialize socket layer\n",
-			  WINET_APPNAME);
+		log(ERR, "unable to initialize socket layer");
 		return 1;
 	}
 

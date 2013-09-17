@@ -242,6 +242,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\logging.c"
+				>
+			</File>
+			<File
 				RelativePath=".\mswsock.c"
 				>
 			</File>

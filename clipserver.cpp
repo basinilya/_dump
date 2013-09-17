@@ -123,22 +123,22 @@ static int dupandreplace() {
 			break;
 		}
 		if (fmtid == MY_CF) {
-			printf("not duplicating my format\n");
+			//printf("not duplicating my format\n");
 			continue;
 		}
 		if (ndatas >= MAX_FORMATS) {
-			printf("too many clipboard formats\n");
+			//printf("too many clipboard formats\n");
 			goto err;
 		}
 
 		if (fmtid < MAX_FORMATS && ignored[fmtid])
 		{
-			printf("ignoring %d\n", (int)fmtid);
+			//printf("ignoring %d\n", (int)fmtid);
 			continue;
 		}
 
 		hglbsrc = GetClipboardData(fmtid);
-		printf("duplicating format %d, handle = %p\n", (int)fmtid, (void*)hglbsrc);
+		//printf("duplicating format %d, handle = %p\n", (int)fmtid, (void*)hglbsrc);
 		if (!hglbsrc) {
 			pWin32Error(ERR, "cf %d GetClipboardData() failed", (int)fmtid);
 			goto err;
@@ -150,27 +150,27 @@ static int dupandreplace() {
 		switch(fmtid) {
 			/* none */
 			case CF_OWNERDISPLAY:
-				printf("not duplicating CF_OWNERDISPLAY\n");
+				//printf("not duplicating CF_OWNERDISPLAY\n");
 				continue;
 
 			/* DeleteMetaFile */
 			case CF_DSPENHMETAFILE:
 			case CF_DSPMETAFILEPICT:
-				printf("not duplicating CF_DSPENHMETAFILE or CF_DSPMETAFILEPICT\n");
+				//printf("not duplicating CF_DSPENHMETAFILE or CF_DSPMETAFILEPICT\n");
 				continue;
 			case CF_ENHMETAFILE:
 				IGNORE(CF_METAFILEPICT);
-				printf("not duplicating CF_ENHMETAFILE\n");
+				//printf("not duplicating CF_ENHMETAFILE\n");
 				continue;
 			case CF_METAFILEPICT:
 				IGNORE(CF_ENHMETAFILE);
-				printf("not duplicating CF_METAFILEPICT\n");
+				//printf("not duplicating CF_METAFILEPICT\n");
 				continue;
 
 			/* DeleteObject */
 			case CF_PALETTE:
 			case CF_DSPBITMAP:
-				printf("not duplicating CF_METAFILEPICT or CF_DSPBITMAP\n");
+				//printf("not duplicating CF_METAFILEPICT or CF_DSPBITMAP\n");
 				continue;
 			case CF_BITMAP:
 				IGNORE(CF_DIB);
@@ -228,7 +228,7 @@ cont_ok:
 	}
 
 	/* clear clipboard contents */
-	printf("emptying clipboard\n");
+	//printf("emptying clipboard\n");
 	if (!EmptyClipboard()) {
 		pWin32Error(ERR, "EmptyClipboard() failed");
 
@@ -260,7 +260,7 @@ int senddata(HGLOBAL hdata) {
 		Sleep(1);
 	}
 	newnseq = GetClipboardSequenceNumber();
-	printf("before %d\n", newnseq);
+	//printf("before %d\n", newnseq);
 	if (ctx.clipsrv_nseq != newnseq) {
 		if (dupandreplace() < 0) {
 			goto err;
@@ -277,7 +277,7 @@ err:
 		pWin32Error(ERR, "CloseClipboard() failed");
 	}
 	ctx.clipsrv_nseq = GetClipboardSequenceNumber();
-	printf("after %d\n", ctx.clipsrv_nseq);
+	//printf("after %d\n", ctx.clipsrv_nseq);
 	return rc;
 }
 
@@ -377,7 +377,7 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 
 	GlobalUnlock(hglob);
 	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
-	printf("sending %d\n", (int)(p - pbeg));
+	//printf("sending %d\n", (int)(p - pbeg));
 	senddata(hglob);
 	Sleep(1000);
 

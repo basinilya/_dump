@@ -21,6 +21,9 @@
  *
  */
 
+#include "mylogging.h"
+#include "cliptund.h"
+
 #include <winsock2.h>
 #include <windows.h>
 #include <tchar.h>
@@ -29,7 +32,8 @@
 #include <stdlib.h>
 #include <process.h>
 #include <locale.h>
-#include "cliptund.h"
+
+#include "mylastheader.h"
 
 
 #define SVCDEPS ""
@@ -94,7 +98,7 @@ int main(int argc, char const *argv[]) {
 
 	winet_argc = argc;
 	winet_argv = argv;
-	printf("(%s) version %s by Davide Libenzi <davidel@xmailserver.org>\n",
+	printf("(%s) version %s by X\n",
 	       WINET_APPNAME, WINET_VERSION);
 
 	if (argc > 1) {
