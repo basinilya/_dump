@@ -133,9 +133,6 @@ struct TCPConnection : PinRecv, PinSend {
 	volatile LONG lock_recv;
 
 	void bufferavail() {
-		if (pump_recv->eof) {
-			return;
-		}
 		rfifo_t *rfifo = &pump_recv->buf;
 		DWORD nb = rfifo_availwrite(rfifo);
 		if (nb != 0) {
@@ -159,8 +156,8 @@ struct TCPConnection : PinRecv, PinSend {
 		rfifo_t *rfifo = &pump_recv->buf;
 		GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
 		if (nb == 0) {
+			/* keep locked */
 			pump_recv->eof = 1;
-			InterlockedExchange(&lock_recv, 0);
 			evloop_removelistener(overlap_recv.hEvent);
 			pump_send->havedata();
 		} else {
@@ -181,7 +178,6 @@ struct TCPConnection : PinRecv, PinSend {
 
 				if (nb == 0) {
 					shutdown(sock, SD_SEND);
-					InterlockedExchange(&lock_send, 0);
 					if (overlap_send.hEvent) evloop_removelistener(overlap_send.hEvent);
 				} else {
 					char *data = rfifo_pdata(rfifo);

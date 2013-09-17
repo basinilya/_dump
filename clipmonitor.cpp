@@ -219,6 +219,7 @@ static void parsepacket() {
 						break;
 					}
 				}
+				LeaveCriticalSection(&ctx.lock);
 				break;
 			default:
 				abort();
