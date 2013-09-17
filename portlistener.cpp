@@ -105,8 +105,6 @@ using namespace cliptund;
 #define ADDRESSLENGTH (sizeof(struct sockaddr_in)+16)
 #define LSN_BKLOG 128
 
-static int _cliptund_accept_func(void *param);
-
 struct PinRecv : IEventPin, virtual Connection {
 	virtual void onEventRecv() = 0;
 	void onEvent() { onEventRecv(); }
@@ -207,7 +205,7 @@ struct TCPConnection : PinRecv, PinSend {
 		havedata();
 	}
 
-	TCPConnection(Tunnel *_tun, SOCKET _sock) : 
+	TCPConnection(Tunnel *_tun, SOCKET _sock) :
 			Connection(_tun),
 			sock(_sock),
 			firstread(0),
@@ -237,8 +235,8 @@ struct data_accept : SimpleRefcount, IEventPin {
 	ConnectionFactory *connfact;
 
 	~data_accept() {
-		if (lsock != INVALID_SOCKET) closesocket(lsock);
-		if (asock != INVALID_SOCKET) closesocket(asock);
+		closesocket(lsock);
+		closesocket(asock);
 		delete connfact;
 	}
 
@@ -346,9 +344,7 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 	SOCKET lsock, asock;
 
 	newdata = new data_accept();
-
 	newdata->connfact = connfact;
-
 	newdata->lsock = lsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	newdata->asock = asock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -375,8 +371,6 @@ int tcp_create_listener(ConnectionFactory *connfact, short port)
 	winet_log(INFO, "[%s] listening on port: %d\n", WINET_APPNAME, port);
 	return 0;
 cleanup4:
-	closesocket(asock);
-	closesocket(lsock);
-	free(newdata);
+	delete newdata;
 	return rc;
 }
