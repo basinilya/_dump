@@ -392,7 +392,7 @@ void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
 	EnterCriticalSection(&lock);
 }
 
-void clipsrvctx::bbb()
+void clipsrvctx::mainloop()
 {
 	newbuf();
 
@@ -505,7 +505,7 @@ void clipsrvctx::bbb()
 
 static DWORD WINAPI _clipserv_send_thread(void *param)
 {
-	ctx.bbb();
+	ctx.mainloop();
 	return 0;
 }
 

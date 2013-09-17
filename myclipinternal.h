@@ -107,7 +107,7 @@ extern struct clipsrvctx {
 	void newbuf();
 	void unlock_and_send_and_newbuf();
 	void unlock_and_send_and_newbuf_and_lock();
-	void bbb();
+	void mainloop();
 } ctx;
 
 struct subpackheader_base {
