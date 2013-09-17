@@ -61,19 +61,7 @@ struct TCPConnection : PinRecv, PinSend {
 				if (!ev_recv) ev_recv = evloop_addlistener(static_cast<PinRecv*>(this));
 				overlap_recv.hEvent = ev_recv;
 
-				BOOL b;
-				DWORD dw;
-
-				DWORD bufsz = nb;
-				b = ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
-				dw = GetLastError();
-
-				if (b || dw == ERROR_IO_PENDING) {
-					//AddRef();
-				} else {
-					pWin32Error(ERR, "ReadFile() failed");
-					InterlockedExchange(&lock_recv, 0);
-				}
+				ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
 			}
 		}
 	}
@@ -111,10 +99,7 @@ struct TCPConnection : PinRecv, PinSend {
 			if (0 == InterlockedExchange(&lock_send, 1)) {
 
 				if (nb == 0) {
-					int rc = shutdown(sock, SD_SEND);
-					if (rc != 0) {
-						pWinsockError(ERR, "shutdown(%d, SD_SEND) failed", (int)sock);
-					}
+					shutdown(sock, SD_SEND);
 					InterlockedExchange(&lock_send, 0);
 					if (ev_send) evloop_removelistener(ev_send);
 				} else {
@@ -124,15 +109,7 @@ struct TCPConnection : PinRecv, PinSend {
 					if (!ev_send) ev_send = evloop_addlistener(static_cast<PinSend*>(this));
 					overlap_send.hEvent = ev_send;
 
-					DWORD bufsz = nb;
-					BOOL b = WriteFile((HANDLE)sock, data, bufsz, &nb, &overlap_send);
-					DWORD dw = GetLastError();
-					if (b || dw == ERROR_IO_PENDING) {
-						//AddRef();
-					} else {
-						pWin32Error(ERR, "WriteFile() failed");
-						InterlockedExchange(&lock_send, 0);
-					}
+					WriteFile((HANDLE)sock, data, nb, &nb, &overlap_send);
 				}
 			}
 		}

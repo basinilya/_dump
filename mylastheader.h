@@ -15,11 +15,6 @@ static void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 		abort();
 	}
 }
-static void dbg_closesocket(const char *file, int line, SOCKET s) {
-	if (closesocket(s) == SOCKET_ERROR) {
-		pWinsockError(WARN, "closesocket() failed at %s:%d", file, line);
-	}
-}
 static void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAPPED lpOverlapped, LPDWORD lpNumberOfBytesTransferred, BOOL bWait) {
 	BOOL b = GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait);
 	DWORD dw = GetLastError();
@@ -31,7 +26,7 @@ static void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LP
 		abort();
 	}
 }
-static BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
+static void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
 	BOOL b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
 	DWORD dw = GetLastError();
 	winet_log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
@@ -41,9 +36,9 @@ static BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuf
 		abort();
 	}
 	SetLastError(dw);
-	return b;
+	//return b;
 }
-static BOOL dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
+static void dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
 	BOOL b = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped);
 	DWORD dw = GetLastError();
 	winet_log(INFO, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d\n",
@@ -53,13 +48,29 @@ static BOOL dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffe
 		abort();
 	}
 	SetLastError(dw);
-	return b;
+	//return b;
+}
+
+static void dbg_closesocket(const char *file, int line, SOCKET s) {
+	if (closesocket(s) == SOCKET_ERROR) {
+		pWinsockError(ERR, "closesocket() failed at %s:%d", file, line);
+		abort();
+	}
+}
+static void dbg_shutdown(const char *file, int line, SOCKET s, int how) {
+	int rc = shutdown(s, how);
+	if (rc != 0) {
+		pWinsockError(ERR, "shutdown(%d, SD_SEND) failed at %s:%d", (int)s, file, line);
+		abort();
+	}
 }
 
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
-#define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
 #define GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait) dbg_GetOverlappedResult(__FILE__, __LINE__, hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait)
 #define WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped) dbg_WriteFile(__FILE__, __LINE__, hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped)
 #define ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped) dbg_ReadFile(__FILE__, __LINE__,hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped)
+
+#define closesocket(s) dbg_closesocket(__FILE__, __LINE__, s)
+#define shutdown(s, how) dbg_shutdown(__FILE__, __LINE__, s, how)
 
 #endif /* _DEBUG */
