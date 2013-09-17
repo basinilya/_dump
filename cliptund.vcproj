@@ -234,6 +234,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\dbgwrappers.c"
+				>
+			</File>
+			<File
 				RelativePath=".\eventloop.cpp"
 				>
 			</File>

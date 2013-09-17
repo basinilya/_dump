@@ -6,7 +6,10 @@
 #define WARN WINET_LOG_WARNING
 #define ERR WINET_LOG_ERROR
 
-#ifdef _DEBUG
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject);
 void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAPPED lpOverlapped, LPDWORD lpNumberOfBytesTransferred, BOOL bWait);
 void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped);
@@ -15,6 +18,12 @@ void dbg_AcceptEx(const char *file, int line, SOCKET sListenSocket,SOCKET sAccep
 void dbg_closesocket(const char *file, int line, SOCKET s);
 void dbg_shutdown(const char *file, int line, SOCKET s, int how);
 SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef _DEBUG
 
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
 #define GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait) dbg_GetOverlappedResult(__FILE__, __LINE__, hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait)
