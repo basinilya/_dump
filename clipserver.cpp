@@ -16,6 +16,8 @@
 using namespace std;
 
 #define MAX_FORMATS 100
+#define NUMRETRIES_SYN 4
+#define NUMRETRIES_FIN 4
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
@@ -280,11 +282,18 @@ err:
 
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
-	EnterCriticalSection(&ctx.lock);
 	conn->tun->AddRef();
 	ctx.connections.push_back(conn);
-	LeaveCriticalSection(&ctx.lock);
 }
+
+void _clipsrv_unreg_cnn(ptrdiff_t n)
+{
+	ClipConnection *cnn = ctx.connections[n];
+	ctx.connections[n] = ctx.connections.back();
+	ctx.connections.pop_back();
+	cnn->tun->Release();
+}
+
 
 struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
@@ -292,10 +301,13 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 		ClipConnection *cnn = new ClipConnection(tun);
 		cnn->local.nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
 		cnn->state = STATE_SYN;
+		cnn->resend_counter = 0;
 		strcpy(cnn->remote.clipname, clipname);
 
 		cnn->tun = tun;
+		EnterCriticalSection(&ctx.lock);
 		_clipsrv_reg_cnn(cnn);
+		LeaveCriticalSection(&ctx.lock);
 		cnn->havedata();
 	}
 };
@@ -311,6 +323,7 @@ void ClipConnection::bufferavail() {
 	if (state == STATE_NEW_SRV) {
 		prev_recv_pos--;
 		state = STATE_EST;
+		resend_counter = 0;
 	}
 	havedata();
 }
@@ -363,7 +376,7 @@ void clipsrvctx::mainloop()
 	newbuf();
 
 	for(;;) {
-		WaitForSingleObject(havedata_ev, 10000);
+		WaitForSingleObject(havedata_ev, 1000);
 
 		EnterCriticalSection(&lock);
 
@@ -375,6 +388,11 @@ void clipsrvctx::mainloop()
 				switch (state) {
 					case STATE_SYN:
 						{
+							if (conn->resend_counter == NUMRETRIES_SYN) {
+								_clipsrv_unreg_cnn(u);
+								u--;
+								break;
+							}
 							/* send SYNs repeatedly, until we get ACK */
 							/* TODO: add delay and max tries */
 							size_t clipnamesize = strlen(conn->remote.clipname)+1;
@@ -391,6 +409,10 @@ void clipsrvctx::mainloop()
 
 							strcpy(p, conn->remote.clipname);
 							p += clipnamesize;
+
+							log(INFO, "Sending SYN #%d", conn->resend_counter);
+
+							conn->resend_counter++;
 
 						}
 						break;
@@ -441,6 +463,11 @@ void clipsrvctx::mainloop()
 							}
 						}
 						if (conn->pump_send->eof) {
+							if (conn->resend_counter == NUMRETRIES_FIN) {
+								_clipsrv_unreg_cnn(u);
+								u--;
+								break;
+							}
 							if (p + sizeof(subpack_ack) > pend) {
 								unlock_and_send_and_newbuf_and_lock();
 							}
@@ -458,6 +485,13 @@ void clipsrvctx::mainloop()
 
 							memcpy(p, &subpack, sizeof(subpack));
 							p += sizeof(subpack);
+							if (rfifo->ofs_end == rfifo->ofs_mid) {
+								/* all sent data is confirmed */
+								//log(INFO, "Sending FIN #%d", conn->resend_counter);
+								conn->resend_counter++;
+							} else {
+								//log(INFO, "Sending FIN #-");
+							}
 						}
 						break;
 					case STATE_NEW_SRV:

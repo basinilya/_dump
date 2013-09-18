@@ -1,10 +1,13 @@
 #include "mytunnel.h"
+#include "mylogging.h"
+#include "mylastheader.h"
 
 using namespace cliptund;
 
 
 Tunnel::~Tunnel()
 {
+	log(INFO, "destroying tunnel %p", this);
 	delete this->pump_cl2srv.cnn_src;
 	if (this->pump_cl2srv.cnn_dst) delete this->pump_cl2srv.cnn_dst;
 }
