@@ -177,7 +177,6 @@ static void parsepacket() {
 						goto break_loop;
 					}
 
-					if (0) {
 					FIND_cnn(u.localandremoteequal(cnn));
 					if (cnn)
 					{
@@ -197,7 +196,6 @@ static void parsepacket() {
 							cnn->havedata();
 							cnn->pump_send->havedata();
 						}
-					}
 					}
 					p += count;
 					break;
