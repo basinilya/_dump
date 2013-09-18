@@ -158,6 +158,7 @@ static void parsepacket() {
 								long count = ntohl(u.data.net_count);
 								long ofs_beg = (u_long)rfifo->ofs_beg;
 								if (ofs_beg - prev_pos >= 0) {
+									cnn->resend_counter = 0;
 									rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
 									cnn->pump_recv->bufferavail();
 								}
@@ -171,6 +172,12 @@ static void parsepacket() {
 					p += subpack_data_size(0) - sizeof(subpackheader_base);
 					long count;
 					count = ntohl(u.data.net_count);
+					if ( (unsigned long)count > (size_t)(pend - p) ) {
+						log(WARN, "corrupted packet");
+						goto break_loop;
+					}
+
+					if (0) {
 					FIND_cnn(u.localandremoteequal(cnn));
 					if (cnn)
 					{
@@ -190,6 +197,7 @@ static void parsepacket() {
 							cnn->havedata();
 							cnn->pump_send->havedata();
 						}
+					}
 					}
 					p += count;
 					break;
@@ -215,6 +223,7 @@ static void parsepacket() {
 					abort();
 			}
 		}
+		break_loop:
 		LeaveCriticalSection(&ctx.lock);
 	}
 }

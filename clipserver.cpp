@@ -18,6 +18,7 @@ using namespace std;
 #define MAX_FORMATS 100
 #define NUMRETRIES_SYN 4
 #define NUMRETRIES_FIN 4
+#define NUMRETRIES_DATA 4
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
@@ -440,6 +441,15 @@ void clipsrvctx::mainloop()
 							}
 							rfifo_t *rfifo;
 							rfifo = &conn->pump_send->buf;
+							if (rfifo->ofs_mid != rfifo->ofs_beg) {
+								if (conn->resend_counter == NUMRETRIES_DATA) {
+									log(INFO, "packet lost");
+									conn->resend_counter = 0;
+									rfifo->ofs_mid = rfifo->ofs_beg;
+								} else {
+									conn->resend_counter++;
+								}
+							}
 							int datasz = rfifo_availread(rfifo);
 							if (datasz != 0) {
 								if (p + subpack_data_size(1) > pend) {
@@ -460,21 +470,33 @@ void clipsrvctx::mainloop()
 								memcpy(p, rfifo_pdata(rfifo), datasz);
 								p += datasz;
 								rfifo_markread(rfifo, datasz);
+
+								log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
+
 							}
 						}
 						if (conn->pump_send->eof) {
-							if (conn->resend_counter == NUMRETRIES_FIN) {
-								_clipsrv_unreg_cnn(u);
-								u--;
-								break;
+
+							rfifo_t *rfifo;
+							rfifo = &conn->pump_send->buf;
+
+							if (rfifo->ofs_end == rfifo->ofs_mid) {
+								/* all sent data is confirmed */
+								if (conn->resend_counter == NUMRETRIES_FIN) {
+									_clipsrv_unreg_cnn(u);
+									u--;
+									break;
+								}
+								//log(INFO, "Sending FIN #%d", conn->resend_counter);
+								conn->resend_counter++;
+							} else {
+								//log(INFO, "Sending FIN #-");
 							}
+
 							if (p + sizeof(subpack_ack) > pend) {
 								unlock_and_send_and_newbuf_and_lock();
 							}
 							subpack_ack subpack;
-
-							rfifo_t *rfifo;
-							rfifo = &conn->pump_send->buf;
 
 							subpack.net_src_channel = conn->local.nchannel;
 							subpack.net_packtype = htonl(PACK_FIN);
@@ -485,13 +507,6 @@ void clipsrvctx::mainloop()
 
 							memcpy(p, &subpack, sizeof(subpack));
 							p += sizeof(subpack);
-							if (rfifo->ofs_end == rfifo->ofs_mid) {
-								/* all sent data is confirmed */
-								//log(INFO, "Sending FIN #%d", conn->resend_counter);
-								conn->resend_counter++;
-							} else {
-								//log(INFO, "Sending FIN #-");
-							}
 						}
 						break;
 					case STATE_NEW_SRV:
@@ -533,6 +548,9 @@ int clipsrv_init()
 	InitializeCriticalSection(&ctx.lock);
 
 	UuidCreate(&ctx.localclipuuid._align);
+	for (int i = 0; i < sizeof(ctx.localclipuuid.net.__u_bits); i++) {
+		ctx.nchannel = ctx.nchannel ^ (ctx.nchannel << 8) ^ ctx.localclipuuid.net.__u_bits[i];
+	}
 
 	ctx.havedata_ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
