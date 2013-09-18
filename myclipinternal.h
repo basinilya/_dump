@@ -8,7 +8,7 @@
 using namespace cliptund;
 
 #define MY_CF CF_RIFF
-#define MAXPACKETSIZE 4096
+#define MAXPACKETSIZE 8192
 
 #ifdef __cplusplus
 extern "C" {

@@ -16,9 +16,12 @@
 using namespace std;
 
 #define MAX_FORMATS 100
-#define NUMRETRIES_SYN 4
-#define NUMRETRIES_FIN 4
-#define NUMRETRIES_DATA 4
+
+#define TIMEOUT 400
+#define NUMRETRIES_SYN 40
+#define NUMRETRIES_FIN 10
+#define NUMRETRIES_DATA_BEFORE_RESEND 6
+#define NUMRETRIES_DATA_BEFORE_GIVEUP 40
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
@@ -98,6 +101,7 @@ static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 }
 
 static int dupandreplace() {
+	log(INFO, "dupandreplace");
 	UINT fmtid;
 	HANDLE hglbsrc;
 	struct {
@@ -262,6 +266,7 @@ int senddata(HGLOBAL hdata) {
 		Sleep(1);
 	}
 	newnseq = GetClipboardSequenceNumber();
+	log(INFO, "ctx.clipsrv_nseq = %u, newnseq = %u", ctx.clipsrv_nseq, newnseq);
 	//printf("before %d\n", newnseq);
 	if (ctx.clipsrv_nseq != newnseq) {
 		if (dupandreplace() < 0) {
@@ -359,7 +364,7 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
 	//printf("sending %d\n", (int)(p - pbeg));
 	senddata(hglob);
-	Sleep(1000);
+	Sleep(TIMEOUT);
 
 	newbuf();
 
@@ -377,7 +382,7 @@ void clipsrvctx::mainloop()
 	newbuf();
 
 	for(;;) {
-		WaitForSingleObject(havedata_ev, 1000);
+		WaitForSingleObject(havedata_ev, TIMEOUT);
 
 		EnterCriticalSection(&lock);
 
@@ -393,6 +398,9 @@ void clipsrvctx::mainloop()
 								_clipsrv_unreg_cnn(u);
 								u--;
 								break;
+							}
+							if (conn->resend_counter == NUMRETRIES_SYN/2) {
+								ctx.clipsrv_nseq = 0;
 							}
 							/* send SYNs repeatedly, until we get ACK */
 							/* TODO: add delay and max tries */
@@ -439,16 +447,26 @@ void clipsrvctx::mainloop()
 								p += sizeof(subpack);
 
 							}
+
+							if (conn->resend_counter == NUMRETRIES_DATA_BEFORE_GIVEUP) {
+								_clipsrv_unreg_cnn(u);
+								u--;
+								break;
+							}
+
 							rfifo_t *rfifo;
 							rfifo = &conn->pump_send->buf;
 							if (rfifo->ofs_mid != rfifo->ofs_beg) {
-								if (conn->resend_counter == NUMRETRIES_DATA) {
+								int remainder = conn->resend_counter % (NUMRETRIES_DATA_BEFORE_RESEND+1);
+								if (remainder == NUMRETRIES_DATA_BEFORE_RESEND/2) {
+									ctx.clipsrv_nseq = 0;
+								}
+								if (remainder == NUMRETRIES_DATA_BEFORE_RESEND) {
 									log(INFO, "packet lost");
 									conn->resend_counter = 0;
 									rfifo->ofs_mid = rfifo->ofs_beg;
-								} else {
-									conn->resend_counter++;
 								}
+								conn->resend_counter++;
 							}
 							int datasz = rfifo_availread(rfifo);
 							if (datasz != 0) {
