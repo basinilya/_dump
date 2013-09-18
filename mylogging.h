@@ -9,9 +9,10 @@ extern "C" {
 
 #define WINET_APPNAME "cliptund"
 
-#define WINET_LOG_MESSAGE 1
-#define WINET_LOG_WARNING 2
-#define WINET_LOG_ERROR 3
+#define WINET_LOG_DEBUG 1
+#define WINET_LOG_MESSAGE 2
+#define WINET_LOG_WARNING 3
+#define WINET_LOG_ERROR 4
 
 void cliptund_pSysError(int lvl, char const *fmt, ...);
 void cliptund_pWinsockError(int lvl, char const *fmt, ...);

@@ -21,40 +21,59 @@ void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
 		abort();
 	}
 }
-void dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAPPED lpOverlapped, LPDWORD lpNumberOfBytesTransferred, BOOL bWait) {
+BOOL dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAPPED lpOverlapped, LPDWORD lpNumberOfBytesTransferred, BOOL bWait) {
 	BOOL b = GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait);
 	DWORD dw = GetLastError();
-	log(INFO, "GetOverlappedResult(hFile=%p(%lld), nb=%d, ev=%p) == %d; err = %d",
+	log(DBG, "GetOverlappedResult(hFile=%p(%lld), nb=%d, ev=%p) == %d; err = %d",
 		(void*)hFile, (long long)hFile, *lpNumberOfBytesTransferred, (void*)lpOverlapped->hEvent, b, dw);
-	SetLastError(dw);
 	if (!b) {
-		pWin32Error(ERR, "GetOverlappedResult() failed");
-		//abort();
+		SetLastError(dw);
+		pWin32Error(DBG, "GetOverlappedResult() failed");
 	}
+	SetLastError(dw);
+	return b;
 }
-void dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
-	BOOL b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
-	DWORD dw = GetLastError();
-	log(INFO, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
+BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
+	HANDLE copyev;
+	BOOL b;
+	DWORD dw;
+	b = DuplicateHandle(GetCurrentProcess(), lpOverlapped->hEvent, GetCurrentProcess(), &copyev, DUPLICATE_SAME_ACCESS, FALSE, 0);
+	b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
+	dw = GetLastError();
+	log(DBG, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
 		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
 	if (!b && dw != ERROR_IO_PENDING) {
-		pWin32Error(ERR, "WriteFile() failed");
-		//abort();
+		SetLastError(dw);
+		pWin32Error(DBG, "WriteFile() failed");
+		if (WAIT_OBJECT_0 == WaitForSingleObject(copyev, 0)) {
+			pWin32Error(ERR, "The event was unexpectedly set at: %s:%d", file, line);
+			abort();
+		}
 	}
+	CloseHandle(copyev);
 	SetLastError(dw);
-	//return b;
+	return b;
 }
-void dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
-	BOOL b = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped);
-	DWORD dw = GetLastError();
-	log(INFO, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
+BOOL dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
+	HANDLE copyev;
+	BOOL b;
+	DWORD dw;
+	b = DuplicateHandle(GetCurrentProcess(), lpOverlapped->hEvent, GetCurrentProcess(), &copyev, DUPLICATE_SAME_ACCESS, FALSE, 0);
+	b = ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped);
+	dw = GetLastError();
+	log(DBG, "ReadFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
 		(void*)hFile, (long long)hFile, nNumberOfBytesToRead, *lpNumberOfBytesRead, (void*)lpOverlapped->hEvent, b, dw);
 	if (!b && dw != ERROR_IO_PENDING) {
+		SetLastError(dw);
 		pWin32Error(ERR, "ReadFile() failed");
-		//abort();
+		if (WAIT_OBJECT_0 == WaitForSingleObject(copyev, 0)) {
+			pWin32Error(ERR, "The event was unexpectedly set at: %s:%d", file, line);
+			abort();
+		}
 	}
+	CloseHandle(copyev);
 	SetLastError(dw);
-	//return b;
+	return b;
 }
 
 void dbg_AcceptEx(const char *file, int line, SOCKET sListenSocket,SOCKET sAcceptSocket,PVOID lpOutputBuffer,DWORD dwReceiveDataLength,DWORD dwLocalAddressLength,DWORD dwRemoteAddressLength,LPDWORD lpdwBytesReceived,LPOVERLAPPED lpOverlapped) {
@@ -83,7 +102,7 @@ void dbg_shutdown(const char *file, int line, SOCKET s, int how) {
 SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol) {
 	SOCKET s = socket(af,type,protocol);
 	if (s == INVALID_SOCKET) {
-		pWinsockError(ERR, "socket() failed");
+		pWinsockError(ERR, "socket() failed at %s:%d", (int)s, file, line);
 		abort();
 	}
 	return s;
@@ -91,7 +110,13 @@ SOCKET dbg_socket(const char *file, int line, int af,int type,int protocol) {
 void dbg_listen(const char *file, int line, SOCKET s, int backlog) {
 	int rc = listen(s,backlog);
 	if (0 != rc) {
-		pWinsockError(ERR, "listen() failed");
+		pWinsockError(ERR, "listen() failed at %s:%d", (int)s, file, line);
+		abort();
+	}
+}
+void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name,int * namelen) {
+	if (0 != getpeername(s,name,namelen)) {
+		pWinsockError(ERR, "getpeername() failed at %s:%d", (int)s, file, line);
 		abort();
 	}
 }

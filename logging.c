@@ -7,14 +7,13 @@
 
 static void winet_evtlog(char const *logmsg, long type);
 
-static int _winet_log(int level, char const *emsg)
+static void _winet_log(int level, char const *emsg)
 {
+	if (level == WINET_LOG_DEBUG) return;
 	printf("%s", emsg);
 
 	if (level == WINET_LOG_ERROR)
 		winet_evtlog(emsg, EVENTLOG_ERROR_TYPE);
-
-	return 0;
 }
 
 static char *cleanstr(char *s)

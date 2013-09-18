@@ -60,10 +60,37 @@ struct TCPConnection : PinRecv, PinSend {
 					if (!overlap_recv.hEvent) overlap_recv.hEvent = evloop_addlistener(static_cast<PinRecv*>(this));
 					overlap_reset(&overlap_recv);
 
-					ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv);
+					if (!ReadFile((HANDLE)sock, data, nb, &nb, &overlap_recv) && GetLastError() != ERROR_IO_PENDING) {
+						readerror(FALSE);
+					}
 				}
 			}
 		}
+	}
+
+	void getpeer(char buf[100], struct sockaddr_in *saddr) {
+		DWORD lasterr = GetLastError();
+		int namelen = sizeof(struct sockaddr_in);
+		getpeername(sock, (struct sockaddr*)saddr, &namelen);
+		winet_inet_ntoa(saddr->sin_addr, buf, 100);
+		SetLastError(lasterr);
+	}
+
+	void readerror(BOOL normal) {
+		DWORD lasterr = GetLastError();
+		char buf[100];
+		struct sockaddr_in saddr;
+		getpeer(buf, &saddr);
+
+		if (normal) {
+			log(INFO, "peer %s:%d, disconnected", buf, ntohs(saddr.sin_port));
+		} else {
+			pWin32Error(INFO, "peer %s:%d, read failed", buf, ntohs(saddr.sin_port));
+		}
+		/* keep locked */
+		pump_recv->eof = 1;
+		evloop_removelistener(overlap_recv.hEvent);
+		pump_send->havedata();
 	}
 
 	void onEventRecv() {
@@ -74,12 +101,9 @@ struct TCPConnection : PinRecv, PinSend {
 		}
 		DWORD nb;
 		rfifo_t *rfifo = &pump_recv->buf;
-		GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
+		BOOL b = GetOverlappedResult((HANDLE)sock, &overlap_recv, &nb, FALSE);
 		if (nb == 0) {
-			/* keep locked */
-			pump_recv->eof = 1;
-			evloop_removelistener(overlap_recv.hEvent);
-			pump_send->havedata();
+			readerror(b);
 		} else {
 			rfifo_markwrite(rfifo, nb);
 			InterlockedExchange(&lock_recv, 0);
@@ -105,18 +129,28 @@ struct TCPConnection : PinRecv, PinSend {
 					if (!overlap_send.hEvent) overlap_send.hEvent = evloop_addlistener(static_cast<PinSend*>(this));
 					overlap_reset(&overlap_send);
 
-					WriteFile((HANDLE)sock, data, nb, &nb, &overlap_send);
+					if (!WriteFile((HANDLE)sock, data, nb, &nb, &overlap_send) && GetLastError() != ERROR_IO_PENDING) {
+						writeerror();
+					}
 				}
 			}
 		}
+	}
+
+	void writeerror() {
+		char buf[100];
+		struct sockaddr_in saddr;
+		getpeer(buf, &saddr);
+		pWin32Error(INFO, "peer %s:%d, write failed", buf, ntohs(saddr.sin_port));
+		evloop_removelistener(overlap_send.hEvent);
+		pump_recv->bufferavail();
 	}
 
 	void onEventSend() {
 		DWORD nb;
 		GetOverlappedResult((HANDLE)sock, &overlap_send, &nb, FALSE);
 		if (nb == 0) {
-			evloop_removelistener(overlap_send.hEvent);
-			pump_recv->bufferavail();
+			writeerror();
 		} else {
 			rfifo_t *rfifo = &pump_send->buf;
 			rfifo_confirmread(rfifo, nb);

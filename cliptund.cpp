@@ -270,12 +270,12 @@ int winet_inet_aton(const char *cp, struct in_addr *inp)
 	return !i;
 }
 
-_TCHAR *winet_inet_ntoa(struct in_addr addr, _TCHAR *buf, int size) {
+char *winet_inet_ntoa(struct in_addr addr, char *buf, int size) {
 	char const *ip;
 
 	ip = inet_ntoa(addr);
 
-	return winet_a2t(ip, buf, size);
+	return strncpy(buf, ip, size);
 }
 
 
