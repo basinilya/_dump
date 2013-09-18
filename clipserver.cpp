@@ -278,30 +278,6 @@ err:
 	return rc;
 }
 
-/*
-
-- if triggered by timer and no data
--   kill timer
--   wait for event
-- fi
-
-- if triggered by event and have data
--   set timer
--   wait for timer
-- fi
-
-*/
-/*
-VOID CALLBACK _clipserv_timerproc(HWND hwnd, UINT a, UINT_PTR b, DWORD c)
-{
-}
-
-static int _clipserv_havedata_func(void *_param)
-{
-	return 0;
-}
-*/
-
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	EnterCriticalSection(&ctx.lock);

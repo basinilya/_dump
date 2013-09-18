@@ -123,6 +123,7 @@ static void parsepacket() {
 						for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
 							Cliplistener *cliplistener = *it;
 							if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
+								log(INFO, "accepted clip %ld -> %s", ntohl(u.remote.nchannel), cliplistener->clipname);
 								ClipConnection *cnn = new ClipConnection(NULL);
 								Tunnel *tun = cnn->tun;
 								strcpy(cnn->local.clipname, cliplistener->clipname);
@@ -146,6 +147,7 @@ static void parsepacket() {
 						if (u.localequal(cnn))
 						{
 							if (cnn->state == STATE_SYN) {
+								log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.nchannel), cnn->remote.clipname);
 								cnn->state = STATE_EST;
 								cnn->remote.clipaddr = u.remote;
 								cnn->tun->connected();
@@ -203,8 +205,11 @@ static void parsepacket() {
 						long prev_pos = ntohl(u.data.net_prev_pos);
 						long ofs_end = (u_long)rfifo->ofs_end;
 						if (ofs_end == prev_pos) {
-							cnn->pump_recv->eof = 1;
-							cnn->pump_send->havedata();
+							if (!cnn->pump_recv->eof) {
+								log(INFO, "disconnected clip %ld", ntohl(u.remote.nchannel));
+								cnn->pump_recv->eof = 1;
+								cnn->pump_send->havedata();
+							}
 						}
 					}
 					break;
