@@ -95,7 +95,23 @@ void dbg_closesocket(const char *file, int line, SOCKET s) {
 void dbg_shutdown(const char *file, int line, SOCKET s, int how) {
 	int rc = shutdown(s, how);
 	if (rc != 0) {
-		pWinsockError(ERR, "shutdown(%d, SD_SEND) failed at %s:%d", (int)s, file, line);
+		const char *sHow;
+		char buf[20];
+		switch (how) {
+			case SD_SEND:
+				sHow = "SD_SEND";
+				break;
+			case SD_RECEIVE:
+				sHow = "SD_RECEIVE";
+				break;
+			case SD_BOTH:
+				sHow = "SD_BOTH";
+				break;
+			default:
+				sHow = buf;
+				sprintf(buf, "%d", how);
+		}
+		pWinsockError(ERR, "shutdown(%d, %s) failed at %s:%d", (int)s, sHow, file, line);
 		abort();
 	}
 }
