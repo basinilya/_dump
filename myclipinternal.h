@@ -63,7 +63,8 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 
 struct ClipConnection : Connection {
 	cnnstate_t state;
-	rfifo_long prev_recv_pos;
+	long prev_recv_pos;
+
 	ClipConnection(Tunnel *tun);
 
 	void bufferavail();

@@ -115,6 +115,7 @@ static void parsepacket() {
 			packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
 			switch(packtype) {
 				case PACK_SYN:
+					if (1) {
 					FIND_cnn(u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p));
 					if (cnn) {
 						cnn->prev_recv_pos--;
@@ -136,6 +137,7 @@ static void parsepacket() {
 								break;
 							}
 						}
+					}
 					}
 					p += strlen(p)+1;
 					break;
@@ -178,10 +180,8 @@ static void parsepacket() {
 						long prev_pos = ntohl(u.data.net_prev_pos);
 						long ofs_end = (u_long)rfifo->ofs_end;
 						if (ofs_end - prev_pos >= 0) {
-							long n = (u_long)cnn->prev_recv_pos;
-							n -= prev_pos;
-							if (n > 0) {
-								cnn->prev_recv_pos -= n;
+							if (cnn->prev_recv_pos - prev_pos > 0) {
+								cnn->prev_recv_pos = prev_pos;
 							}
 
 							long datasz = prev_pos + count - ofs_end;

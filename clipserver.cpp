@@ -363,7 +363,7 @@ void clipsrvctx::mainloop()
 	newbuf();
 
 	for(;;) {
-		WaitForSingleObject(havedata_ev, INFINITE);
+		WaitForSingleObject(havedata_ev, 10000);
 
 		EnterCriticalSection(&lock);
 
@@ -396,7 +396,7 @@ void clipsrvctx::mainloop()
 						break;
 					case STATE_EST:
 						{
-							rfifo_long cur_pos = conn->pump_recv->buf.ofs_end;
+							long cur_pos = conn->pump_recv->buf.ofs_end;
 							if (conn->prev_recv_pos != cur_pos) {
 								/* if this ack is lost, they will just resend the data */
 
