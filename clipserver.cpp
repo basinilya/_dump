@@ -17,7 +17,7 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
-#define TIMEOUT 400
+#define TIMEOUT 40
 #define NUMRETRIES_SYN 40
 #define NUMRETRIES_FIN 10
 #define NUMRETRIES_DATA_BEFORE_RESEND 6
@@ -95,13 +95,18 @@ err:
 	return rcBitmap;
 }
 
+static BOOL WINAPI freefunc_Null(HANDLE h)
+{
+	return TRUE;
+}
+
 static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 {
 	return GlobalFree(h) == NULL;
 }
 
 static int dupandreplace1() {
-	log(INFO, "dupandreplace");
+	//log(INFO, "dupandreplace");
 	UINT fmtid;
 	HANDLE hglbsrc;
 	struct {
@@ -145,88 +150,94 @@ static int dupandreplace1() {
 
 		hglbsrc = GetClipboardData(fmtid);
 		//printf("duplicating format %d, handle = %p\n", (int)fmtid, (void*)hglbsrc);
-		if (!hglbsrc) {
+		if (!hglbsrc && GetLastError() != ERROR_SUCCESS) {
 			pWin32Error(ERR, "cf %d GetClipboardData() failed", (int)fmtid);
 			goto err;
 		}
 
 		datas[ndatas].fmtid = fmtid;
-		datas[ndatas].freefunc = freefunc_GlobalFree;
 
-		switch(fmtid) {
-			/* none */
-			case CF_OWNERDISPLAY:
-				//printf("not duplicating CF_OWNERDISPLAY\n");
-				continue;
+		if (!hglbsrc) {
+			datas[ndatas].freefunc = freefunc_Null;
+			datas[ndatas].hglbl = NULL;
+		} else {
+			datas[ndatas].freefunc = freefunc_GlobalFree;
 
-			/* DeleteMetaFile */
-			case CF_DSPENHMETAFILE:
-			case CF_DSPMETAFILEPICT:
-				//printf("not duplicating CF_DSPENHMETAFILE or CF_DSPMETAFILEPICT\n");
-				continue;
-			case CF_ENHMETAFILE:
-				IGNORE(CF_METAFILEPICT);
-				//printf("not duplicating CF_ENHMETAFILE\n");
-				continue;
-			case CF_METAFILEPICT:
-				IGNORE(CF_ENHMETAFILE);
-				//printf("not duplicating CF_METAFILEPICT\n");
-				continue;
+			switch(fmtid) {
+				/* none */
+				case CF_OWNERDISPLAY:
+					//printf("not duplicating CF_OWNERDISPLAY\n");
+					continue;
 
-			/* DeleteObject */
-			case CF_PALETTE:
-			case CF_DSPBITMAP:
-				//printf("not duplicating CF_METAFILEPICT or CF_DSPBITMAP\n");
-				continue;
-			case CF_BITMAP:
-				IGNORE(CF_DIB);
-				IGNORE(CF_DIBV5);
-				datas[ndatas].freefunc = DeleteObject;
-				datas[ndatas].hglbl = (HANDLE)dupbitmap((HBITMAP)hglbsrc);
-				if (!datas[ndatas].hglbl) goto err;
-				goto cont_ok;
+				/* DeleteMetaFile */
+				case CF_DSPENHMETAFILE:
+				case CF_DSPMETAFILEPICT:
+					//printf("not duplicating CF_DSPENHMETAFILE or CF_DSPMETAFILEPICT\n");
+					continue;
+				case CF_ENHMETAFILE:
+					IGNORE(CF_METAFILEPICT);
+					//printf("not duplicating CF_ENHMETAFILE\n");
+					continue;
+				case CF_METAFILEPICT:
+					IGNORE(CF_ENHMETAFILE);
+					//printf("not duplicating CF_METAFILEPICT\n");
+					continue;
 
-			/* GlobalFree */
-			case CF_DIB:
-				IGNORE(CF_BITMAP);
-				IGNORE(CF_PALETTE);
-				IGNORE(CF_DIBV5);
-				break;
-			case CF_DIBV5:
-				IGNORE(CF_BITMAP);
-				IGNORE(CF_DIB);
-				IGNORE(CF_PALETTE);
-				break;
-			case CF_OEMTEXT:
-				IGNORE(CF_TEXT);
-				IGNORE(CF_UNICODETEXT);
-				break;
-			case CF_TEXT:
-				IGNORE(CF_OEMTEXT);
-				IGNORE(CF_UNICODETEXT);
-				break;
-			case CF_UNICODETEXT:
-				IGNORE(CF_OEMTEXT);
-				IGNORE(CF_TEXT);
-				break;
+				/* DeleteObject */
+				case CF_PALETTE:
+				case CF_DSPBITMAP:
+					//printf("not duplicating CF_METAFILEPICT or CF_DSPBITMAP\n");
+					continue;
+				case CF_BITMAP:
+					IGNORE(CF_DIB);
+					IGNORE(CF_DIBV5);
+					datas[ndatas].freefunc = DeleteObject;
+					datas[ndatas].hglbl = (HANDLE)dupbitmap((HBITMAP)hglbsrc);
+					if (!datas[ndatas].hglbl) goto err;
+					goto cont_ok;
+
+				/* GlobalFree */
+				case CF_DIB:
+					IGNORE(CF_BITMAP);
+					IGNORE(CF_PALETTE);
+					IGNORE(CF_DIBV5);
+					break;
+				case CF_DIBV5:
+					IGNORE(CF_BITMAP);
+					IGNORE(CF_DIB);
+					IGNORE(CF_PALETTE);
+					break;
+				case CF_OEMTEXT:
+					IGNORE(CF_TEXT);
+					IGNORE(CF_UNICODETEXT);
+					break;
+				case CF_TEXT:
+					IGNORE(CF_OEMTEXT);
+					IGNORE(CF_UNICODETEXT);
+					break;
+				case CF_UNICODETEXT:
+					IGNORE(CF_OEMTEXT);
+					IGNORE(CF_TEXT);
+					break;
+			}
+
+			sz = GlobalSize(hglbsrc);
+			if (sz == 0) {
+				pWin32Error(ERR, "cf %d GlobalSize() failed", (int)fmtid);
+				goto err;
+			}
+			datas[ndatas].hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
+			if (datas[ndatas].hglbl == NULL) {
+				pWin32Error(ERR, "GlobalAlloc() failed");
+				goto err;
+			}
+
+			psrc = GlobalLock(hglbsrc);
+			pdst = GlobalLock(datas[ndatas].hglbl);
+			memcpy(pdst, psrc, sz);
+			GlobalUnlock(datas[ndatas].hglbl);
+			GlobalUnlock(hglbsrc);
 		}
-
-		sz = GlobalSize(hglbsrc);
-		if (sz == 0) {
-			pWin32Error(ERR, "cf %d GlobalSize() failed", (int)fmtid);
-			goto err;
-		}
-		datas[ndatas].hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
-		if (datas[ndatas].hglbl == NULL) {
-			pWin32Error(ERR, "GlobalAlloc() failed");
-			goto err;
-		}
-
-		psrc = GlobalLock(hglbsrc);
-		pdst = GlobalLock(datas[ndatas].hglbl);
-		memcpy(pdst, psrc, sz);
-		GlobalUnlock(datas[ndatas].hglbl);
-		GlobalUnlock(hglbsrc);
 
 cont_ok:
 		ndatas++;
@@ -257,11 +268,30 @@ cont_ok:
 	return 0;
 }
 
+volatile int breakflag;
+
+static DWORD WINAPI breakthread(LPVOID p) {
+	Sleep(100);
+	if (breakflag) {
+		int i = 0;
+		//DebugBreak();
+	}
+	return 0;
+}
+
 static int dupandreplace() {
 	int i, mks;
 	FILETIME before, after;
 	GetSystemTimeAsFileTime(&before);
+
+	DWORD tid;
+	breakflag = 1;
+	//HANDLE hthr = CreateThread(NULL, 0, breakthread, 0, 0, &tid);
+
 	i = dupandreplace1();
+
+	breakflag = 0;
+
 	GetSystemTimeAsFileTime(&after);
 
 	mks =	(int)((
@@ -269,29 +299,42 @@ static int dupandreplace() {
 		- ((((long long)before.dwHighDateTime) << 32) + before.dwLowDateTime)
 	) / 10)
 	;
-	log(INFO, "dupandreplace: %d mks", mks);
+	//log(INFO, "dupandreplace: %d mks", mks);
 
 	return i;
+}
+
+void _clipsrv_OpenClipboard(HWND hwnd)
+{
+	int i;
+	HWND newowner, prevowner = GetClipboardOwner();
+	for (i = 0; !OpenClipboard(hwnd); i++) {
+		if (i == 1000) {
+			newowner = GetClipboardOwner();
+			log(WARN, "can't OpenClipboard for too long; prevowner=%p, newowner=%p", (void*)prevowner, (void*)newowner);
+		}
+		Sleep(1);
+	}
 }
 
 int senddata(HGLOBAL hdata) {
 	DWORD newnseq;
 	int rc = -1;
 
-	for (int i = 0; !OpenClipboard(ctx.hwnd); i++) {
-		if (i > 1000) {
-			log(WARN, "can't OpenClipboard for too long");
-		}
-		Sleep(1);
-	}
+	_clipsrv_OpenClipboard(ctx.hwnd);
 	newnseq = GetClipboardSequenceNumber();
-	log(INFO, "ctx.clipsrv_nseq = %u, newnseq = %u", ctx.clipsrv_nseq, newnseq);
+	//log(INFO, "ctx.clipsrv_nseq = %u, newnseq = %u", ctx.clipsrv_nseq, newnseq);
 	//printf("before %d\n", newnseq);
+
+/*
 	if (ctx.clipsrv_nseq != newnseq) {
 		if (dupandreplace() < 0) {
 			goto err;
 		}
 	}
+*/
+
+	EmptyClipboard();
 	if (!SetClipboardData(MY_CF, hdata)) {
 		pWin32Error(ERR, "SetClipboardData() failed");
 		goto err;
@@ -374,7 +417,6 @@ void clipsrvctx::newbuf()
 	u_long ul = htonl(ctx.npacket);
 	memcpy(p, &ul, sizeof(u_long));
 	p += sizeof(u_long);
-	ctx.npacket++;
 
 	memcpy(p, &localclipuuid.net, sizeof(localclipuuid.net));
 	p += sizeof(localclipuuid.net);
@@ -386,7 +428,15 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 
 	GlobalUnlock(hglob);
 	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
-	//printf("sending %d\n", (int)(p - pbeg));
+
+	{
+		RPC_CSTR s;
+		UuidToStringA(&ctx.localclipuuid._align, &s);
+		log(INFO, "sending packet %s %ld", s, ctx.npacket);
+		RpcStringFree(&s);
+	}
+
+	ctx.npacket++;
 	senddata(hglob);
 	Sleep(TIMEOUT);
 
@@ -406,7 +456,7 @@ void clipsrvctx::mainloop()
 	newbuf();
 
 	for(;;) {
-		WaitForSingleObject(havedata_ev, TIMEOUT);
+		WaitForSingleObject(havedata_ev, 1000);
 
 		EnterCriticalSection(&lock);
 
@@ -443,9 +493,10 @@ void clipsrvctx::mainloop()
 							strcpy(p, conn->remote.clipname);
 							p += clipnamesize;
 
-							log(INFO, "Sending SYN #%d", conn->resend_counter);
+							//log(INFO, "Sending SYN #%d", conn->resend_counter);
 
 							conn->resend_counter++;
+							//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
 
 						}
 						break;
@@ -481,16 +532,17 @@ void clipsrvctx::mainloop()
 							rfifo_t *rfifo;
 							rfifo = &conn->pump_send->buf;
 							if (rfifo->ofs_mid != rfifo->ofs_beg) {
-								int remainder = conn->resend_counter % (NUMRETRIES_DATA_BEFORE_RESEND+1);
+								int counter = conn->resend_counter;
+								int remainder = counter % (NUMRETRIES_DATA_BEFORE_RESEND+1);
 								if (remainder == NUMRETRIES_DATA_BEFORE_RESEND/2) {
 									ctx.clipsrv_nseq = 0;
 								}
 								if (remainder == NUMRETRIES_DATA_BEFORE_RESEND) {
-									log(INFO, "packet lost");
-									conn->resend_counter = 0;
+									log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
 									rfifo->ofs_mid = rfifo->ofs_beg;
 								}
 								conn->resend_counter++;
+								//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
 							}
 							int datasz = rfifo_availread(rfifo);
 							if (datasz != 0) {
@@ -513,7 +565,7 @@ void clipsrvctx::mainloop()
 								p += datasz;
 								rfifo_markread(rfifo, datasz);
 
-								log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
+								//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
 
 							}
 						}
@@ -531,6 +583,7 @@ void clipsrvctx::mainloop()
 								}
 								//log(INFO, "Sending FIN #%d", conn->resend_counter);
 								conn->resend_counter++;
+								//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
 							} else {
 								//log(INFO, "Sending FIN #-");
 							}

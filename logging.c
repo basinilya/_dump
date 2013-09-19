@@ -39,7 +39,7 @@ static void __cliptund_log(int level, char mode, DWORD eNum, const char* fmt, va
 	unsigned u;
 
 	do {
-		u = _snprintf(pend - count, count, "[%s] ", WINET_APPNAME);
+		u = _snprintf(pend - count, count, "[%u] ", GetCurrentThreadId());
 		if (u >= count) break;
 		count -= u;
 

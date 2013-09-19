@@ -1,4 +1,4 @@
-#ifdef _DEBUG
+#ifdef DEBUG_CLIPTUND
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <wspiapi.h>
@@ -6,16 +6,24 @@
 #include <windows.h>
 #include "mylogging.h"
 
-#undef _DEBUG
+#undef DEBUG_CLIPTUND
 #include "mylastheader.h"
 
 FILETIME whenclipopened;
 
-BOOL dbg_OpenClipboard(HWND hwnd) {
-	BOOL b = OpenClipboard(hwnd);
-	if (b) {
-		GetSystemTimeAsFileTime(&whenclipopened);
+volatile LONG currentclipowner = 0;
 
+BOOL dbg_OpenClipboard(HWND hwnd) {
+	BOOL b;
+	if (currentclipowner == GetCurrentThreadId()) {
+		log(ERR, "Clipboard already open");
+		abort();
+	}
+	b = OpenClipboard(hwnd);
+	if (b) {
+		currentclipowner = GetCurrentThreadId();
+		GetSystemTimeAsFileTime(&whenclipopened);
+		log(INFO, "opened clipboard %p", (void*)hwnd);
 	}
 	return b;
 }
@@ -23,17 +31,21 @@ BOOL dbg_OpenClipboard(HWND hwnd) {
 void dbg_CloseClipboard() {
 	FILETIME whenclipclosed;
 	int i;
+	DWORD curthread = GetCurrentThreadId();
+	if (curthread != InterlockedCompareExchange(&currentclipowner, 0, curthread)) {
+		log(ERR, "Clipboard wasn't opened by this thread");
+		//abort();
+	}
 	GetSystemTimeAsFileTime(&whenclipclosed);
 	i =	(int)((
 		((((long long)whenclipclosed.dwHighDateTime) << 32) + whenclipclosed.dwLowDateTime)
 		- ((((long long)whenclipopened.dwHighDateTime) << 32) + whenclipopened.dwLowDateTime)
 	) / 10)
 	;
-	log(INFO, "CloseClipboard after %d mks", i);
-	//  - whenclipopened.dwHighDateTime
 	if (!CloseClipboard()) {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
+	log(INFO, "closed clipboard after %d mks", i);
 }
 
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {
@@ -157,4 +169,4 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 		abort();
 	}
 }
-#endif /* _DEBUG */
+#endif /* DEBUG_CLIPTUND */

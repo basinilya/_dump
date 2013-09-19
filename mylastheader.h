@@ -35,7 +35,7 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 }
 #endif
 
-#ifdef _DEBUG
+#ifdef DEBUG_CLIPTUND
 
 #define OpenClipboard dbg_OpenClipboard
 #define CloseClipboard dbg_CloseClipboard
@@ -51,4 +51,4 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #define listen(s,backlog) dbg_listen(__FILE__, __LINE__, s,backlog)
 #define getpeername(s,name,namelen) dbg_getpeername(__FILE__, __LINE__, s,name,namelen)
 
-#endif /* _DEBUG */
+#endif /* DEBUG_CLIPTUND */

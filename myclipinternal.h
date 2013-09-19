@@ -31,7 +31,10 @@ typedef struct net_uuid_t {
 
 
 typedef struct clipaddr {
-	net_uuid_t addr;
+	union {
+		net_uuid_t addr;
+		UUID _align;
+	};
 	char _hdr[4];
 	u_long nchannel;
 } clipaddr;
@@ -145,5 +148,7 @@ struct subpack_data : subpack_ack {
 #define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
 
 #define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
+
+void _clipsrv_OpenClipboard(HWND hwnd);
 
 #endif

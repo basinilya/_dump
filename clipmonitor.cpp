@@ -75,12 +75,7 @@ static void parsepacket() {
 
 	int flag = 0;
 
-	for (int i = 0; !OpenClipboard(global_hwnd); i++) {
-		if (i > 1000) {
-			log(WARN, "can't OpenClipboard for too long");
-		}
-		Sleep(1);
-	}
+	_clipsrv_OpenClipboard(global_hwnd);
 
 	HGLOBAL hglob = GetClipboardData(MY_CF);
 	if (hglob) {
@@ -110,16 +105,32 @@ static void parsepacket() {
 	}
 	CloseClipboard();
 	if (flag) {
+		if (0 != memcmp(&u.remote.addr, &ctx.localclipuuid.net, sizeof(net_uuid_t)))
+		{
+			RPC_CSTR s;
+			UuidToStringA(&u.remote._align, &s);
+			log(INFO, "received packet: %s %ld", s, npacket);
+			RpcStringFree(&s);
+		}
+
 		EnterCriticalSection(&ctx.lock);
 
-		for (; pend - p >= sizeof(subpackheader_base);) {
+		for (; pend != p;) {
 			ClipConnection *cnn;
 			#define FIND_cnn(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { \
 					if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; \
 				} } while(0)
 
-			memcpy(&u.header, p, sizeof(subpackheader_base));
-			p += sizeof(subpackheader_base);
+			#define AAA(a, b) do { \
+					if (pend - p < ((b) - (a))) { \
+						log(WARN, "corrupted subpacket"); \
+						goto break_loop; \
+					} \
+					memcpy(&u.c + (a), p, ((b) - (a))); \
+					p += ((b) - (a)); \
+				} while(0)
+
+			AAA(0, sizeof(subpackheader_base));
 
 			packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
 			switch(packtype) {
@@ -149,8 +160,8 @@ static void parsepacket() {
 					p += strlen(p)+1;
 					break;
 				case PACK_ACK:
-					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
-					p += sizeof(subpack_ack) - sizeof(subpackheader_base);
+					AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+
 					for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 						cnn = *it;
 						if (u.localequal(cnn))
@@ -177,12 +188,12 @@ static void parsepacket() {
 					}
 					break;
 				case PACK_DATA:
-					memcpy(u.c + sizeof(subpackheader_base), p, subpack_data_size(0) - sizeof(subpackheader_base));
-					p += subpack_data_size(0) - sizeof(subpackheader_base);
+					AAA(sizeof(subpackheader_base), subpack_data_size(0));
+
 					long count;
 					count = ntohl(u.data.net_count);
 					if ( (unsigned long)count > (size_t)(pend - p) ) {
-						log(WARN, "corrupted packet");
+						log(WARN, "corrupted subpacket");
 						goto break_loop;
 					}
 
@@ -209,8 +220,8 @@ static void parsepacket() {
 					p += count;
 					break;
 				case PACK_FIN:
-					memcpy(u.c + sizeof(subpackheader_base), p, sizeof(subpack_ack) - sizeof(subpackheader_base));
-					p += sizeof(subpack_ack) - sizeof(subpackheader_base);
+					AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+
 					FIND_cnn(u.localandremoteequal(cnn));
 					if (cnn)
 					{
@@ -260,6 +271,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			counter++;
 			// counter++; if (counter > 4) exit(0);
 			parsepacket();
+			printf("after parsepacket\n");
 			if (nextWnd) {
 				//printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
 				return SendMessage(nextWnd,uMsg,wParam,lParam);
@@ -353,7 +365,7 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 	nextWnd = SetClipboardViewer(global_hwnd);
 	if (!nextWnd && GetLastError() != 0) {
 		pWin32Error(ERR, "SetClipboardViewer() failed");
-		return -1;
+		exit(1);
 	}
 	//printf("nextWnd = %p\n", (void*)nextWnd);
 
@@ -361,7 +373,7 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 
 	if (0 == SetConsoleCtrlHandler( CtrlHandler, TRUE )) {
 		pWin32Error(ERR, "SetConsoleCtrlHandler() failed");
-		return -1;
+		exit(1);
 	}
 
 	while (GetMessage(&msg, NULL, 0, 0))
