@@ -25,7 +25,7 @@ using namespace std;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
-clipsrvctx ctx;
+clipsrvctx ctx = {};
 
 
 static HBITMAP dupbitmap(HBITMAP hbitmap)
@@ -100,7 +100,7 @@ static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 	return GlobalFree(h) == NULL;
 }
 
-static int dupandreplace() {
+static int dupandreplace1() {
 	log(INFO, "dupandreplace");
 	UINT fmtid;
 	HANDLE hglbsrc;
@@ -257,12 +257,31 @@ cont_ok:
 	return 0;
 }
 
+static int dupandreplace() {
+	int i, mks;
+	FILETIME before, after;
+	GetSystemTimeAsFileTime(&before);
+	i = dupandreplace1();
+	GetSystemTimeAsFileTime(&after);
+
+	mks =	(int)((
+		((((long long)after.dwHighDateTime) << 32) + after.dwLowDateTime)
+		- ((((long long)before.dwHighDateTime) << 32) + before.dwLowDateTime)
+	) / 10)
+	;
+	log(INFO, "dupandreplace: %d mks", mks);
+
+	return i;
+}
+
 int senddata(HGLOBAL hdata) {
 	DWORD newnseq;
 	int rc = -1;
 
-	while (!OpenClipboard(ctx.hwnd)) {
-		//pWin32Error("OpenClipboard() failed");
+	for (int i = 0; !OpenClipboard(ctx.hwnd); i++) {
+		if (i > 1000) {
+			log(WARN, "can't OpenClipboard for too long");
+		}
 		Sleep(1);
 	}
 	newnseq = GetClipboardSequenceNumber();
@@ -351,6 +370,11 @@ void clipsrvctx::newbuf()
 
 	memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
 	p += sizeof(cliptun_data_header);
+
+	u_long ul = htonl(ctx.npacket);
+	memcpy(p, &ul, sizeof(u_long));
+	p += sizeof(u_long);
+	ctx.npacket++;
 
 	memcpy(p, &localclipuuid.net, sizeof(localclipuuid.net));
 	p += sizeof(localclipuuid.net);
@@ -534,7 +558,7 @@ void clipsrvctx::mainloop()
 				}
 			}
 		} while (wantmore);
-		if (p - pbeg != sizeof(cliptun_data_header) + sizeof(localclipuuid.net)) {
+		if (p - pbeg != sizeofpacketheader) {
 			unlock_and_send_and_newbuf();
 		} else {
 			LeaveCriticalSection(&lock);

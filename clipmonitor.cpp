@@ -47,6 +47,7 @@ static void unreg()
 static void parsepacket() {
 	char buf[MAXPACKETSIZE];
 	const char *pbeg, *pend, *p;
+	long npacket;
 
 	union {
 		clipaddr remote;
@@ -74,18 +75,26 @@ static void parsepacket() {
 
 	int flag = 0;
 
-	while (!OpenClipboard(global_hwnd)) {
+	for (int i = 0; !OpenClipboard(global_hwnd); i++) {
+		if (i > 1000) {
+			log(WARN, "can't OpenClipboard for too long");
+		}
 		Sleep(1);
 	}
 
 	HGLOBAL hglob = GetClipboardData(MY_CF);
 	if (hglob) {
 		SIZE_T sz = GlobalSize(hglob);
-		if (sz > sizeof(cliptun_data_header) + sizeof(net_uuid_t)) {
+		if (sz > sizeofpacketheader) {
 			p = pbeg = (char*)GlobalLock(hglob);
 			pend = pbeg + sz;
 			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
 				p += sizeof(cliptun_data_header);
+
+				u_long ul;
+				memcpy(&ul, p, sizeof(u_long));
+				p += sizeof(u_long);
+				npacket = ntohl(ul);
 
 				memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
 				p += sizeof(net_uuid_t);
@@ -250,7 +259,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case WM_DRAWCLIPBOARD:
 			counter++;
 			// counter++; if (counter > 4) exit(0);
-			//printf("%6d WM_DRAWCLIPBOARD, clip seq = %d\n", counter, GetClipboardSequenceNumber());
 			parsepacket();
 			if (nextWnd) {
 				//printf("%6d notifying next window %p\n", counter, (void*)nextWnd);

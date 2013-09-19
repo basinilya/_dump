@@ -9,7 +9,28 @@
 #undef _DEBUG
 #include "mylastheader.h"
 
+FILETIME whenclipopened;
+
+BOOL dbg_OpenClipboard(HWND hwnd) {
+	BOOL b = OpenClipboard(hwnd);
+	if (b) {
+		GetSystemTimeAsFileTime(&whenclipopened);
+
+	}
+	return b;
+}
+
 void dbg_CloseClipboard() {
+	FILETIME whenclipclosed;
+	int i;
+	GetSystemTimeAsFileTime(&whenclipclosed);
+	i =	(int)((
+		((((long long)whenclipclosed.dwHighDateTime) << 32) + whenclipclosed.dwLowDateTime)
+		- ((((long long)whenclipopened.dwHighDateTime) << 32) + whenclipopened.dwLowDateTime)
+	) / 10)
+	;
+	log(INFO, "CloseClipboard after %d mks", i);
+	//  - whenclipopened.dwHighDateTime
 	if (!CloseClipboard()) {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}

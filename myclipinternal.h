@@ -92,6 +92,7 @@ extern struct clipsrvctx {
 		UUID _align;
 	} localclipuuid;
 	volatile LONG nchannel;
+	long npacket;
 	HWND hwnd;
 	HANDLE havedata_ev;
 	int havedata;
@@ -142,5 +143,7 @@ struct subpack_data : subpack_ack {
 };
 
 #define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
+
+#define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
 
 #endif
