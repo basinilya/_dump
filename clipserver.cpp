@@ -17,7 +17,7 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
-#define TIMEOUT 40
+#define TIMEOUT 400
 #define NUMRETRIES_SYN 40
 #define NUMRETRIES_FIN 10
 #define NUMRETRIES_DATA_BEFORE_RESEND 6
@@ -95,11 +95,6 @@ err:
 	return rcBitmap;
 }
 
-static BOOL WINAPI freefunc_Null(HANDLE h)
-{
-	return TRUE;
-}
-
 static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 {
 	return GlobalFree(h) == NULL;
@@ -156,11 +151,8 @@ static int dupandreplace1() {
 		}
 
 		datas[ndatas].fmtid = fmtid;
-
-		if (!hglbsrc) {
-			datas[ndatas].freefunc = freefunc_Null;
-			datas[ndatas].hglbl = NULL;
-		} else {
+		datas[ndatas].hglbl = hglbsrc;
+		if (hglbsrc) {
 			datas[ndatas].freefunc = freefunc_GlobalFree;
 
 			switch(fmtid) {
@@ -259,9 +251,11 @@ cont_ok:
 
 	/* replace clipboard contents */
 	for (i = 0; i < ndatas; i++) {
-		if (!SetClipboardData(datas[i].fmtid, datas[i].hglbl)) {
-			pWin32Error(ERR, "SetClipboardData() failed");
-			datas[i].freefunc(datas[i].hglbl);
+		if (datas[i].hglbl) {
+			if (!SetClipboardData(datas[i].fmtid, datas[i].hglbl)) {
+				pWin32Error(ERR, "SetClipboardData() failed");
+				datas[i].freefunc(datas[i].hglbl);
+			}
 		}
 	}
 
@@ -307,11 +301,9 @@ static int dupandreplace() {
 void _clipsrv_OpenClipboard(HWND hwnd)
 {
 	int i;
-	HWND newowner, prevowner = GetClipboardOwner();
 	for (i = 0; !OpenClipboard(hwnd); i++) {
 		if (i == 1000) {
-			newowner = GetClipboardOwner();
-			log(WARN, "can't OpenClipboard for too long; prevowner=%p, newowner=%p", (void*)prevowner, (void*)newowner);
+			pWin32Error(WARN, "can't OpenClipboard for too long");
 		}
 		Sleep(1);
 	}
@@ -335,6 +327,10 @@ int senddata(HGLOBAL hdata) {
 */
 
 	EmptyClipboard();
+	if (!hdata) {
+		log(ERR, "hdata is NULL");
+		abort();
+	}
 	if (!SetClipboardData(MY_CF, hdata)) {
 		pWin32Error(ERR, "SetClipboardData() failed");
 		goto err;

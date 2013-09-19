@@ -15,16 +15,19 @@ volatile LONG currentclipowner = 0;
 
 BOOL dbg_OpenClipboard(HWND hwnd) {
 	BOOL b;
+	DWORD dw;
 	if (currentclipowner == GetCurrentThreadId()) {
 		log(ERR, "Clipboard already open");
 		abort();
 	}
 	b = OpenClipboard(hwnd);
+	dw = GetLastError();
 	if (b) {
 		currentclipowner = GetCurrentThreadId();
 		GetSystemTimeAsFileTime(&whenclipopened);
-		log(INFO, "opened clipboard %p", (void*)hwnd);
+		//log(INFO, "opened clipboard %p", (void*)hwnd);
 	}
+	SetLastError(dw);
 	return b;
 }
 
@@ -33,8 +36,7 @@ void dbg_CloseClipboard() {
 	int i;
 	DWORD curthread = GetCurrentThreadId();
 	if (curthread != InterlockedCompareExchange(&currentclipowner, 0, curthread)) {
-		log(ERR, "Clipboard wasn't opened by this thread");
-		//abort();
+		log(WARN, "Clipboard wasn't opened by this thread");
 	}
 	GetSystemTimeAsFileTime(&whenclipclosed);
 	i =	(int)((
@@ -45,7 +47,7 @@ void dbg_CloseClipboard() {
 	if (!CloseClipboard()) {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
-	log(INFO, "closed clipboard after %d mks", i);
+	//log(INFO, "closed clipboard after %d mks", i);
 }
 
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {

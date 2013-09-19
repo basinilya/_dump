@@ -246,6 +246,8 @@ static void parsepacket() {
 	}
 }
 
+static int in_parsepacket = 0;
+
 static
 LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
@@ -270,8 +272,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case WM_DRAWCLIPBOARD:
 			counter++;
 			// counter++; if (counter > 4) exit(0);
-			parsepacket();
-			printf("after parsepacket\n");
+
+			if (!in_parsepacket) {
+				in_parsepacket = 1;
+				parsepacket();
+				in_parsepacket = 0;
+			}
+
 			if (nextWnd) {
 				//printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
 				return SendMessage(nextWnd,uMsg,wParam,lParam);
@@ -362,7 +369,9 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 	if (global_hwnd == NULL) return 1;
 
 	//printf("hwnd = %p\n", (void*)global_hwnd);
-	nextWnd = SetClipboardViewer(global_hwnd);
+	in_parsepacket = 1;
+	nextWnd = SetClipboardViewer(global_hwnd); // May send WM_DRAWCLIPBOARD
+	in_parsepacket = 0;
 	if (!nextWnd && GetLastError() != 0) {
 		pWin32Error(ERR, "SetClipboardViewer() failed");
 		exit(1);
