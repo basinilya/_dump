@@ -31,10 +31,45 @@ BOOL dbg_OpenClipboard(HWND hwnd) {
 	return b;
 }
 
+BOOL dbg_EmptyClipboard()
+{
+	BOOL b;
+	DWORD dw;
+	log(INFO, "         EmptyClipboard() begin");
+	b = EmptyClipboard();
+	dw = GetLastError();
+	log(INFO, "         EmptyClipboard() end");
+	SetLastError(dw);
+	return b;
+}
+
+HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem) {
+	HANDLE h;
+	DWORD dw;
+	log(INFO, "         SetClipboardData(%u, %p) begin", uFormat, hMem);
+	h = SetClipboardData(uFormat, hMem);
+	dw = GetLastError();
+	log(INFO, "         SetClipboardData(%u, %p) returned %p", uFormat, hMem, (void*)h);
+	SetLastError(dw);
+	return h;
+}
+
+HANDLE dbg_GetClipboardData(UINT uFormat) {
+	HANDLE h;
+	DWORD dw;
+	log(INFO, "         GetClipboardData(%u) begin", uFormat);
+	h = GetClipboardData(uFormat);
+	dw = GetLastError();
+	log(INFO, "         GetClipboardData(%u) returned %p", uFormat, (void*)h);
+	SetLastError(dw);
+	return h;
+}
+
 void dbg_CloseClipboard() {
 	FILETIME whenclipclosed;
 	int i;
 	DWORD curthread = GetCurrentThreadId();
+	log(INFO, "         CloseClipboard() begin");
 	if (curthread != InterlockedCompareExchange(&currentclipowner, 0, curthread)) {
 		log(WARN, "Clipboard wasn't opened by this thread");
 	}
@@ -47,6 +82,7 @@ void dbg_CloseClipboard() {
 	if (!CloseClipboard()) {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
+	log(INFO, "         CloseClipboard() end");
 	//log(INFO, "closed clipboard after %d mks", i);
 }
 

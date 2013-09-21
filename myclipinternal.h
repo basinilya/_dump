@@ -8,6 +8,7 @@
 using namespace cliptund;
 
 #define MY_CF CF_RIFF
+//#define MY_CF CF_TEXT
 #define MAXPACKETSIZE 8192
 
 #ifdef __cplusplus
@@ -150,5 +151,6 @@ struct subpack_data : subpack_ack {
 #define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
 
 void _clipsrv_OpenClipboard(HWND hwnd);
+void _clipsrv_parsepacket(const char *pend, const char *p);
 
 #endif

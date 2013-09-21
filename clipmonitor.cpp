@@ -46,9 +46,79 @@ static void unreg()
 
 static void parsepacket() {
 	char buf[MAXPACKETSIZE];
-	const char *pbeg, *pend, *p;
 	long npacket;
 
+	const char *pend, *p;
+
+	int flag = 0;
+
+	if (GetClipboardOwner() == ctx.hwnd) {
+		return;
+	}
+
+	_clipsrv_OpenClipboard(global_hwnd);
+
+	{
+		UINT fmtid;
+		char buf[100], *s = buf;
+		buf[0] = '\0';
+		for (fmtid = 0;;) {
+			fmtid = EnumClipboardFormats(fmtid);
+			if (fmtid == 0) {
+				if (GetLastError() != ERROR_SUCCESS) {
+					pWin32Error(ERR, "EnumClipboardFormats() failed");
+					abort();
+				}
+				break;
+			}
+			s += sprintf(s, " %u", fmtid);
+		}
+		log(INFO, "formats:%s", buf);
+	}
+
+	HGLOBAL hglob = GetClipboardData(MY_CF);
+	if (hglob) {
+		SIZE_T sz = GlobalSize(hglob);
+		if (sz > sizeofpacketheader) {
+			p = (char*)GlobalLock(hglob);
+			pend = p + sz;
+			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
+				p += sizeof(cliptun_data_header);
+
+				u_long ul;
+				memcpy(&ul, p, sizeof(u_long));
+				p += sizeof(u_long);
+				npacket = ntohl(ul);
+
+				memcpy(buf, p, pend - p);
+				pend = buf + (pend - p);
+				p = buf;
+				flag = 1;
+				//printf("received %d\n", (int)sz);
+			}
+			GlobalUnlock(hglob);
+		}
+	} else {
+		pWin32Error(INFO, "GetClipboardData() failed");
+	}
+	CloseClipboard();
+	if (flag) {
+		clipaddr remote;
+		memcpy(&remote.addr, p, sizeof(net_uuid_t));
+
+		RPC_CSTR s;
+		UuidToStringA(&remote._align, &s);
+		log(INFO, "received packet: %s %ld", s, npacket);
+		RpcStringFree(&s);
+
+		EnterCriticalSection(&ctx.lock);
+		_clipsrv_parsepacket(pend, p);
+		LeaveCriticalSection(&ctx.lock);
+	}
+}
+
+void _clipsrv_parsepacket(const char *pend, const char *p)
+{
 	union {
 		clipaddr remote;
 		struct {
@@ -73,177 +143,137 @@ static void parsepacket() {
 		}
 	} u;
 
-	int flag = 0;
+	memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
+	p += sizeof(net_uuid_t);
 
-	_clipsrv_OpenClipboard(global_hwnd);
+	for (; pend != p;) {
+		ClipConnection *cnn;
+		#define FIND_cnn(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { \
+				if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; \
+			} } while(0)
 
-	HGLOBAL hglob = GetClipboardData(MY_CF);
-	if (hglob) {
-		SIZE_T sz = GlobalSize(hglob);
-		if (sz > sizeofpacketheader) {
-			p = pbeg = (char*)GlobalLock(hglob);
-			pend = pbeg + sz;
-			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
-				p += sizeof(cliptun_data_header);
+		#define AAA(a, b) do { \
+				if (pend - p < ((b) - (a))) { \
+					log(WARN, "corrupted subpacket"); \
+					goto break_loop; \
+				} \
+				memcpy(&u.c + (a), p, ((b) - (a))); \
+				p += ((b) - (a)); \
+			} while(0)
 
-				u_long ul;
-				memcpy(&ul, p, sizeof(u_long));
-				p += sizeof(u_long);
-				npacket = ntohl(ul);
+		AAA(0, sizeof(subpackheader_base));
 
-				memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
-				p += sizeof(net_uuid_t);
-
-				memcpy(buf, p, pend - p);
-				pend = buf + (pend - p);
-				p = buf;
-				flag = 1;
-				//printf("received %d\n", (int)sz);
-			}
-			GlobalUnlock(hglob);
-		}
-	}
-	CloseClipboard();
-	if (flag) {
-		if (0 != memcmp(&u.remote.addr, &ctx.localclipuuid.net, sizeof(net_uuid_t)))
-		{
-			RPC_CSTR s;
-			UuidToStringA(&u.remote._align, &s);
-			log(INFO, "received packet: %s %ld", s, npacket);
-			RpcStringFree(&s);
-		}
-
-		EnterCriticalSection(&ctx.lock);
-
-		for (; pend != p;) {
-			ClipConnection *cnn;
-			#define FIND_cnn(cond) do { for (vector<ClipConnection*>::iterator it = ctx.connections.begin();; it++) { \
-					if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; \
-				} } while(0)
-
-			#define AAA(a, b) do { \
-					if (pend - p < ((b) - (a))) { \
-						log(WARN, "corrupted subpacket"); \
-						goto break_loop; \
-					} \
-					memcpy(&u.c + (a), p, ((b) - (a))); \
-					p += ((b) - (a)); \
-				} while(0)
-
-			AAA(0, sizeof(subpackheader_base));
-
-			packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
-			switch(packtype) {
-				case PACK_SYN:
-					FIND_cnn(u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p));
-					if (cnn) {
-						cnn->prev_recv_pos--;
-						cnn->havedata();
-					} else {
-						for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
-							Cliplistener *cliplistener = *it;
-							if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
-								log(INFO, "accepted clip %ld -> %s", ntohl(u.remote.nchannel), cliplistener->clipname);
-								ClipConnection *cnn = new ClipConnection(NULL);
-								Tunnel *tun = cnn->tun;
-								strcpy(cnn->local.clipname, cliplistener->clipname);
-								cnn->local.nchannel = cliplistener->net_channel;
-								cnn->state = STATE_NEW_SRV;
-								cnn->remote.clipaddr = u.remote;
-								_clipsrv_reg_cnn(cnn);
-								cliplistener->connfact->connect(tun);
-								tun->Release();
-								break;
-							}
+		packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
+		switch(packtype) {
+			case PACK_SYN:
+				FIND_cnn(u.remoteequal(cnn) && 0 == strncmp(p, cnn->local.clipname, pend - p));
+				if (cnn) {
+					cnn->prev_recv_pos--;
+					cnn->havedata();
+				} else {
+					for (vector<Cliplistener*>::iterator it = listeners.begin(); it != listeners.end(); it++) {
+						Cliplistener *cliplistener = *it;
+						if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
+							log(INFO, "accepted clip %ld -> %s", ntohl(u.remote.nchannel), cliplistener->clipname);
+							ClipConnection *cnn = new ClipConnection(NULL);
+							Tunnel *tun = cnn->tun;
+							strcpy(cnn->local.clipname, cliplistener->clipname);
+							cnn->local.nchannel = cliplistener->net_channel;
+							cnn->state = STATE_NEW_SRV;
+							cnn->remote.clipaddr = u.remote;
+							_clipsrv_reg_cnn(cnn);
+							cliplistener->connfact->connect(tun);
+							tun->Release();
+							break;
 						}
 					}
-					p += strlen(p)+1;
-					break;
-				case PACK_ACK:
-					AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+				}
+				p += strlen(p)+1;
+				break;
+			case PACK_ACK:
+				AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
 
-					for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
-						cnn = *it;
-						if (u.localequal(cnn))
-						{
-							if (cnn->state == STATE_SYN) {
-								log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.nchannel), cnn->remote.clipname);
-								cnn->state = STATE_EST;
-								cnn->remote.clipaddr = u.remote;
-								cnn->tun->connected();
-								break;
-							} else if (u.remoteequal(cnn)) {
-								rfifo_t *rfifo = &cnn->pump_send->buf;
-								long prev_pos = ntohl(u.data.net_prev_pos);
-								long count = ntohl(u.data.net_count);
-								long ofs_beg = (u_long)rfifo->ofs_beg;
-								if (ofs_beg - prev_pos >= 0) {
-									cnn->resend_counter = 0;
-									rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
-									cnn->pump_recv->bufferavail();
-								}
-								break;
-							}
-						}
-					}
-					break;
-				case PACK_DATA:
-					AAA(sizeof(subpackheader_base), subpack_data_size(0));
-
-					long count;
-					count = ntohl(u.data.net_count);
-					if ( (unsigned long)count > (size_t)(pend - p) ) {
-						log(WARN, "corrupted subpacket");
-						goto break_loop;
-					}
-
-					FIND_cnn(u.localandremoteequal(cnn));
-					if (cnn)
+				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
+					cnn = *it;
+					if (u.localequal(cnn))
 					{
-						rfifo_t *rfifo = &cnn->pump_recv->buf;
-						long prev_pos = ntohl(u.data.net_prev_pos);
-						long ofs_end = (u_long)rfifo->ofs_end;
-						if (ofs_end - prev_pos >= 0) {
-							if (cnn->prev_recv_pos - prev_pos > 0) {
-								cnn->prev_recv_pos = prev_pos;
+						if (cnn->state == STATE_SYN) {
+							log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.nchannel), cnn->remote.clipname);
+							cnn->state = STATE_EST;
+							cnn->remote.clipaddr = u.remote;
+							cnn->tun->connected();
+							break;
+						} else if (u.remoteequal(cnn)) {
+							rfifo_t *rfifo = &cnn->pump_send->buf;
+							long prev_pos = ntohl(u.data.net_prev_pos);
+							long count = ntohl(u.data.net_count);
+							long ofs_beg = (u_long)rfifo->ofs_beg;
+							if (ofs_beg - prev_pos >= 0) {
+								cnn->resend_counter = 0;
+								rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
+								cnn->pump_recv->bufferavail();
 							}
+							break;
+						}
+					}
+				}
+				break;
+			case PACK_DATA:
+				AAA(sizeof(subpackheader_base), subpack_data_size(0));
 
-							long datasz = prev_pos + count - ofs_end;
-							long bufsz = rfifo_availwrite(rfifo);
-							if (datasz > bufsz) datasz = bufsz;
-							memcpy(rfifo_pfree(rfifo), p, datasz);
-							rfifo_markwrite(rfifo, datasz);
-							cnn->havedata();
+				long count;
+				count = ntohl(u.data.net_count);
+				if ( (unsigned long)count > (size_t)(pend - p) ) {
+					log(WARN, "corrupted subpacket");
+					goto break_loop;
+				}
+
+				FIND_cnn(u.localandremoteequal(cnn));
+				if (cnn)
+				{
+					rfifo_t *rfifo = &cnn->pump_recv->buf;
+					long prev_pos = ntohl(u.data.net_prev_pos);
+					long ofs_end = (u_long)rfifo->ofs_end;
+					if (ofs_end - prev_pos >= 0) {
+						if (cnn->prev_recv_pos - prev_pos > 0) {
+							cnn->prev_recv_pos = prev_pos;
+						}
+
+						long datasz = prev_pos + count - ofs_end;
+						long bufsz = rfifo_availwrite(rfifo);
+						if (datasz > bufsz) datasz = bufsz;
+						memcpy(rfifo_pfree(rfifo), p, datasz);
+						rfifo_markwrite(rfifo, datasz);
+						cnn->havedata();
+						cnn->pump_send->havedata();
+					}
+				}
+				p += count;
+				break;
+			case PACK_FIN:
+				AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+
+				FIND_cnn(u.localandremoteequal(cnn));
+				if (cnn)
+				{
+					rfifo_t *rfifo = &cnn->pump_recv->buf;
+					long prev_pos = ntohl(u.data.net_prev_pos);
+					long ofs_end = (u_long)rfifo->ofs_end;
+					if (ofs_end == prev_pos) {
+						if (!cnn->pump_recv->eof) {
+							log(INFO, "disconnected clip %ld", ntohl(u.remote.nchannel));
+							cnn->pump_recv->eof = 1;
 							cnn->pump_send->havedata();
 						}
 					}
-					p += count;
-					break;
-				case PACK_FIN:
-					AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
-
-					FIND_cnn(u.localandremoteequal(cnn));
-					if (cnn)
-					{
-						rfifo_t *rfifo = &cnn->pump_recv->buf;
-						long prev_pos = ntohl(u.data.net_prev_pos);
-						long ofs_end = (u_long)rfifo->ofs_end;
-						if (ofs_end == prev_pos) {
-							if (!cnn->pump_recv->eof) {
-								log(INFO, "disconnected clip %ld", ntohl(u.remote.nchannel));
-								cnn->pump_recv->eof = 1;
-								cnn->pump_send->havedata();
-							}
-						}
-					}
-					break;
-				default:
-					abort();
-			}
+				}
+				break;
+			default:
+				abort();
 		}
-		break_loop:
-		LeaveCriticalSection(&ctx.lock);
 	}
+	break_loop:
+	;
 }
 
 static int in_parsepacket = 0;
@@ -270,6 +300,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			}
 			break;
 		case WM_DRAWCLIPBOARD:
+			log(INFO, "WM_DRAWCLIPBOARD");
 			counter++;
 			// counter++; if (counter > 4) exit(0);
 

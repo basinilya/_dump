@@ -17,9 +17,9 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
-#define TIMEOUT 400
+#define TIMEOUT 40
 #define NUMRETRIES_SYN 40
-#define NUMRETRIES_FIN 10
+#define NUMRETRIES_FIN 4
 #define NUMRETRIES_DATA_BEFORE_RESEND 6
 #define NUMRETRIES_DATA_BEFORE_GIVEUP 40
 
@@ -301,12 +301,14 @@ static int dupandreplace() {
 void _clipsrv_OpenClipboard(HWND hwnd)
 {
 	int i;
+	log(INFO, "_clipsrv_OpenClipboard() begin");
 	for (i = 0; !OpenClipboard(hwnd); i++) {
 		if (i == 1000) {
 			pWin32Error(WARN, "can't OpenClipboard for too long");
 		}
 		Sleep(1);
 	}
+	log(INFO, "_clipsrv_OpenClipboard() end");
 }
 
 int senddata(HGLOBAL hdata) {
@@ -420,6 +422,7 @@ void clipsrvctx::newbuf()
 
 void clipsrvctx::unlock_and_send_and_newbuf()
 {
+	_clipsrv_parsepacket(p, pbeg + sizeof(cliptun_data_header) + sizeof(u_long));
 	LeaveCriticalSection(&lock);
 
 	GlobalUnlock(hglob);

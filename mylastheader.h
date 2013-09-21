@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+BOOL dbg_EmptyClipboard();
+HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem);
+HANDLE dbg_GetClipboardData(UINT uFormat);
 BOOL dbg_OpenClipboard(HWND hwnd);
 void dbg_CloseClipboard();
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject);
@@ -37,6 +40,9 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 
 #ifdef DEBUG_CLIPTUND
 
+#define EmptyClipboard dbg_EmptyClipboard
+#define SetClipboardData dbg_SetClipboardData
+#define GetClipboardData dbg_GetClipboardData
 #define OpenClipboard dbg_OpenClipboard
 #define CloseClipboard dbg_CloseClipboard
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
