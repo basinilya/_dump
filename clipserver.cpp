@@ -53,7 +53,7 @@ struct clipaddr {
 		UUID _align;
 	};
 	char _hdr[4];
-	u_long nchannel;
+	u_long net_channel;
 };
 
 struct subpackheader_base {
@@ -62,9 +62,15 @@ struct subpackheader_base {
 	u_long net_packtype;
 #if 0 && defined(CONSTRHDR)
 	subpackheader_base() {
-		strncpy(_hdr, "pack", 4);
 	}
 #endif
+};
+
+template<class _T> struct SubPackWrap : _T {
+	SubPackWrap() {
+		subpackheader_base &_this = *this;
+		strncpy(_this._hdr, "pack", 4);
+	}
 };
 
 struct subpack_syn : subpackheader_base {
@@ -103,7 +109,7 @@ struct ClipConnection : Connection {
 	void havedata();
 
 	struct {
-		u_long nchannel;
+		u_long net_channel;
 		char clipname[40+1];
 	} local;
 	union {
@@ -268,7 +274,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 		bool localequal(const ClipConnection *cnn) const {
 			return
 				0 == memcmp(&ctx.localclipuuid.net, &header.dst.addr, sizeof(net_uuid_t))
-				&& cnn->local.nchannel == header.dst.nchannel;
+				&& cnn->local.net_channel == header.dst.net_channel;
 		}
 		bool localandremoteequal(const ClipConnection *cnn) const {
 			return localequal(cnn) && remoteequal(cnn);
@@ -306,11 +312,11 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					for (vector<Cliplistener*>::iterator it = ctx.listeners.begin(); it != ctx.listeners.end(); it++) {
 						Cliplistener *cliplistener = *it;
 						if (0 == strncmp(p, cliplistener->clipname, pend - p)) {
-							log(INFO, "accepted clip %ld -> %s", ntohl(u.remote.nchannel), cliplistener->clipname);
+							log(INFO, "accepted clip %ld -> %s", ntohl(u.remote.net_channel), cliplistener->clipname);
 							ClipConnection *cnn = new ClipConnection(NULL);
 							Tunnel *tun = cnn->tun;
 							strcpy(cnn->local.clipname, cliplistener->clipname);
-							cnn->local.nchannel = cliplistener->net_channel;
+							cnn->local.net_channel = cliplistener->net_channel;
 							cnn->state = STATE_NEW_SRV;
 							cnn->remote.clipaddr = u.remote;
 							_clipsrv_reg_cnn(cnn);
@@ -330,7 +336,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					if (u.localequal(cnn))
 					{
 						if (cnn->state == STATE_SYN) {
-							log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.nchannel), cnn->remote.clipname);
+							log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.net_channel), cnn->remote.clipname);
 							cnn->state = STATE_EST;
 							cnn->remote.clipaddr = u.remote;
 							cnn->tun->connected();
@@ -393,7 +399,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					long ofs_end = (u_long)rfifo->ofs_end;
 					if (ofs_end == prev_pos) {
 						if (!cnn->pump_recv->eof) {
-							log(INFO, "disconnected clip %ld", ntohl(u.remote.nchannel));
+							log(INFO, "disconnected clip %ld", ntohl(u.remote.net_channel));
 							cnn->pump_recv->eof = 1;
 							cnn->pump_send->havedata();
 						}
@@ -730,7 +736,7 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 	char clipname[40+1];
 	void connect(Tunnel *tun) {
 		ClipConnection *cnn = new ClipConnection(tun);
-		cnn->local.nchannel = htonl(InterlockedIncrement(&ctx.nchannel));
+		cnn->local.net_channel = htonl(InterlockedIncrement(&ctx.nchannel));
 		cnn->state = STATE_SYN;
 		cnn->resend_counter = 0;
 		strcpy(cnn->remote.clipname, clipname);
@@ -821,7 +827,7 @@ void clipsrvctx::fillpack()
 {
 	do {
 		wantmore = 0;
-		for(unsigned u = 0; u < connections.size(); u++) {
+		for(unsigned u = 0; u < connections.size();) {
 			ClipConnection *conn = connections[u];
 			cnnstate_t state = conn->state;
 			switch (state) {
@@ -829,8 +835,7 @@ void clipsrvctx::fillpack()
 					{
 						if (conn->resend_counter == NUMRETRIES_SYN) {
 							_clipsrv_unreg_cnn(u);
-							u--;
-							break;
+							continue;
 						}
 						/* send SYNs repeatedly, until we get ACK */
 						/* TODO: add delay and max tries */
@@ -840,8 +845,8 @@ void clipsrvctx::fillpack()
 							return;
 						}
 
-						subpack_syn subpack;
-						subpack.net_src_channel = conn->local.nchannel;
+						SubPackWrap<subpack_syn> subpack;
+						subpack.net_src_channel = conn->local.net_channel;
 						subpack.net_packtype = htonl(PACK_SYN);
 
 						memcpy(p, &subpack, subpack_syn_size(0));
@@ -863,12 +868,12 @@ void clipsrvctx::fillpack()
 						if (conn->prev_recv_pos != cur_pos) {
 							/* if this ack is lost, they will just resend the data */
 
-							subpack_ack subpack;
+							SubPackWrap<subpack_ack> subpack;
 
 							if (OVERFLOWS(sizeof(subpack))) {
 								return;
 							}
-							subpack.net_src_channel = conn->local.nchannel;
+							subpack.net_src_channel = conn->local.net_channel;
 							subpack.net_packtype = htonl(PACK_ACK);
 							subpack.dst = conn->remote.clipaddr;
 							subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
@@ -882,8 +887,7 @@ void clipsrvctx::fillpack()
 
 						if (conn->resend_counter == NUMRETRIES_DATA_BEFORE_GIVEUP) {
 							_clipsrv_unreg_cnn(u);
-							u--;
-							break;
+							continue;
 						}
 
 						rfifo_t *rfifo;
@@ -908,11 +912,11 @@ void clipsrvctx::fillpack()
 								return;
 							}
 
-							subpack_data subpack;
+							SubPackWrap<subpack_data> subpack;
 
 							int bufsz = (int)(pend - p - subpack_data_size(0));
 							if (datasz > bufsz) datasz = bufsz;
-							subpack.net_src_channel = conn->local.nchannel;
+							subpack.net_src_channel = conn->local.net_channel;
 							subpack.net_packtype = htonl(PACK_DATA);
 							subpack.dst = conn->remote.clipaddr;
 							subpack.net_prev_pos = htonl(rfifo->ofs_mid);
@@ -937,8 +941,7 @@ void clipsrvctx::fillpack()
 							/* all sent data is confirmed */
 							if (conn->resend_counter == NUMRETRIES_FIN) {
 								_clipsrv_unreg_cnn(u);
-								u--;
-								break;
+								continue;
 							}
 							//log(INFO, "Sending FIN #%d", conn->resend_counter);
 							conn->resend_counter++;
@@ -950,9 +953,9 @@ void clipsrvctx::fillpack()
 						if (OVERFLOWS(sizeof(subpack_ack))) {
 							return;
 						}
-						subpack_ack subpack;
+						SubPackWrap<subpack_ack> subpack;
 
-						subpack.net_src_channel = conn->local.nchannel;
+						subpack.net_src_channel = conn->local.net_channel;
 						subpack.net_packtype = htonl(PACK_FIN);
 						subpack.dst = conn->remote.clipaddr;
 
@@ -968,6 +971,7 @@ void clipsrvctx::fillpack()
 				default:
 					abort();
 			}
+			u++;
 		}
 	} while (wantmore);
 }
