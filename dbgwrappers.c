@@ -22,6 +22,25 @@ void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent) {
 	}
 }
 
+void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add)
+{
+	if (0 == SetConsoleCtrlHandler(HandlerRoutine, Add)) {
+		pWin32Error(ERR, "SetConsoleCtrlHandler() failed");
+		abort();
+	}
+}
+
+HWND dbg_SetClipboardViewer(HWND hWndNewViewer)
+{
+	HWND hwndres;
+	hwndres = SetClipboardViewer(hWndNewViewer);
+	if (!hwndres && GetLastError() != 0) {
+		pWin32Error(ERR, "SetClipboardViewer() failed");
+		abort();
+	}
+	return hwndres;
+}
+
 BOOL dbg_OpenClipboard(HWND hwnd) {
 	BOOL b;
 	DWORD dw;

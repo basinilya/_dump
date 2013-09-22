@@ -20,6 +20,8 @@ extern "C" {
 #endif
 
 void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent);
+void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add);
+HWND dbg_SetClipboardViewer(HWND hWndNewViewer);
 BOOL dbg_EmptyClipboard();
 HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem);
 HANDLE dbg_GetClipboardData(UINT uFormat);
@@ -42,6 +44,8 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #ifdef DEBUG_CLIPTUND
 
 #define KillTimer dbg_KillTimer
+#define SetClipboardViewer dbg_SetClipboardViewer
+#define SetConsoleCtrlHandler dbg_SetConsoleCtrlHandler
 #define EmptyClipboard dbg_EmptyClipboard
 #define SetClipboardData dbg_SetClipboardData
 #define GetClipboardData dbg_GetClipboardData
