@@ -697,7 +697,7 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 	return 0;
 }
 
-int clipsrv_init()
+void clipsrv_init()
 {
 	DWORD tid;
 	InitializeCriticalSection(&ctx.lock);
@@ -720,6 +720,4 @@ int clipsrv_init()
 
 	WaitForSingleObject(ev_inited, INFINITE);
 	if (!ctx.hwnd) abort();
-
-	return 0;
 }

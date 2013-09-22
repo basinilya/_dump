@@ -100,6 +100,7 @@ extern struct clipsrvctx {
 	UINT_PTR wait_rendermsg_ntimer;
 	UINT_PTR resend_ntimer;
 
+	HWND nextWnd;
 
 	DWORD clipsrv_nseq;
 	union {

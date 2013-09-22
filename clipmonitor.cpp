@@ -1,6 +1,3 @@
-#ifndef _WIN32_WINNT		// Allow use of features specific to Windows XP or later.                   
-#define _WIN32_WINNT 0x0501	// Change this to the appropriate value to target other versions of Windows.
-#endif						
 
 #include "mylogging.h"
 #include "myclipserver.h"
@@ -15,12 +12,6 @@ using namespace std;
 
 #include "mylastheader.h"
 
-static int counter=0;
-
-static HWND nextWnd = NULL;
-
-volatile HWND global_hwnd = NULL;
-
 struct Cliplistener {
 	u_long net_channel;
 	char clipname[40+1];
@@ -30,15 +21,17 @@ struct Cliplistener {
 	}
 };
 
+volatile HWND global_hwnd = NULL;
+static int in_parsepacket = 0;
 static vector<Cliplistener*> listeners;
 
-static void unreg()
+static void _clipsrv_unreg_viewer()
 {
 	HWND hwnd;
 	hwnd = (HWND)InterlockedExchangePointer((void**)&global_hwnd, NULL); /* ignore the "cast to greater size" warning */
 	if (hwnd) {
-		printf("Removing self from chain: %p <- %p\n", (void*)hwnd, (void*)nextWnd);
-		if (!ChangeClipboardChain(hwnd, nextWnd) && GetLastError() != 0) {
+		log(INFO, "Removing self from chain: %p <- %p", (void*)hwnd, (void*)ctx.nextWnd);
+		if (!ChangeClipboardChain(hwnd, ctx.nextWnd) && GetLastError() != 0) {
 			pWin32Error(ERR, "ChangeClipboardChain() failed");
 		}
 	}
@@ -276,33 +269,29 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 	;
 }
 
-static int in_parsepacket = 0;
 
 static
 LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 		case WM_CHANGECBCHAIN:
-			counter++;
 			{
 				HWND wndRemove = (HWND)wParam;
 				HWND wndNextNext = (HWND)lParam;
-				printf("%6d WM_CHANGECBCHAIN %p %p\n", counter, (void*)wndRemove, (void*)wndNextNext);
-				if (nextWnd == wndRemove) {
-					printf("%6d saving next window %p\n", counter, (void*)wndNextNext);
-					nextWnd = wndNextNext;
-				} else if (nextWnd) {
-					printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
-					return SendMessage(nextWnd,uMsg,wParam,lParam);
+				log(INFO, "WM_CHANGECBCHAIN %p %p", (void*)wndRemove, (void*)wndNextNext);
+				if (ctx.nextWnd == wndRemove) {
+					log(INFO, "saving next window %p", (void*)wndNextNext);
+					ctx.nextWnd = wndNextNext;
+				} else if (ctx.nextWnd) {
+					log(INFO, "notifying next window %p", (void*)ctx.nextWnd);
+					return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
 				} else {
-					printf("%6d not notifying next window %p\n", counter, (void*)nextWnd);
+					log(INFO, "not notifying next window %p", (void*)ctx.nextWnd);
 				}
 			}
 			break;
 		case WM_DRAWCLIPBOARD:
 			log(INFO, "WM_DRAWCLIPBOARD");
-			counter++;
-			// counter++; if (counter > 4) exit(0);
 
 			if (!in_parsepacket) {
 				in_parsepacket = 1;
@@ -310,16 +299,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				in_parsepacket = 0;
 			}
 
-			if (nextWnd) {
-				//printf("%6d notifying next window %p\n", counter, (void*)nextWnd);
-				return SendMessage(nextWnd,uMsg,wParam,lParam);
-			} else {
-				//printf("%6d not notifying next window %p\n", counter, (void*)nextWnd);
+			if (ctx.nextWnd) {
+				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
 			}
 			break;
 		case WM_UNREGVIEWER:
 			printf("WM_UNREGVIEWER\n");
-			unreg();
+			_clipsrv_unreg_viewer();
 			break;
 		default:
 			return DefWindowProc( hwnd,uMsg,wParam,lParam);
@@ -329,7 +315,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 static void exitproc(void) {
 	fprintf(stderr, "exitproc()\n");
-	unreg();
+	_clipsrv_unreg_viewer();
 }
 
 static
@@ -401,13 +387,13 @@ DWORD WINAPI clipmon_wnd_thread(void *param)
 
 	//printf("hwnd = %p\n", (void*)global_hwnd);
 	in_parsepacket = 1;
-	nextWnd = SetClipboardViewer(global_hwnd); // May send WM_DRAWCLIPBOARD
+	ctx.nextWnd = SetClipboardViewer(global_hwnd); // May send WM_DRAWCLIPBOARD
 	in_parsepacket = 0;
-	if (!nextWnd && GetLastError() != 0) {
+	if (!ctx.nextWnd && GetLastError() != 0) {
 		pWin32Error(ERR, "SetClipboardViewer() failed");
 		exit(1);
 	}
-	//printf("nextWnd = %p\n", (void*)nextWnd);
+	//printf("ctx.nextWnd = %p\n", (void*)ctx.nextWnd);
 
 	atexit(exitproc);
 
