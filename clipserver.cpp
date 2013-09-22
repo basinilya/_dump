@@ -56,6 +56,40 @@ struct clipaddr {
 	u_long nchannel;
 };
 
+struct subpackheader_base {
+	char _hdr[4];
+	u_long net_src_channel;
+	u_long net_packtype;
+#if 0 && defined(CONSTRHDR)
+	subpackheader_base() {
+		strncpy(_hdr, "pack", 4);
+	}
+#endif
+};
+
+struct subpack_syn : subpackheader_base {
+	char dst_clipname[1];
+};
+
+#define subpack_syn_size(dst_clipname_size) (sizeof(subpackheader_base) + (dst_clipname_size))
+
+struct subpackheader : subpackheader_base {
+	clipaddr dst;
+};
+
+struct subpack_ack : subpackheader {
+	u_long net_prev_pos;
+	u_long net_count;
+};
+
+struct subpack_data : subpack_ack {
+	char data[1];
+};
+
+#define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
+
+#define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
+
 struct ClipConnection : Connection {
 	cnnstate_t state;
 	long prev_recv_pos;
@@ -108,8 +142,6 @@ struct clipsrvctx {
 	volatile LONG nchannel;
 	long npacket;
 	HWND hwnd;
-	//HANDLE &havedata_ev = events[0];
-	//HANDLE &datasent_ev = events[1];
 	int havedata;
 	CRITICAL_SECTION lock;
 	std::vector<ClipConnection *> connections;
@@ -124,40 +156,6 @@ struct clipsrvctx {
 	void newbuf();
 	void fillpack();
 } ctx;
-
-struct subpackheader_base {
-	char _hdr[4];
-	u_long net_src_channel;
-	u_long net_packtype;
-#if 0 && defined(CONSTRHDR)
-	subpackheader_base() {
-		strncpy(_hdr, "pack", 4);
-	}
-#endif
-};
-
-struct subpack_syn : subpackheader_base {
-	char dst_clipname[1];
-};
-
-#define subpack_syn_size(dst_clipname_size) (sizeof(subpackheader_base) + (dst_clipname_size))
-
-struct subpackheader : subpackheader_base {
-	clipaddr dst;
-};
-
-struct subpack_ack : subpackheader {
-	u_long net_prev_pos;
-	u_long net_count;
-};
-
-struct subpack_data : subpack_ack {
-	char data[1];
-};
-
-#define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
-
-#define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
@@ -178,7 +176,7 @@ static void _clipsrv_unreg_viewer()
 	}
 }
 
-static void parsepacket() {
+static void get_clip_data_and_parse() {
 	char buf[MAXPACKETSIZE];
 	long npacket;
 
@@ -232,7 +230,7 @@ static void parsepacket() {
 			}
 			GlobalUnlock(hglob);
 		}
-	} else {
+	} else if (GetLastError() != ERROR_SUCCESS) {
 		pWin32Error(INFO, "GetClipboardData() failed");
 	}
 	CloseClipboard();
@@ -286,16 +284,16 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				if (it == ctx.connections.end()) { cnn = NULL; break; } cnn = *it; if (cond) break; \
 			} } while(0)
 
-		#define AAA(a, b) do { \
-				if (OVERFLOWS((b) - (a))) { \
+		#define GET_PARTIAL(already_have, fullsz) do { \
+				if (OVERFLOWS((fullsz) - (already_have))) { \
 					log(WARN, "corrupted subpacket"); \
 					goto break_loop; \
 				} \
-				memcpy(&u.c + (a), p, ((b) - (a))); \
-				p += ((b) - (a)); \
+				memcpy(&u.c + (already_have), p, ((fullsz) - (already_have))); \
+				p += ((fullsz) - (already_have)); \
 			} while(0)
 
-		AAA(0, sizeof(subpackheader_base));
+		GET_PARTIAL(0, sizeof(subpackheader_base));
 
 		packtype_t packtype = (packtype_t)ntohl(u.header.net_packtype);
 		switch(packtype) {
@@ -325,7 +323,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				p += strlen(p)+1;
 				break;
 			case PACK_ACK:
-				AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+				GET_PARTIAL(sizeof(subpackheader_base), sizeof(subpack_ack));
 
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					cnn = *it;
@@ -353,7 +351,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				}
 				break;
 			case PACK_DATA:
-				AAA(sizeof(subpackheader_base), subpack_data_size(0));
+				GET_PARTIAL(sizeof(subpackheader_base), subpack_data_size(0));
 
 				long count;
 				count = ntohl(u.data.net_count);
@@ -385,7 +383,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				p += count;
 				break;
 			case PACK_FIN:
-				AAA(sizeof(subpackheader_base), sizeof(subpack_ack));
+				GET_PARTIAL(sizeof(subpackheader_base), sizeof(subpack_ack));
 
 				FIND_cnn(u.localandremoteequal(cnn));
 				if (cnn)
@@ -1047,7 +1045,7 @@ tellothers:
 
 			if (!ctx.in_parsepacket) {
 				ctx.in_parsepacket = 1;
-				parsepacket();
+				get_clip_data_and_parse();
 				ctx.in_parsepacket = 0;
 			}
 
