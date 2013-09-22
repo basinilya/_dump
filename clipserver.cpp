@@ -22,7 +22,10 @@ using namespace cliptund;
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 
 #define WAIT_RENDERMSG_TIMEOUT 1000
-#define NUMRETRIES_SYN 40
+
+#define NUMRETRIES_SYN 10
+#define TIMEOUT_SYN 1000
+
 #define NUMRETRIES_FIN 4
 #define NUMRETRIES_DATA_BEFORE_RESEND 6
 #define NUMRETRIES_DATA_BEFORE_GIVEUP 40
@@ -157,10 +160,9 @@ struct clipsrvctx {
 	char *pbeg;
 	char *p;
 	char *pend;
-	int wantmore;
 
 	void newbuf();
-	void fillpack();
+	bool fillpack();
 } ctx;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
@@ -293,7 +295,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 		#define GET_PARTIAL(already_have, fullsz) do { \
 				if (OVERFLOWS((fullsz) - (already_have))) { \
 					log(WARN, "corrupted subpacket"); \
-					goto break_loop; \
+					return; \
 				} \
 				memcpy(&u.c + (already_have), p, ((fullsz) - (already_have))); \
 				p += ((fullsz) - (already_have)); \
@@ -363,7 +365,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				count = ntohl(u.data.net_count);
 				if (OVERFLOWS((unsigned long)count)) {
 					log(WARN, "corrupted subpacket");
-					goto break_loop;
+					return;
 				}
 
 				FIND_cnn(u.localandremoteequal(cnn));
@@ -407,11 +409,10 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				}
 				break;
 			default:
-				abort();
+				log(WARN, "corrupted subpacket");
+				return;
 		}
 	}
-	break_loop:
-	;
 }
 
 static
@@ -765,8 +766,12 @@ void ClipConnection::bufferavail() {
 	havedata();
 }
 
-void ClipConnection::havedata() {
+static void havedata() {
 	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
+}
+
+void ClipConnection::havedata() {
+	::havedata();
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
@@ -823,157 +828,173 @@ void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
 }
 */
 
-void clipsrvctx::fillpack()
+bool clipsrvctx::fillpack()
 {
-	do {
-		wantmore = 0;
-		for(unsigned u = 0; u < connections.size();) {
-			ClipConnection *conn = connections[u];
-			cnnstate_t state = conn->state;
-			switch (state) {
-				case STATE_SYN:
-					{
+	DWORD now = GetTickCount();
+	DWORD then_timeout = INFINITE;
+	for(unsigned u = 0; u < connections.size();) {
+		ClipConnection *conn = connections[u];
+		cnnstate_t state = conn->state;
+		switch (state) {
+			case STATE_SYN:
+				{
+					if (conn->resend_counter != 0) {
+						if ((int)(now - conn->resend_next_tickcount) > 0) break;
 						if (conn->resend_counter == NUMRETRIES_SYN) {
 							_clipsrv_unreg_cnn(u);
 							continue;
 						}
-						/* send SYNs repeatedly, until we get ACK */
-						/* TODO: add delay and max tries */
-						size_t clipnamesize = strlen(conn->remote.clipname)+1;
-
-						if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
-							return;
-						}
-
-						SubPackWrap<subpack_syn> subpack;
-						subpack.net_src_channel = conn->local.net_channel;
-						subpack.net_packtype = htonl(PACK_SYN);
-
-						memcpy(p, &subpack, subpack_syn_size(0));
-						p += subpack_syn_size(0);
-
-						strcpy(p, conn->remote.clipname);
-						p += clipnamesize;
-
-						//log(INFO, "Sending SYN #%d", conn->resend_counter);
-
-						conn->resend_counter++;
-						//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
-
 					}
-					break;
-				case STATE_EST:
-					{
-						long cur_pos = conn->pump_recv->buf.ofs_end;
-						if (conn->prev_recv_pos != cur_pos) {
-							/* if this ack is lost, they will just resend the data */
+					conn->resend_next_tickcount = now + TIMEOUT_SYN;
+					if (then_timeout > TIMEOUT_SYN) then_timeout = TIMEOUT_SYN;
 
-							SubPackWrap<subpack_ack> subpack;
+					size_t clipnamesize = strlen(conn->remote.clipname)+1;
 
-							if (OVERFLOWS(sizeof(subpack))) {
-								return;
-							}
-							subpack.net_src_channel = conn->local.net_channel;
-							subpack.net_packtype = htonl(PACK_ACK);
-							subpack.dst = conn->remote.clipaddr;
-							subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
-							subpack.net_prev_pos = htonl(conn->prev_recv_pos);
-							conn->prev_recv_pos = cur_pos;
+					if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
+						return true;
+					}
 
-							memcpy(p, &subpack, sizeof(subpack));
-							p += sizeof(subpack);
+					SubPackWrap<subpack_syn> subpack;
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_SYN);
 
-						}
+					memcpy(p, &subpack, subpack_syn_size(0));
+					p += subpack_syn_size(0);
 
-						if (conn->resend_counter == NUMRETRIES_DATA_BEFORE_GIVEUP) {
+					strcpy(p, conn->remote.clipname);
+					p += clipnamesize;
+
+					//log(INFO, "Sending SYN #%d", conn->resend_counter);
+
+					conn->resend_counter++;
+					//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
+
+				}
+				break;
+			case STATE_EST:
+				long cur_pos;
+				cur_pos = conn->pump_recv->buf.ofs_end;
+				if (conn->prev_recv_pos != cur_pos) {
+					/* if this ack is lost, they will just resend the data */
+
+					SubPackWrap<subpack_ack> subpack;
+
+					if (OVERFLOWS(sizeof(subpack))) {
+						return true;
+					}
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_ACK);
+					subpack.dst = conn->remote.clipaddr;
+					subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
+					subpack.net_prev_pos = htonl(conn->prev_recv_pos);
+					conn->prev_recv_pos = cur_pos;
+
+					memcpy(p, &subpack, sizeof(subpack));
+					p += sizeof(subpack);
+
+				}
+
+				{
+/* adding more data to send does not reset resend_counter, but we need to send the added data immediately
+					if (conn->resend_counter != 0) {
+						if ((int)(now - conn->resend_next_tickcount) > 0) break;
+						if (conn->resend_counter == NUMRETRIES_SYN) {
 							_clipsrv_unreg_cnn(u);
 							continue;
 						}
-
-						rfifo_t *rfifo;
-						rfifo = &conn->pump_send->buf;
-						if (rfifo->ofs_mid != rfifo->ofs_beg) {
-							int counter = conn->resend_counter;
-							int remainder = counter % (NUMRETRIES_DATA_BEFORE_RESEND+1);
-							if (remainder == NUMRETRIES_DATA_BEFORE_RESEND/2) {
-								// TODO: ???
-							}
-							if (remainder == NUMRETRIES_DATA_BEFORE_RESEND) {
-								log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
-								rfifo->ofs_mid = rfifo->ofs_beg;
-							}
-							conn->resend_counter++;
-							//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
-						}
-						int datasz = rfifo_availread(rfifo);
-						if (datasz != 0) {
-
-							if (OVERFLOWS(subpack_data_size(1))) {
-								return;
-							}
-
-							SubPackWrap<subpack_data> subpack;
-
-							int bufsz = (int)(pend - p - subpack_data_size(0));
-							if (datasz > bufsz) datasz = bufsz;
-							subpack.net_src_channel = conn->local.net_channel;
-							subpack.net_packtype = htonl(PACK_DATA);
-							subpack.dst = conn->remote.clipaddr;
-							subpack.net_prev_pos = htonl(rfifo->ofs_mid);
-							subpack.net_count = htonl(datasz);
-							memcpy(p, &subpack, subpack_data_size(0));
-							p += subpack_data_size(0);
-
-							memcpy(p, rfifo_pdata(rfifo), datasz);
-							p += datasz;
-							rfifo_markread(rfifo, datasz);
-
-							//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
-
-						}
 					}
-					if (conn->pump_send->eof) {
+					conn->resend_next_tickcount = now + TIMEOUT_SYN;
+					if (then_timeout > TIMEOUT_SYN) then_timeout = TIMEOUT_SYN;
+*/
+					if (conn->resend_counter == NUMRETRIES_DATA_BEFORE_GIVEUP) {
+						_clipsrv_unreg_cnn(u);
+						continue;
+					}
 
-						rfifo_t *rfifo;
-						rfifo = &conn->pump_send->buf;
+					rfifo_t *rfifo;
+					rfifo = &conn->pump_send->buf;
+					if (rfifo->ofs_mid != rfifo->ofs_beg) {
+						int counter = conn->resend_counter;
+						int remainder = counter % (NUMRETRIES_DATA_BEFORE_RESEND+1);
+						if (remainder == NUMRETRIES_DATA_BEFORE_RESEND/2) {
+							// TODO: ???
+						}
+						if (remainder == NUMRETRIES_DATA_BEFORE_RESEND) {
+							log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
+							rfifo->ofs_mid = rfifo->ofs_beg;
+						}
+						conn->resend_counter++;
+						//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
+					}
+					int datasz = rfifo_availread(rfifo);
+					if (datasz != 0) {
 
-						if (rfifo->ofs_end == rfifo->ofs_mid) {
-							/* all sent data is confirmed */
-							if (conn->resend_counter == NUMRETRIES_FIN) {
-								_clipsrv_unreg_cnn(u);
-								continue;
-							}
-							//log(INFO, "Sending FIN #%d", conn->resend_counter);
-							conn->resend_counter++;
-							//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
-						} else {
-							//log(INFO, "Sending FIN #-");
+						if (OVERFLOWS(subpack_data_size(1))) {
+							return true;
 						}
 
-						if (OVERFLOWS(sizeof(subpack_ack))) {
-							return;
-						}
-						SubPackWrap<subpack_ack> subpack;
+						SubPackWrap<subpack_data> subpack;
 
+						int bufsz = (int)(pend - p - subpack_data_size(0));
+						if (datasz > bufsz) datasz = bufsz;
 						subpack.net_src_channel = conn->local.net_channel;
-						subpack.net_packtype = htonl(PACK_FIN);
+						subpack.net_packtype = htonl(PACK_DATA);
 						subpack.dst = conn->remote.clipaddr;
+						subpack.net_prev_pos = htonl(rfifo->ofs_mid);
+						subpack.net_count = htonl(datasz);
+						memcpy(p, &subpack, subpack_data_size(0));
+						p += subpack_data_size(0);
 
-						subpack.net_prev_pos = htonl(rfifo->ofs_end);
-						subpack.net_count = htonl(0);
+						memcpy(p, rfifo_pdata(rfifo), datasz);
+						p += datasz;
+						rfifo_markread(rfifo, datasz);
 
-						memcpy(p, &subpack, sizeof(subpack));
-						p += sizeof(subpack);
+						//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
+
 					}
-					break;
-				case STATE_NEW_SRV:
-					break;
-				default:
-					abort();
-			}
-			u++;
+				}
+				if (conn->pump_send->eof) {
+
+					rfifo_t *rfifo;
+					rfifo = &conn->pump_send->buf;
+
+					if (rfifo->ofs_end == rfifo->ofs_mid) {
+						/* all sent data is confirmed */
+						if (conn->resend_counter == NUMRETRIES_FIN) {
+							_clipsrv_unreg_cnn(u);
+							continue;
+						}
+						//log(INFO, "Sending FIN #%d", conn->resend_counter);
+						conn->resend_counter++;
+						//log(INFO, "incremented resend_counter: %d", conn->resend_counter);
+					} else {
+						//log(INFO, "Sending FIN #-");
+					}
+
+					if (OVERFLOWS(sizeof(subpack_ack))) {
+						return true;
+					}
+					SubPackWrap<subpack_ack> subpack;
+
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_FIN);
+					subpack.dst = conn->remote.clipaddr;
+
+					subpack.net_prev_pos = htonl(rfifo->ofs_end);
+					subpack.net_count = htonl(0);
+
+					memcpy(p, &subpack, sizeof(subpack));
+					p += sizeof(subpack);
+				}
+				break;
+			case STATE_NEW_SRV:
+				break;
+			default:
+				abort();
 		}
-	} while (wantmore);
+		u++;
+	}
+	return false;
 }
 
 static
@@ -986,7 +1007,7 @@ void tell_others_about_data() {
 }
 
 static
-VOID CALLBACK wait_rendermsg_WAIT_RENDERMSG_TIMEOUT(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	tell_others_about_data();
 }
@@ -995,7 +1016,7 @@ static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	KillTimer(_hwnd_null, idEvent);
-	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
+	havedata();
 }
 
 static
@@ -1008,18 +1029,22 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				ctx.flag_sending = 1;
 tellothers:
 				tell_others_about_data();
-				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_WAIT_RENDERMSG_TIMEOUT);
+				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_timeout);
 			}
 			break;
 		case WM_RENDERFORMAT:
+			bool wantmore;
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
-			ctx.fillpack();
+			wantmore = ctx.fillpack();
 			LeaveCriticalSection(&ctx.lock);
 			SetClipboardData(MY_CF, ctx.hglob);
 
 			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
+			if (wantmore) {
+				havedata();
+			}
 			break;
 		case WM_FORMAT_RENDERED:
 			ctx.newbuf();
