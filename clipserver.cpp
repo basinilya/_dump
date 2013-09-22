@@ -649,7 +649,7 @@ VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD
 }
 
 static
-LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 		case WM_HAVE_DATA:
@@ -684,8 +684,11 @@ tellothers:
 
 static DWORD WINAPI _clipserv_wnd_thread(void *param)
 {
+	HANDLE ev_inited = (HANDLE)param;
 	MSG msg;
-	createutilitywindowwithproc(&ctx.hwnd, WindowProc, _T("myclipowner")); if (!ctx.hwnd) abort();
+	createutilitywindowwithproc(&ctx.hwnd, _clipsrv_wndproc, _T("myclipsrv"));
+	SetEvent(ev_inited);
+	if (!ctx.hwnd) return 1;
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
@@ -709,15 +712,14 @@ int clipsrv_init()
 
 	ctx.newbuf();
 
-	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
+	HANDLE ev_inited = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	CreateThread(NULL, 0, _clipserv_wnd_thread, ev_inited, 0, &tid);
 	CreateThread(NULL, 0, clipmon_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
-	return 0;
-}
 
-/*
-int clipsrv_connect(const char *clipname, HANDLE ev, clipaddr *remote)
-{
+	WaitForSingleObject(ev_inited, INFINITE);
+	if (!ctx.hwnd) abort();
+
 	return 0;
 }
-*/
