@@ -94,6 +94,13 @@ void _clipsrv_reg_cnn(ClipConnection *conn);
 #include <vector>
 
 extern struct clipsrvctx {
+	int flag_sending;
+	int flag_havedata;
+
+	UINT_PTR wait_rendermsg_ntimer;
+	UINT_PTR resend_ntimer;
+
+
 	DWORD clipsrv_nseq;
 	union {
 		net_uuid_t net;

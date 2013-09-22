@@ -634,18 +634,12 @@ void tell_others_about_data() {
 	CloseClipboard();
 }
 
-int flag_sending;
-int flag_havedata;
-
-UINT_PTR wait_rendermsg_ntimer;
-
 static
 VOID CALLBACK wait_rendermsg_WAIT_RENDERMSG_TIMEOUT(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	tell_others_about_data();
 }
 
-UINT_PTR resend_ntimer;
 
 static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
@@ -659,17 +653,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 		case WM_HAVE_DATA:
-			flag_havedata = 1;
-			if (!flag_sending) {
-				flag_sending = 1;
+			ctx.flag_havedata = 1;
+			if (!ctx.flag_sending) {
+				ctx.flag_sending = 1;
 tellothers:
 				tell_others_about_data();
-				wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_WAIT_RENDERMSG_TIMEOUT);
+				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_WAIT_RENDERMSG_TIMEOUT);
 			}
 			break;
 		case WM_RENDERFORMAT:
-			KillTimer(NULL, wait_rendermsg_ntimer);
-			flag_havedata = 0;
+			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
+			ctx.flag_havedata = 0;
 			/* TODO: fill packet data */
 			SetClipboardData(MY_CF, ctx.hglob);
 
@@ -677,10 +671,10 @@ tellothers:
 			break;
 		case WM_FORMAT_RENDERED:
 			ctx.newbuf();
-			if (flag_havedata) {
+			if (ctx.flag_havedata) {
 				goto tellothers;
 			}
-			flag_sending = 0;
+			ctx.flag_sending = 0;
 			break;
 		default:
 			return DefWindowProc( hwnd,uMsg,wParam,lParam);
