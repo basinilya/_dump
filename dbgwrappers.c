@@ -13,6 +13,15 @@ FILETIME whenclipopened;
 
 volatile LONG currentclipowner = 0;
 
+void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent) {
+	BOOL b;
+	b = KillTimer(hWnd, uIDEvent);
+	if (!b) {
+		pWin32Error(ERR, "KillTimer() failed");
+		abort();
+	}
+}
+
 BOOL dbg_OpenClipboard(HWND hwnd) {
 	BOOL b;
 	DWORD dw;
@@ -39,6 +48,10 @@ BOOL dbg_EmptyClipboard()
 	b = EmptyClipboard();
 	dw = GetLastError();
 	log(INFO, "         EmptyClipboard() end");
+	if (!b) {
+		SetLastError(dw);
+		pWin32Error(WARN, "EmptyClipboard() failed");
+	}
 	SetLastError(dw);
 	return b;
 }
@@ -50,6 +63,10 @@ HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem) {
 	h = SetClipboardData(uFormat, hMem);
 	dw = GetLastError();
 	log(INFO, "         SetClipboardData(%u, %p) returned %p", uFormat, hMem, (void*)h);
+	if (!h && (hMem || dw != ERROR_SUCCESS)) {
+		SetLastError(dw);
+		pWin32Error(WARN, "SetClipboardData() failed");
+	}
 	SetLastError(dw);
 	return h;
 }

@@ -7,6 +7,10 @@
 
 using namespace cliptund;
 
+#define WM_UNREGVIEWER WM_USER
+#define WM_FORMAT_RENDERED (WM_USER+1)
+#define WM_HAVE_DATA (WM_USER+2)
+
 #define MY_CF CF_RIFF
 //#define MY_CF CF_TEXT
 #define MAXPACKETSIZE 8192
@@ -98,7 +102,11 @@ extern struct clipsrvctx {
 	volatile LONG nchannel;
 	long npacket;
 	HWND hwnd;
-	HANDLE havedata_ev;
+	HANDLE events[2];
+#define havedata_ev events[0]
+#define datasent_ev events[1]
+	//HANDLE &havedata_ev = events[0];
+	//HANDLE &datasent_ev = events[1];
 	int havedata;
 	CRITICAL_SECTION lock;
 	std::vector<ClipConnection *> connections;

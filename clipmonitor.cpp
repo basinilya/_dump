@@ -317,8 +317,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				//printf("%6d not notifying next window %p\n", counter, (void*)nextWnd);
 			}
 			break;
-		case WM_USER:
-			printf("WM_USER\n");
+		case WM_UNREGVIEWER:
+			printf("WM_UNREGVIEWER\n");
 			unreg();
 			break;
 		default:
@@ -336,7 +336,7 @@ static
 BOOL WINAPI CtrlHandler( DWORD fdwCtrlType )
 {
 	fprintf(stderr, "CtrlHandler()\n");
-	SendMessage(global_hwnd, WM_USER, 0, 0);
+	SendMessage(global_hwnd, WM_UNREGVIEWER, 0, 0);
 
 	switch ( fdwCtrlType ) {
 		case CTRL_C_EVENT:

@@ -17,7 +17,7 @@ using namespace std;
 
 #define MAX_FORMATS 100
 
-#define TIMEOUT 40
+#define WAIT_RENDERMSG_TIMEOUT 1000
 #define NUMRETRIES_SYN 40
 #define NUMRETRIES_FIN 4
 #define NUMRETRIES_DATA_BEFORE_RESEND 6
@@ -437,7 +437,7 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 
 	ctx.npacket++;
 	senddata(hglob);
-	Sleep(TIMEOUT);
+	Sleep(WAIT_RENDERMSG_TIMEOUT);
 
 	newbuf();
 
@@ -455,6 +455,7 @@ void clipsrvctx::mainloop()
 	newbuf();
 
 	for(;;) {
+		//WaitForMultipleObjects(2, events, TRUE, INFINITE
 		WaitForSingleObject(havedata_ev, 1000);
 
 		EnterCriticalSection(&lock);
@@ -624,10 +625,73 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 	return 0;
 }
 
+static
+void tell_others_about_data() {
+	_clipsrv_OpenClipboard(ctx.hwnd);
+	if (EmptyClipboard()) {
+		SetClipboardData(MY_CF, NULL);
+	}
+	CloseClipboard();
+}
+
+int flag_sending;
+int flag_havedata;
+
+UINT_PTR wait_rendermsg_ntimer;
+
+static
+VOID CALLBACK wait_rendermsg_WAIT_RENDERMSG_TIMEOUT(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+{
+	tell_others_about_data();
+}
+
+UINT_PTR resend_ntimer;
+
+static
+VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+{
+	KillTimer(_hwnd_null, idEvent);
+	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
+}
+
+static
+LRESULT CALLBACK WindowProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+		case WM_HAVE_DATA:
+			flag_havedata = 1;
+			if (!flag_sending) {
+				flag_sending = 1;
+tellothers:
+				tell_others_about_data();
+				wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_WAIT_RENDERMSG_TIMEOUT);
+			}
+			break;
+		case WM_RENDERFORMAT:
+			KillTimer(NULL, wait_rendermsg_ntimer);
+			flag_havedata = 0;
+			/* TODO: fill packet data */
+			SetClipboardData(MY_CF, ctx.hglob);
+
+			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
+			break;
+		case WM_FORMAT_RENDERED:
+			ctx.newbuf();
+			if (flag_havedata) {
+				goto tellothers;
+			}
+			flag_sending = 0;
+			break;
+		default:
+			return DefWindowProc( hwnd,uMsg,wParam,lParam);
+	}
+	return 0;
+}
+
 static DWORD WINAPI _clipserv_wnd_thread(void *param)
 {
 	MSG msg;
-	createutilitywindow(&ctx.hwnd); if (!ctx.hwnd) abort();
+	createutilitywindowwithproc(&ctx.hwnd, WindowProc, _T("myclipowner")); if (!ctx.hwnd) abort();
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
 		TranslateMessage(&msg);
@@ -647,10 +711,13 @@ int clipsrv_init()
 	}
 
 	ctx.havedata_ev = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ctx.datasent_ev = CreateEvent(NULL, FALSE, TRUE, NULL);
+
+	ctx.newbuf();
+
 	CreateThread(NULL, 0, _clipserv_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, clipmon_wnd_thread, NULL, 0, &tid);
 	CreateThread(NULL, 0, _clipserv_send_thread, NULL, 0, &tid);
-	createutilitywindow(&ctx.hwnd);
 	return 0;
 }
 
