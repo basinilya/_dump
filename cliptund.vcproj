@@ -281,6 +281,10 @@
 				RelativePath=".\tunnel.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\utilitywindow.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -316,6 +320,10 @@
 			</File>
 			<File
 				RelativePath=".\mytunnel.h"
+				>
+			</File>
+			<File
+				RelativePath=".\myutilitywindow.h"
 				>
 			</File>
 			<File
