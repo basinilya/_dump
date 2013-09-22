@@ -3,6 +3,10 @@
 
 #include <windows.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 HWND _createutilitywindow(WNDCLASS *wndclass);
 #define createutilitywindowwithproc(phwnd, lpfnWndProc, lpszClassName) do {   \
 	static WNDCLASS wndclass = {                                 \
@@ -22,5 +26,8 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 
 #define createutilitywindow(phwnd) createutilitywindowwithproc(phwnd, DefWindowProc, _T("mydefproc"))
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _MYUTILITYWINDOW_H */
