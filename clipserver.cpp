@@ -100,7 +100,7 @@ static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 	return GlobalFree(h) == NULL;
 }
 
-static int dupandreplace1() {
+static int dupandreplace() {
 	//log(INFO, "dupandreplace");
 	UINT fmtid;
 	HANDLE hglbsrc;
@@ -262,60 +262,24 @@ cont_ok:
 	return 0;
 }
 
-volatile int breakflag;
-
-static DWORD WINAPI breakthread(LPVOID p) {
-	Sleep(100);
-	if (breakflag) {
-		int i = 0;
-		//DebugBreak();
-	}
-	return 0;
-}
-
-static int dupandreplace() {
-	int i, mks;
-	FILETIME before, after;
-	GetSystemTimeAsFileTime(&before);
-
-	DWORD tid;
-	breakflag = 1;
-	//HANDLE hthr = CreateThread(NULL, 0, breakthread, 0, 0, &tid);
-
-	i = dupandreplace1();
-
-	breakflag = 0;
-
-	GetSystemTimeAsFileTime(&after);
-
-	mks =	(int)((
-		((((long long)after.dwHighDateTime) << 32) + after.dwLowDateTime)
-		- ((((long long)before.dwHighDateTime) << 32) + before.dwLowDateTime)
-	) / 10)
-	;
-	//log(INFO, "dupandreplace: %d mks", mks);
-
-	return i;
-}
-
-void _clipsrv_OpenClipboard(HWND hwnd)
+void _clipsrv_ensure_openclipboard(HWND hwnd)
 {
 	int i;
-	log(INFO, "_clipsrv_OpenClipboard() begin");
+	log(INFO, "_clipsrv_ensure_openclipboard() begin");
 	for (i = 0; !OpenClipboard(hwnd); i++) {
 		if (i == 1000) {
 			pWin32Error(WARN, "can't OpenClipboard for too long");
 		}
 		Sleep(1);
 	}
-	log(INFO, "_clipsrv_OpenClipboard() end");
+	log(INFO, "_clipsrv_ensure_openclipboard() end");
 }
 
 int senddata(HGLOBAL hdata) {
 	DWORD newnseq;
 	int rc = -1;
 
-	_clipsrv_OpenClipboard(ctx.hwnd);
+	_clipsrv_ensure_openclipboard(ctx.hwnd);
 	newnseq = GetClipboardSequenceNumber();
 	//log(INFO, "ctx.clipsrv_nseq = %u, newnseq = %u", ctx.clipsrv_nseq, newnseq);
 	//printf("before %d\n", newnseq);
@@ -627,7 +591,7 @@ static DWORD WINAPI _clipserv_send_thread(void *param)
 
 static
 void tell_others_about_data() {
-	_clipsrv_OpenClipboard(ctx.hwnd);
+	_clipsrv_ensure_openclipboard(ctx.hwnd);
 	if (EmptyClipboard()) {
 		SetClipboardData(MY_CF, NULL);
 	}

@@ -100,6 +100,7 @@ extern struct clipsrvctx {
 	UINT_PTR wait_rendermsg_ntimer;
 	UINT_PTR resend_ntimer;
 
+	volatile int viewer_unregged;
 	HWND nextWnd;
 
 	DWORD clipsrv_nseq;
@@ -166,7 +167,7 @@ struct subpack_data : subpack_ack {
 
 #define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
 
-void _clipsrv_OpenClipboard(HWND hwnd);
+void _clipsrv_ensure_openclipboard(HWND hwnd);
 void _clipsrv_parsepacket(const char *pend, const char *p);
 
 #endif

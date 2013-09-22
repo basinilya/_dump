@@ -27,8 +27,9 @@ static vector<Cliplistener*> listeners;
 
 static void _clipsrv_unreg_viewer()
 {
-	HWND hwnd;
-	hwnd = (HWND)InterlockedExchangePointer((void**)&global_hwnd, NULL); /* ignore the "cast to greater size" warning */
+	if (ctx.viewer_unregged) return;
+	ctx.viewer_unregged = 1;
+	HWND hwnd = global_hwnd;
 	if (hwnd) {
 		log(INFO, "Removing self from chain: %p <- %p", (void*)hwnd, (void*)ctx.nextWnd);
 		if (!ChangeClipboardChain(hwnd, ctx.nextWnd) && GetLastError() != 0) {
@@ -49,7 +50,7 @@ static void parsepacket() {
 		return;
 	}
 
-	_clipsrv_OpenClipboard(global_hwnd);
+	_clipsrv_ensure_openclipboard(global_hwnd);
 
 	{
 		UINT fmtid;
