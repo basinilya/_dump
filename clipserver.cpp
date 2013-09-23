@@ -131,7 +131,6 @@ struct Cliplistener {
 struct clipsrvctx {
 
 	DWORD whensendagain;
-	int compareuuids;
 	int clip_opened;
 	vector<Cliplistener*> listeners;
 
@@ -315,8 +314,6 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 
 	memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
 	p += sizeof(net_uuid_t);
-
-	ctx.compareuuids = memcmp(&u.remote.addr, &ctx.localclipuuid.net, sizeof(net_uuid_t));
 
 	for (; pend != p;) {
 		ClipConnection *cnn;
@@ -880,7 +877,6 @@ tellothers:
 		case WM_RENDERFORMAT:
 			log(INFO, "WM_RENDERFORMAT");
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
-			ctx.compareuuids = 0;
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
 			ctx.whensendagain = ctx.fillpack();
@@ -946,9 +942,6 @@ tellothers:
 
 			if (!ctx.clip_opened) {
 				get_clip_data_and_parse();
-
-				if ( ctx.compareuuids > 0) {
-				}
 			}
 
 			if (ctx.nextWnd) {
