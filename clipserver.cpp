@@ -85,15 +85,14 @@ struct subpackheader : subpackheader_base {
 };
 
 struct subpack_ack : subpackheader {
-	u_long net_prev_pos;
-	u_long net_count;
+	u_long net_new_pos;
 };
 
 struct subpack_data : subpack_ack {
-	char data[1];
+	u_long net_count;
 };
 
-#define subpack_data_size(data_size) (sizeof(subpack_ack) + (data_size))
+#define subpack_data_size(data_size) (sizeof(subpack_data) + (data_size))
 
 #define sizeofpacketheader (sizeof(cliptun_data_header) + sizeof(u_long) + sizeof(net_uuid_t))
 
@@ -375,14 +374,14 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 							break;
 						} else if (u.remoteequal(cnn)) {
 							rfifo_t *rfifo = &cnn->pump_send->buf;
-							long prev_pos = ntohl(u.data.net_prev_pos);
-							long count = ntohl(u.data.net_count);
+							long new_pos = ntohl(u.data.net_new_pos);
 							long ofs_beg = (u_long)rfifo->ofs_beg;
-							log(INFO, "got ack: %ld..%ld (%ld)", prev_pos, prev_pos + count, count);
-							if (ofs_beg - prev_pos >= 0) {
+							long ofs_mid = (u_long)rfifo->ofs_mid;
+							log(INFO, "got ack: ..%ld", new_pos);
+							if (ofs_mid - new_pos >= 0 && new_pos - ofs_beg >= 0) {
 								cnn->resend_counter = 0;
 								log(INFO, "ack: resend_counter = %d", cnn->resend_counter);
-								rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
+								rfifo_confirmread(rfifo, new_pos - ofs_beg);
 								cnn->pump_recv->bufferavail();
 							}
 							break;
@@ -404,15 +403,15 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				if (cnn)
 				{
 					rfifo_t *rfifo = &cnn->pump_recv->buf;
-					long prev_pos = ntohl(u.data.net_prev_pos);
+					long new_pos = ntohl(u.data.net_new_pos);
 					long ofs_end = (u_long)rfifo->ofs_end;
-					log(INFO, "got data: %ld..%ld (%ld)", prev_pos, prev_pos + count, count);
-					if (ofs_end - prev_pos >= 0) {
-						if (cnn->prev_recv_pos - prev_pos > 0) {
-							cnn->prev_recv_pos = prev_pos;
+					log(INFO, "got data: %ld..%ld (%ld)", new_pos - count, new_pos, count);
+					if (new_pos - ofs_end >= 0) {
+						if (cnn->prev_recv_pos - (new_pos - count) > 0) {
+							cnn->prev_recv_pos = new_pos - count;
 						}
 
-						long datasz = prev_pos + count - ofs_end;
+						long datasz = new_pos - ofs_end;
 						long bufsz = rfifo_availwrite(rfifo);
 						if (datasz > bufsz) datasz = bufsz;
 						memcpy(rfifo_pfree(rfifo), p + count - datasz, datasz);
@@ -430,9 +429,9 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				if (cnn)
 				{
 					rfifo_t *rfifo = &cnn->pump_recv->buf;
-					long prev_pos = ntohl(u.data.net_prev_pos);
+					long new_pos = ntohl(u.data.net_new_pos);
 					long ofs_end = (u_long)rfifo->ofs_end;
-					if (ofs_end == prev_pos) {
+					if (ofs_end == new_pos) {
 						if (!cnn->pump_recv->eof) {
 							log(INFO, "disconnected clip %ld", ntohl(u.remote.net_channel));
 							cnn->pump_recv->eof = 1;
@@ -736,9 +735,8 @@ DWORD clipsrvctx::fillpack()
 					subpack.net_src_channel = conn->local.net_channel;
 					subpack.net_packtype = htonl(PACK_ACK);
 					subpack.dst = conn->remote.clipaddr;
-					subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
-					subpack.net_prev_pos = htonl(conn->prev_recv_pos);
-					//conn->prev_recv_pos = cur_pos;
+					subpack.net_new_pos = htonl(cur_pos);
+					conn->prev_recv_pos = cur_pos;
 
 					memcpy(p, &subpack, sizeof(subpack));
 					p += sizeof(subpack);
@@ -784,7 +782,7 @@ DWORD clipsrvctx::fillpack()
 					subpack.net_src_channel = conn->local.net_channel;
 					subpack.net_packtype = htonl(PACK_DATA);
 					subpack.dst = conn->remote.clipaddr;
-					subpack.net_prev_pos = htonl(rfifo->ofs_mid);
+					subpack.net_new_pos = htonl(rfifo->ofs_mid + datasz);
 					subpack.net_count = htonl(datasz);
 					memcpy(p, &subpack, subpack_data_size(0));
 					p += subpack_data_size(0);
@@ -817,8 +815,7 @@ DWORD clipsrvctx::fillpack()
 					subpack.net_packtype = htonl(PACK_FIN);
 					subpack.dst = conn->remote.clipaddr;
 
-					subpack.net_prev_pos = htonl(rfifo->ofs_end);
-					subpack.net_count = htonl(0);
+					subpack.net_new_pos = htonl(rfifo->ofs_end);
 
 					memcpy(p, &subpack, sizeof(subpack));
 					p += sizeof(subpack);
