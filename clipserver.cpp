@@ -130,6 +130,8 @@ struct Cliplistener {
 
 struct clipsrvctx {
 
+	DWORD whensendagain;
+	int compareuuids;
 	int clip_opened;
 	vector<Cliplistener*> listeners;
 
@@ -313,6 +315,8 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 
 	memcpy(&u.remote.addr, p, sizeof(net_uuid_t));
 	p += sizeof(net_uuid_t);
+
+	ctx.compareuuids = memcmp(&u.remote.addr, &ctx.localclipuuid.net, sizeof(net_uuid_t));
 
 	for (; pend != p;) {
 		ClipConnection *cnn;
@@ -875,11 +879,11 @@ tellothers:
 			break;
 		case WM_RENDERFORMAT:
 			log(INFO, "WM_RENDERFORMAT");
-			DWORD whensendagain;
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
+			ctx.compareuuids = 0;
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
-			whensendagain = ctx.fillpack();
+			ctx.whensendagain = ctx.fillpack();
 			LeaveCriticalSection(&ctx.lock);
 
 			GlobalUnlock(ctx.hglob);
@@ -898,22 +902,24 @@ tellothers:
 			}
 
 			ctx.npacket++;
-
 			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
-			switch (whensendagain) {
+			break;
+		case WM_FORMAT_RENDERED:
+			log(INFO, "WM_FORMAT_RENDERED");
+
+			switch (ctx.whensendagain) {
 				case 0:
 					posthavedatamsg();
 					break;
 				case INFINITE:
 					break;
 				default:
-					ctx.resend_ntimer = SetTimer(NULL, 0, whensendagain, resend_timeout);
+					ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
 					break;
 			}
-			break;
-		case WM_FORMAT_RENDERED:
-			log(INFO, "WM_FORMAT_RENDERED");
+
 			ctx.newbuf();
+
 			if (ctx.flag_havedata) {
 				goto tellothers;
 			}
@@ -940,6 +946,9 @@ tellothers:
 
 			if (!ctx.clip_opened) {
 				get_clip_data_and_parse();
+
+				if ( ctx.compareuuids > 0) {
+				}
 			}
 
 			if (ctx.nextWnd) {
