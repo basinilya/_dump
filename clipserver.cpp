@@ -160,7 +160,7 @@ struct clipsrvctx {
 	char *pend;
 
 	void newbuf();
-	bool fillpack();
+	DWORD fillpack();
 } ctx;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
@@ -764,12 +764,12 @@ void ClipConnection::bufferavail() {
 	havedata();
 }
 
-static void havedata() {
+static void posthavedatamsg() {
 	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
 }
 
 void ClipConnection::havedata() {
-	::havedata();
+	posthavedatamsg();
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
@@ -826,7 +826,7 @@ void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
 }
 */
 
-bool clipsrvctx::fillpack()
+DWORD clipsrvctx::fillpack()
 {
 	DWORD now = GetTickCount();
 	DWORD then_timeout = INFINITE;
@@ -847,7 +847,7 @@ bool clipsrvctx::fillpack()
 					size_t clipnamesize = strlen(conn->remote.clipname)+1;
 
 					if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
-						return true;
+						return 0;
 					}
 
 					conn->resend_next_tickcount = now + TIMEOUT_SYN;
@@ -877,7 +877,7 @@ bool clipsrvctx::fillpack()
 					SubPackWrap<subpack_ack> subpack;
 
 					if (OVERFLOWS(sizeof(subpack))) {
-						return true;
+						return 0;
 					}
 					subpack.net_src_channel = conn->local.net_channel;
 					subpack.net_packtype = htonl(PACK_ACK);
@@ -914,7 +914,7 @@ bool clipsrvctx::fillpack()
 				if (datasz != 0) {
 
 					if (OVERFLOWS(subpack_data_size(1))) {
-						return true;
+						return 0;
 					}
 
 					if (conn->resend_counter == 0) {
@@ -953,7 +953,7 @@ bool clipsrvctx::fillpack()
 					}
 
 					if (OVERFLOWS(sizeof(subpack_ack))) {
-						return true;
+						return 0;
 					}
 
 					SubPackWrap<subpack_ack> subpack;
@@ -986,7 +986,7 @@ bool clipsrvctx::fillpack()
 		}
 		u++;
 	}
-	return false;
+	return then_timeout;
 }
 
 static
@@ -1008,7 +1008,7 @@ static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	KillTimer(_hwnd_null, idEvent);
-	havedata();
+	posthavedatamsg();
 }
 
 static
@@ -1025,17 +1025,24 @@ tellothers:
 			}
 			break;
 		case WM_RENDERFORMAT:
-			bool wantmore;
+			DWORD whensendagain;
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
-			wantmore = ctx.fillpack();
+			whensendagain = ctx.fillpack();
 			LeaveCriticalSection(&ctx.lock);
 			SetClipboardData(MY_CF, ctx.hglob);
 
 			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
-			if (wantmore) {
-				havedata();
+			switch (whensendagain) {
+				case 0:
+					posthavedatamsg();
+					break;
+				case INFINITE:
+					break;
+				default:
+					ctx.resend_ntimer = SetTimer(NULL, 0, whensendagain, resend_timeout);
+					break;
 			}
 			break;
 		case WM_FORMAT_RENDERED:

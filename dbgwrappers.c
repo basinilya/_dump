@@ -9,7 +9,7 @@
 #undef DEBUG_CLIPTUND
 #include "mylastheader.h"
 
-FILETIME whenclipopened;
+DWORD whenclipopened;
 
 volatile LONG currentclipowner = 0;
 
@@ -52,7 +52,7 @@ BOOL dbg_OpenClipboard(HWND hwnd) {
 	dw = GetLastError();
 	if (b) {
 		currentclipowner = GetCurrentThreadId();
-		GetSystemTimeAsFileTime(&whenclipopened);
+		whenclipopened = GetTickCount();
 		//log(INFO, "opened clipboard %p", (void*)hwnd);
 	}
 	SetLastError(dw);
@@ -102,19 +102,13 @@ HANDLE dbg_GetClipboardData(UINT uFormat) {
 }
 
 void dbg_CloseClipboard() {
-	FILETIME whenclipclosed;
-	int i;
+	DWORD whenclipclosed;
 	DWORD curthread = GetCurrentThreadId();
 	log(INFO, "         CloseClipboard() begin");
 	if (curthread != InterlockedCompareExchange(&currentclipowner, 0, curthread)) {
 		log(WARN, "Clipboard wasn't opened by this thread");
 	}
-	GetSystemTimeAsFileTime(&whenclipclosed);
-	i =	(int)((
-		((((long long)whenclipclosed.dwHighDateTime) << 32) + whenclipclosed.dwLowDateTime)
-		- ((((long long)whenclipopened.dwHighDateTime) << 32) + whenclipopened.dwLowDateTime)
-	) / 10)
-	;
+	whenclipclosed = GetTickCount();
 	if (!CloseClipboard()) {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
