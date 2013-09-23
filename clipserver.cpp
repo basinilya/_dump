@@ -209,6 +209,7 @@ void closeclip() {
 }
 
 static void get_clip_data_and_parse() {
+	log(INFO, "get_clip_data_and_parse()");
 	char buf[MAXPACKETSIZE];
 	long npacket;
 
@@ -361,7 +362,6 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				break;
 			case PACK_ACK:
 				GET_PARTIAL(sizeof(subpackheader_base), sizeof(subpack_ack));
-				log(INFO, "got ack");
 
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					cnn = *it;
@@ -378,6 +378,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 							long prev_pos = ntohl(u.data.net_prev_pos);
 							long count = ntohl(u.data.net_count);
 							long ofs_beg = (u_long)rfifo->ofs_beg;
+							log(INFO, "got ack: %ld..%ld (%ld)", prev_pos, prev_pos + count, count);
 							if (ofs_beg - prev_pos >= 0) {
 								cnn->resend_counter = 0;
 								log(INFO, "ack: resend_counter = %d", cnn->resend_counter);
@@ -405,6 +406,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					rfifo_t *rfifo = &cnn->pump_recv->buf;
 					long prev_pos = ntohl(u.data.net_prev_pos);
 					long ofs_end = (u_long)rfifo->ofs_end;
+					log(INFO, "got data: %ld..%ld (%ld)", prev_pos, prev_pos + count, count);
 					if (ofs_end - prev_pos >= 0) {
 						if (cnn->prev_recv_pos - prev_pos > 0) {
 							cnn->prev_recv_pos = prev_pos;
@@ -678,6 +680,10 @@ DWORD clipsrvctx::fillpack()
 {
 	DWORD now = GetTickCount();
 	DWORD then_timeout = INFINITE;
+	log(INFO, "fillpack(); now = %u", now);
+
+#define ISCONNTIMEOUT() ((int)(now - conn->resend_next_tickcount) >= 0)
+
 	for(unsigned u = 0; u < connections.size();) {
 		ClipConnection *conn = connections[u];
 		cnnstate_t state = conn->state;
@@ -685,7 +691,7 @@ DWORD clipsrvctx::fillpack()
 			case STATE_SYN:
 				{
 					if (conn->resend_counter != 0) {
-						if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
+						if (!ISCONNTIMEOUT()) break; /* case */
 						if (conn->resend_counter == NUMTRIES_SYN) {
 							_clipsrv_unreg_cnn(u);
 							continue;
@@ -742,7 +748,7 @@ DWORD clipsrvctx::fillpack()
 				rfifo = &conn->pump_send->buf;
 
 				if (rfifo->ofs_mid != rfifo->ofs_beg) {
-					if ((int)(now - conn->resend_next_tickcount) <= 0) {
+					if (ISCONNTIMEOUT()) {
 						if (conn->resend_counter == NUMTRIES_DATA) {
 							log(INFO, "write error to clip");
 							_clipsrv_unreg_cnn(u);
@@ -752,7 +758,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
-						log(INFO, "data packet lost: resend_counter = %d", conn->resend_counter);
+						log(INFO, "data packet lost: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 						rfifo->ofs_mid = rfifo->ofs_beg;
 					}
 				}
@@ -768,7 +774,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
-						log(INFO, "first data packet: resend_counter = %d", conn->resend_counter);
+						log(INFO, "first data packet: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 					}
 
 					SubPackWrap<subpack_data> subpack;
@@ -797,7 +803,7 @@ DWORD clipsrvctx::fillpack()
 						/* all sent data is confirmed */
 
 						if (conn->resend_counter != 0) {
-							if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
+							if (!ISCONNTIMEOUT()) break; /* case */
 						}
 					}
 
@@ -859,8 +865,6 @@ static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	log(INFO, "resend_timeout()");
-	log(INFO, "KillTimer(resend_timeout)");
-	KillTimer(_hwnd_null, idEvent);
 	posthavedatamsg();
 }
 
@@ -871,6 +875,13 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 		case WM_HAVE_DATA:
 			log(DBG, "WM_HAVE_DATA");
 			ctx.flag_havedata = 1;
+
+			if (ctx.resend_ntimer) {
+				log(INFO, "KillTimer(resend_timeout)");
+				KillTimer(NULL, ctx.resend_ntimer);
+				ctx.resend_ntimer = 0;
+			}
+
 			if (!ctx.flag_sending) {
 				ctx.flag_sending = 1;
 tellothers:
@@ -880,12 +891,13 @@ tellothers:
 			}
 			break;
 		case WM_RENDERFORMAT:
-			log(DBG, "WM_RENDERFORMAT");
+			log(INFO, "WM_RENDERFORMAT");
 			log(INFO, "KillTimer(wait_rendermsg_timeout)");
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
 			ctx.whensendagain = ctx.fillpack();
+			log(INFO, "fillpack() returned %u", ctx.whensendagain);
 			LeaveCriticalSection(&ctx.lock);
 
 			GlobalUnlock(ctx.hglob);
@@ -909,23 +921,17 @@ tellothers:
 		case WM_FORMAT_RENDERED:
 			log(INFO, "WM_FORMAT_RENDERED");
 
-			switch (ctx.whensendagain) {
-				case 0:
-					posthavedatamsg();
-					break;
-				case INFINITE:
-					break;
-				default:
-					log(INFO, "SetTimer(resend_timeout)");
-					ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
-					break;
-			}
-
 			ctx.newbuf();
 
-			if (ctx.flag_havedata) {
+			if (ctx.flag_havedata || ctx.whensendagain == 0) {
 				goto tellothers;
 			}
+
+			if (ctx.whensendagain != INFINITE) {
+				log(INFO, "SetTimer(%u, resend_timeout)", ctx.whensendagain);
+				ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
+			}
+
 			ctx.flag_sending = 0;
 			break;
 		case WM_CHANGECBCHAIN:
