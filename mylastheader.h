@@ -15,11 +15,15 @@
 
 #define COUNTOF(a) (sizeof(a) / sizeof(a[0]))
 
+#include "rfifo.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent);
+void dumpdata(const char *data, int sz, char const *fmt, ...);
+void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count);
 void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add);
 HWND dbg_SetClipboardViewer(HWND hWndNewViewer);
 BOOL dbg_EmptyClipboard();
@@ -44,6 +48,7 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #ifdef DEBUG_CLIPTUND
 
 #define KillTimer dbg_KillTimer
+#define rfifo_markwrite dbg_rfifo_markwrite
 #define SetClipboardViewer dbg_SetClipboardViewer
 #define SetConsoleCtrlHandler dbg_SetConsoleCtrlHandler
 #define EmptyClipboard dbg_EmptyClipboard

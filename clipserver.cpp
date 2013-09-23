@@ -410,7 +410,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 						long datasz = prev_pos + count - ofs_end;
 						long bufsz = rfifo_availwrite(rfifo);
 						if (datasz > bufsz) datasz = bufsz;
-						memcpy(rfifo_pfree(rfifo), p, datasz);
+						memcpy(rfifo_pfree(rfifo), p + count - datasz, datasz);
 						rfifo_markwrite(rfifo, datasz);
 						cnn->havedata();
 						cnn->pump_send->havedata();
@@ -780,6 +780,7 @@ DWORD clipsrvctx::fillpack()
 					p += subpack_data_size(0);
 
 					memcpy(p, rfifo_pdata(rfifo), datasz);
+					dumpdata(p, (int)datasz, "reading %ld at %lx from %p: ", (long)datasz, (long)rfifo->ofs_mid, rfifo);
 					p += datasz;
 					rfifo_markread(rfifo, datasz);
 

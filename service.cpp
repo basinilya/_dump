@@ -285,7 +285,7 @@ static int debug_service(int argc, char const **argv) {
 
 	_tprintf(_TEXT("Debugging %s.\n"), _TEXT(WINET_APPNAME));
 
-	SetConsoleCtrlHandler(ctrl_handler, TRUE);
+	//SetConsoleCtrlHandler(ctrl_handler, TRUE);
 
 	winet_main(argc, argv);
 

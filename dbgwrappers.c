@@ -5,6 +5,7 @@
 #include <mswsock.h>
 #include <windows.h>
 #include "mylogging.h"
+#include "rfifo.h"
 
 #undef DEBUG_CLIPTUND
 #include "mylastheader.h"
@@ -20,6 +21,39 @@ void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent) {
 		pWin32Error(ERR, "KillTimer() failed");
 		abort();
 	}
+}
+
+void dumpdata(const char *data, int sz, char const *fmt, ...)
+{
+	char msg[1024];
+	va_list args;
+	int i;
+	char dst[10*2+1];
+	for (i = 0; i < sz && i < 10; i++) {
+		sprintf(&dst[i*2], "%02X", (unsigned char)data[i]);
+	}
+
+	va_start(args, fmt);
+	vsprintf(msg, fmt, args);
+	va_end(args);
+	log(INFO, "%s: %s", msg, dst);
+}
+
+void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
+{
+	{
+		HANDLE h;
+		DWORD nb;
+		void *p;
+		char filename[100];
+		sprintf(filename, "aaa-%p.dat", rfifo);
+		h = CreateFile(filename, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		p = rfifo_pfree(rfifo);
+		dumpdata(p, (int)count, "writing %ld at %lx to %p", (long)count, (long)rfifo->ofs_end, rfifo);
+		WriteFile(h, p, count, &nb, NULL);
+		CloseHandle(h);
+	}
+	rfifo_markwrite123(rfifo, count);
 }
 
 void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add)
@@ -79,6 +113,7 @@ HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem) {
 	HANDLE h;
 	DWORD dw;
 	log(INFO, "         SetClipboardData(%u, %p) begin", uFormat, hMem);
+	SetLastError(ERROR_SUCCESS);
 	h = SetClipboardData(uFormat, hMem);
 	dw = GetLastError();
 	log(INFO, "         SetClipboardData(%u, %p) returned %p", uFormat, hMem, (void*)h);
@@ -138,20 +173,32 @@ BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWO
 	HANDLE copyev;
 	BOOL b;
 	DWORD dw;
-	b = DuplicateHandle(GetCurrentProcess(), lpOverlapped->hEvent, GetCurrentProcess(), &copyev, DUPLICATE_SAME_ACCESS, FALSE, 0);
+	char buf1[20];
+	if (lpOverlapped) {
+		b = DuplicateHandle(GetCurrentProcess(), lpOverlapped->hEvent, GetCurrentProcess(), &copyev, DUPLICATE_SAME_ACCESS, FALSE, 0);
+	}
 	b = WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped);
 	dw = GetLastError();
-	log(DBG, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%p) == %d; err = %d",
-		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, (void*)lpOverlapped->hEvent, b, dw);
+	if (lpOverlapped) {
+		sprintf(buf1, "%p", (void*)lpOverlapped->hEvent);
+	} else {
+		strcpy(buf1, "N/A");
+	}
+	log(DBG, "WriteFile(hFile=%p(%lld), bufsz=%d, nb=%d, ev=%s) == %d; err = %d",
+		(void*)hFile, (long long)hFile, nNumberOfBytesToWrite, *lpNumberOfBytesWritten, buf1, b, dw);
 	if (!b && dw != ERROR_IO_PENDING) {
 		SetLastError(dw);
 		pWin32Error(DBG, "WriteFile() failed");
-		if (WAIT_OBJECT_0 == WaitForSingleObject(copyev, 0)) {
-			pWin32Error(ERR, "The event was unexpectedly set at: %s:%d", file, line);
-			abort();
+		if (lpOverlapped) {
+			if (WAIT_OBJECT_0 == WaitForSingleObject(copyev, 0)) {
+				pWin32Error(ERR, "The event was unexpectedly set at: %s:%d", file, line);
+				abort();
+			}
 		}
 	}
-	CloseHandle(copyev);
+	if (lpOverlapped) {
+		CloseHandle(copyev);
+	}
 	SetLastError(dw);
 	return b;
 }
