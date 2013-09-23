@@ -130,7 +130,7 @@ struct Cliplistener {
 
 struct clipsrvctx {
 
-	int in_parsepacket;
+	int clip_opened;
 	vector<Cliplistener*> listeners;
 
 	int flag_sending;
@@ -165,7 +165,6 @@ struct clipsrvctx {
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
 
-void _clipsrv_ensure_openclipboard(HWND hwnd);
 void _clipsrv_parsepacket(const char *pend, const char *p);
 
 void _clipsrv_reg_cnn(ClipConnection *conn);
@@ -182,6 +181,32 @@ static void _clipsrv_unreg_viewer()
 	}
 }
 
+static
+void warncorrupted() {
+	log(WARN, "corrupted subpacket");
+}
+
+static
+void ensure_openclip(HWND hwnd)
+{
+	int i;
+	log(INFO, "ensure_openclip() begin");
+	for (i = 0; !OpenClipboard(hwnd); i++) {
+		if (i == 1000) {
+			pWin32Error(WARN, "can't OpenClipboard for too long");
+		}
+		Sleep(1);
+	}
+	ctx.clip_opened = 1;
+	log(INFO, "ensure_openclip() end");
+}
+
+static
+void closeclip() {
+	CloseClipboard();
+	ctx.clip_opened = 0;
+}
+
 static void get_clip_data_and_parse() {
 	char buf[MAXPACKETSIZE];
 	long npacket;
@@ -194,7 +219,7 @@ static void get_clip_data_and_parse() {
 		return;
 	}
 
-	_clipsrv_ensure_openclipboard(ctx.hwnd);
+	ensure_openclip(ctx.hwnd);
 
 	{
 		UINT fmtid;
@@ -214,9 +239,10 @@ static void get_clip_data_and_parse() {
 		log(INFO, "formats:%s", buf);
 	}
 
+	SIZE_T sz;
 	HGLOBAL hglob = GetClipboardData(MY_CF);
 	if (hglob) {
-		SIZE_T sz = GlobalSize(hglob);
+		sz = GlobalSize(hglob);
 		if (sz > sizeofpacketheader) {
 			p = (char*)GlobalLock(hglob);
 			pend = p + sz;
@@ -228,10 +254,14 @@ static void get_clip_data_and_parse() {
 				p += sizeof(u_long);
 				npacket = ntohl(ul);
 
-				memcpy(buf, p, pend - p);
-				pend = buf + (pend - p);
-				p = buf;
-				flag = 1;
+				if (pend - p > sizeof(buf)) {
+					warncorrupted();
+				} else {
+					memcpy(buf, p, pend - p);
+					pend = buf + (pend - p);
+					p = buf;
+					flag = 1;
+				}
 				//printf("received %d\n", (int)sz);
 			}
 			GlobalUnlock(hglob);
@@ -239,14 +269,14 @@ static void get_clip_data_and_parse() {
 	} else if (GetLastError() != ERROR_SUCCESS) {
 		pWin32Error(INFO, "GetClipboardData() failed");
 	}
-	CloseClipboard();
+	closeclip();
 	if (flag) {
 		clipaddr remote;
 		memcpy(&remote.addr, p, sizeof(net_uuid_t));
 
 		RPC_CSTR s;
 		UuidToStringA(&remote._align, &s);
-		log(INFO, "received packet: %s %ld", s, npacket);
+		log(INFO, "received packet: %s %ld; sz = %d", s, npacket, (int)sz);
 		RpcStringFree(&s);
 
 		EnterCriticalSection(&ctx.lock);
@@ -292,7 +322,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 
 		#define GET_PARTIAL(already_have, fullsz) do { \
 				if (OVERFLOWS((fullsz) - (already_have))) { \
-					log(WARN, "corrupted subpacket"); \
+					warncorrupted(); \
 					return; \
 				} \
 				memcpy(&u.c + (already_have), p, ((fullsz) - (already_have))); \
@@ -362,7 +392,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				long count;
 				count = ntohl(u.data.net_count);
 				if (OVERFLOWS((unsigned long)count)) {
-					log(WARN, "corrupted subpacket");
+					warncorrupted();
 					return;
 				}
 
@@ -407,7 +437,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				}
 				break;
 			default:
-				log(WARN, "corrupted subpacket");
+				warncorrupted();
 				return;
 		}
 	}
@@ -539,6 +569,436 @@ err:
 static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
 {
 	return GlobalFree(h) == NULL;
+}
+
+void _clipsrv_reg_cnn(ClipConnection *conn)
+{
+	conn->tun->AddRef();
+	ctx.connections.push_back(conn);
+}
+
+void _clipsrv_unreg_cnn(ptrdiff_t n)
+{
+	ClipConnection *cnn = ctx.connections[n];
+	ctx.connections[n] = ctx.connections.back();
+	ctx.connections.pop_back();
+	cnn->tun->Release();
+}
+
+
+struct ClipsrvConnectionFactory : ConnectionFactory {
+	char clipname[40+1];
+	void connect(Tunnel *tun) {
+		ClipConnection *cnn = new ClipConnection(tun);
+		cnn->local.net_channel = htonl(InterlockedIncrement(&ctx.nchannel));
+		cnn->state = STATE_SYN;
+		cnn->resend_counter = 0;
+		strcpy(cnn->remote.clipname, clipname);
+
+		cnn->tun = tun;
+		EnterCriticalSection(&ctx.lock);
+		_clipsrv_reg_cnn(cnn);
+		LeaveCriticalSection(&ctx.lock);
+		cnn->havedata();
+	}
+};
+
+ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
+{
+	ClipsrvConnectionFactory *connfact = new ClipsrvConnectionFactory();
+	strcpy(connfact->clipname, clipname);
+	return connfact;
+}
+
+void ClipConnection::bufferavail() {
+	if (state == STATE_NEW_SRV) {
+		prev_recv_pos--;
+		state = STATE_EST;
+		resend_counter = 0;
+	}
+	havedata();
+}
+
+static void posthavedatamsg() {
+	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
+}
+
+void ClipConnection::havedata() {
+	posthavedatamsg();
+}
+
+ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
+{
+}
+
+void clipsrvctx::newbuf()
+{
+	hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
+	pbeg = (char*)GlobalLock(hglob);
+	pend = pbeg + MAXPACKETSIZE;
+	p = pbeg;
+
+	memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
+	p += sizeof(cliptun_data_header);
+
+	u_long ul = htonl(ctx.npacket);
+	memcpy(p, &ul, sizeof(u_long));
+	p += sizeof(u_long);
+
+	memcpy(p, &localclipuuid.net, sizeof(localclipuuid.net));
+	p += sizeof(localclipuuid.net);
+}
+
+/*
+void clipsrvctx::unlock_and_send_and_newbuf()
+{
+	_clipsrv_parsepacket(p, pbeg + sizeof(cliptun_data_header) + sizeof(u_long));
+	LeaveCriticalSection(&lock);
+
+	//senddata(hglob);
+	Sleep(WAIT_RENDERMSG_TIMEOUT);
+
+	newbuf();
+
+}
+
+void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
+{
+	unlock_and_send_and_newbuf();
+	wantmore = 1;
+	EnterCriticalSection(&lock);
+}
+*/
+
+DWORD clipsrvctx::fillpack()
+{
+	DWORD now = GetTickCount();
+	DWORD then_timeout = INFINITE;
+	for(unsigned u = 0; u < connections.size();) {
+		ClipConnection *conn = connections[u];
+		cnnstate_t state = conn->state;
+		switch (state) {
+			case STATE_SYN:
+				{
+					if (conn->resend_counter != 0) {
+						if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
+						if (conn->resend_counter == NUMTRIES_SYN) {
+							_clipsrv_unreg_cnn(u);
+							continue;
+						}
+					}
+
+					size_t clipnamesize = strlen(conn->remote.clipname)+1;
+
+					if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
+						return 0;
+					}
+
+					conn->resend_next_tickcount = now + TIMEOUT_SYN;
+					if (then_timeout > TIMEOUT_SYN) then_timeout = TIMEOUT_SYN;
+					conn->resend_counter++;
+
+					SubPackWrap<subpack_syn> subpack;
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_SYN);
+
+					memcpy(p, &subpack, subpack_syn_size(0));
+					p += subpack_syn_size(0);
+
+					strcpy(p, conn->remote.clipname);
+					p += clipnamesize;
+				}
+				break;
+			case STATE_EST:
+				rfifo_t *rfifo;
+				long cur_pos;
+				int datasz;
+
+				cur_pos = conn->pump_recv->buf.ofs_end;
+				if (conn->prev_recv_pos != cur_pos) {
+					/* if this ack is lost, they will just resend the data */
+
+					SubPackWrap<subpack_ack> subpack;
+
+					if (OVERFLOWS(sizeof(subpack))) {
+						return 0;
+					}
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_ACK);
+					subpack.dst = conn->remote.clipaddr;
+					subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
+					subpack.net_prev_pos = htonl(conn->prev_recv_pos);
+					//conn->prev_recv_pos = cur_pos;
+
+					memcpy(p, &subpack, sizeof(subpack));
+					p += sizeof(subpack);
+
+				}
+
+				rfifo = &conn->pump_send->buf;
+
+				if (rfifo->ofs_mid != rfifo->ofs_beg) {
+					if ((int)(now - conn->resend_next_tickcount) <= 0) {
+						if (conn->resend_counter == NUMTRIES_DATA) {
+							// TODO: write error
+							_clipsrv_unreg_cnn(u);
+							continue;
+						}
+
+						conn->resend_next_tickcount = now + TIMEOUT_DATA;
+						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
+						conn->resend_counter++;
+
+						//log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
+						rfifo->ofs_mid = rfifo->ofs_beg;
+					}
+				}
+
+				datasz = rfifo_availread(rfifo);
+				if (datasz != 0) {
+
+					if (OVERFLOWS(subpack_data_size(1))) {
+						return 0;
+					}
+
+					if (conn->resend_counter == 0) {
+						conn->resend_next_tickcount = now + TIMEOUT_DATA;
+						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
+						conn->resend_counter++;
+					}
+
+					SubPackWrap<subpack_data> subpack;
+
+					int bufsz = (int)(pend - p - subpack_data_size(0));
+					if (datasz > bufsz) datasz = bufsz;
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_DATA);
+					subpack.dst = conn->remote.clipaddr;
+					subpack.net_prev_pos = htonl(rfifo->ofs_mid);
+					subpack.net_count = htonl(datasz);
+					memcpy(p, &subpack, subpack_data_size(0));
+					p += subpack_data_size(0);
+
+					memcpy(p, rfifo_pdata(rfifo), datasz);
+					p += datasz;
+					rfifo_markread(rfifo, datasz);
+
+					//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
+
+				}
+
+				if (conn->pump_send->eof) {
+					if (rfifo->ofs_end == rfifo->ofs_beg) {
+						/* all sent data is confirmed */
+
+						if (conn->resend_counter != 0) {
+							if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
+						}
+					}
+
+					if (OVERFLOWS(sizeof(subpack_ack))) {
+						return 0;
+					}
+
+					SubPackWrap<subpack_ack> subpack;
+
+					subpack.net_src_channel = conn->local.net_channel;
+					subpack.net_packtype = htonl(PACK_FIN);
+					subpack.dst = conn->remote.clipaddr;
+
+					subpack.net_prev_pos = htonl(rfifo->ofs_end);
+					subpack.net_count = htonl(0);
+
+					memcpy(p, &subpack, sizeof(subpack));
+					p += sizeof(subpack);
+
+					if (rfifo->ofs_end == rfifo->ofs_beg) {
+						conn->resend_counter++;
+						if (conn->resend_counter == NUMTRIES_FIN) {
+							_clipsrv_unreg_cnn(u);
+							continue;
+						}
+						conn->resend_next_tickcount = now + TIMEOUT_FIN;
+						if (then_timeout > TIMEOUT_FIN) then_timeout = TIMEOUT_FIN;
+					}
+				}
+				break;
+			case STATE_NEW_SRV:
+				break;
+			default:
+				abort();
+		}
+		u++;
+	}
+	return then_timeout;
+}
+
+static
+void tell_others_about_data() {
+	log(INFO, "tell_others_about_data()");
+	ensure_openclip(ctx.hwnd);
+	if (EmptyClipboard()) {
+		SetClipboardData(MY_CF, NULL);
+	}
+	closeclip();
+}
+
+static
+VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+{
+	log(INFO, "wait_rendermsg_timeout()");
+	tell_others_about_data();
+}
+
+static
+VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+{
+	log(INFO, "resend_timeout()");
+	KillTimer(_hwnd_null, idEvent);
+	posthavedatamsg();
+}
+
+static
+LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+		case WM_HAVE_DATA:
+			log(INFO, "WM_HAVE_DATA");
+			ctx.flag_havedata = 1;
+			if (!ctx.flag_sending) {
+				ctx.flag_sending = 1;
+tellothers:
+				tell_others_about_data();
+				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_timeout);
+			}
+			break;
+		case WM_RENDERFORMAT:
+			log(INFO, "WM_RENDERFORMAT");
+			DWORD whensendagain;
+			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
+			ctx.flag_havedata = 0;
+			EnterCriticalSection(&ctx.lock);
+			whensendagain = ctx.fillpack();
+			LeaveCriticalSection(&ctx.lock);
+
+			GlobalUnlock(ctx.hglob);
+			SIZE_T newsz;
+			newsz = ctx.p - ctx.pbeg;
+			ctx.hglob = GlobalReAlloc(ctx.hglob, newsz, 0);
+
+			SetClipboardData(MY_CF, ctx.hglob);
+
+			newsz = GlobalSize(ctx.hglob);
+			{
+				RPC_CSTR s;
+				UuidToStringA(&ctx.localclipuuid._align, &s);
+				log(INFO, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
+				RpcStringFree(&s);
+			}
+
+			ctx.npacket++;
+
+			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
+			switch (whensendagain) {
+				case 0:
+					posthavedatamsg();
+					break;
+				case INFINITE:
+					break;
+				default:
+					ctx.resend_ntimer = SetTimer(NULL, 0, whensendagain, resend_timeout);
+					break;
+			}
+			break;
+		case WM_FORMAT_RENDERED:
+			log(INFO, "WM_FORMAT_RENDERED");
+			ctx.newbuf();
+			if (ctx.flag_havedata) {
+				goto tellothers;
+			}
+			ctx.flag_sending = 0;
+			break;
+		case WM_CHANGECBCHAIN:
+			{
+				HWND wndRemove = (HWND)wParam;
+				HWND wndNextNext = (HWND)lParam;
+				log(INFO, "WM_CHANGECBCHAIN %p %p", (void*)wndRemove, (void*)wndNextNext);
+				if (ctx.nextWnd == wndRemove) {
+					log(INFO, "saving next window %p", (void*)wndNextNext);
+					ctx.nextWnd = wndNextNext;
+				} else if (ctx.nextWnd) {
+					log(INFO, "notifying next window %p", (void*)ctx.nextWnd);
+					return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
+				} else {
+					log(INFO, "not notifying next window %p", (void*)ctx.nextWnd);
+				}
+			}
+			break;
+		case WM_DRAWCLIPBOARD:
+			log(INFO, "WM_DRAWCLIPBOARD");
+
+			if (!ctx.clip_opened) {
+				get_clip_data_and_parse();
+			}
+
+			if (ctx.nextWnd) {
+				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
+			}
+			break;
+		case WM_UNREGVIEWER:
+			log(INFO, "WM_UNREGVIEWER");
+			_clipsrv_unreg_viewer();
+			break;
+		default:
+			return DefWindowProc( hwnd,uMsg,wParam,lParam);
+	}
+	return 0;
+}
+
+static DWORD WINAPI _clipserv_wnd_thread(void *param)
+{
+	HANDLE ev_inited = (HANDLE)param;
+	MSG msg;
+	createutilitywindowwithproc(&ctx.hwnd, _clipsrv_wndproc, _T("myclipsrv"));
+	if (!ctx.hwnd) abort();
+
+	atexit(_clipsrv_exitproc);
+	SetConsoleCtrlHandler(_clipsrv_ctrlhandler, TRUE);
+
+	/* Not processing WM_DRAWCLIPBOARD somehow prevents SetClipboardViewer() from failure */
+	ctx.clip_opened = 1;
+	ctx.nextWnd = SetClipboardViewer(ctx.hwnd);
+	ctx.viewer_installed = 1;
+	ctx.clip_opened = 0;
+
+	SetEvent(ev_inited);
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return 0;
+}
+
+void clipsrv_init()
+{
+	DWORD tid;
+	InitializeCriticalSection(&ctx.lock);
+
+	UuidCreate(&ctx.localclipuuid._align);
+	for (int i = 0; i < sizeof(ctx.localclipuuid.net.__u_bits); i++) {
+		ctx.nchannel = ctx.nchannel ^ (ctx.nchannel << 8) ^ ctx.localclipuuid.net.__u_bits[i];
+	}
+
+	ctx.newbuf();
+
+	HANDLE ev_inited = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	HANDLE hTread = CreateThread(NULL, 0, _clipserv_wnd_thread, ev_inited, 0, &tid);
+	CloseHandle(hTread);
+
+	WaitForSingleObject(ev_inited, INFINITE);
+	CloseHandle(ev_inited);
 }
 
 static int dupandreplace() {
@@ -701,439 +1161,4 @@ cont_ok:
 	}
 
 	return 0;
-}
-
-void _clipsrv_ensure_openclipboard(HWND hwnd)
-{
-	int i;
-	log(INFO, "_clipsrv_ensure_openclipboard() begin");
-	for (i = 0; !OpenClipboard(hwnd); i++) {
-		if (i == 1000) {
-			pWin32Error(WARN, "can't OpenClipboard for too long");
-		}
-		Sleep(1);
-	}
-	log(INFO, "_clipsrv_ensure_openclipboard() end");
-}
-
-void _clipsrv_reg_cnn(ClipConnection *conn)
-{
-	conn->tun->AddRef();
-	ctx.connections.push_back(conn);
-}
-
-void _clipsrv_unreg_cnn(ptrdiff_t n)
-{
-	ClipConnection *cnn = ctx.connections[n];
-	ctx.connections[n] = ctx.connections.back();
-	ctx.connections.pop_back();
-	cnn->tun->Release();
-}
-
-
-struct ClipsrvConnectionFactory : ConnectionFactory {
-	char clipname[40+1];
-	void connect(Tunnel *tun) {
-		ClipConnection *cnn = new ClipConnection(tun);
-		cnn->local.net_channel = htonl(InterlockedIncrement(&ctx.nchannel));
-		cnn->state = STATE_SYN;
-		cnn->resend_counter = 0;
-		strcpy(cnn->remote.clipname, clipname);
-
-		cnn->tun = tun;
-		EnterCriticalSection(&ctx.lock);
-		_clipsrv_reg_cnn(cnn);
-		LeaveCriticalSection(&ctx.lock);
-		cnn->havedata();
-	}
-};
-
-ConnectionFactory *clipsrv_CreateConnectionFactory(const char clipname[40+1])
-{
-	ClipsrvConnectionFactory *connfact = new ClipsrvConnectionFactory();
-	strcpy(connfact->clipname, clipname);
-	return connfact;
-}
-
-void ClipConnection::bufferavail() {
-	if (state == STATE_NEW_SRV) {
-		prev_recv_pos--;
-		state = STATE_EST;
-		resend_counter = 0;
-	}
-	havedata();
-}
-
-static void posthavedatamsg() {
-	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
-}
-
-void ClipConnection::havedata() {
-	posthavedatamsg();
-}
-
-ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
-{
-}
-
-void clipsrvctx::newbuf()
-{
-	hglob = GlobalAlloc(GMEM_MOVEABLE, MAXPACKETSIZE);
-	pbeg = (char*)GlobalLock(hglob);
-	pend = pbeg + MAXPACKETSIZE;
-	p = pbeg;
-
-	memcpy(p, cliptun_data_header, sizeof(cliptun_data_header));
-	p += sizeof(cliptun_data_header);
-
-	u_long ul = htonl(ctx.npacket);
-	memcpy(p, &ul, sizeof(u_long));
-	p += sizeof(u_long);
-
-	memcpy(p, &localclipuuid.net, sizeof(localclipuuid.net));
-	p += sizeof(localclipuuid.net);
-}
-
-/*
-void clipsrvctx::unlock_and_send_and_newbuf()
-{
-	_clipsrv_parsepacket(p, pbeg + sizeof(cliptun_data_header) + sizeof(u_long));
-	LeaveCriticalSection(&lock);
-
-	//senddata(hglob);
-	Sleep(WAIT_RENDERMSG_TIMEOUT);
-
-	newbuf();
-
-}
-
-void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
-{
-	unlock_and_send_and_newbuf();
-	wantmore = 1;
-	EnterCriticalSection(&lock);
-}
-*/
-
-DWORD clipsrvctx::fillpack()
-{
-	DWORD now = GetTickCount();
-	DWORD then_timeout = INFINITE;
-	for(unsigned u = 0; u < connections.size();) {
-		ClipConnection *conn = connections[u];
-		cnnstate_t state = conn->state;
-		switch (state) {
-			case STATE_SYN:
-				{
-					if (conn->resend_counter != 0) {
-						if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
-						if (conn->resend_counter == NUMTRIES_SYN) {
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-					}
-
-					size_t clipnamesize = strlen(conn->remote.clipname)+1;
-
-					if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
-						return 0;
-					}
-
-					conn->resend_next_tickcount = now + TIMEOUT_SYN;
-					if (then_timeout > TIMEOUT_SYN) then_timeout = TIMEOUT_SYN;
-					conn->resend_counter++;
-
-					SubPackWrap<subpack_syn> subpack;
-					subpack.net_src_channel = conn->local.net_channel;
-					subpack.net_packtype = htonl(PACK_SYN);
-
-					memcpy(p, &subpack, subpack_syn_size(0));
-					p += subpack_syn_size(0);
-
-					strcpy(p, conn->remote.clipname);
-					p += clipnamesize;
-				}
-				break;
-			case STATE_EST:
-				rfifo_t *rfifo;
-				long cur_pos;
-				int datasz;
-
-				cur_pos = conn->pump_recv->buf.ofs_end;
-				if (conn->prev_recv_pos != cur_pos) {
-					/* if this ack is lost, they will just resend the data */
-
-					SubPackWrap<subpack_ack> subpack;
-
-					if (OVERFLOWS(sizeof(subpack))) {
-						return 0;
-					}
-					subpack.net_src_channel = conn->local.net_channel;
-					subpack.net_packtype = htonl(PACK_ACK);
-					subpack.dst = conn->remote.clipaddr;
-					subpack.net_count = htonl(cur_pos - conn->prev_recv_pos);
-					subpack.net_prev_pos = htonl(conn->prev_recv_pos);
-					conn->prev_recv_pos = cur_pos;
-
-					memcpy(p, &subpack, sizeof(subpack));
-					p += sizeof(subpack);
-
-				}
-
-				rfifo = &conn->pump_send->buf;
-
-				if (rfifo->ofs_mid != rfifo->ofs_beg) {
-					if ((int)(now - conn->resend_next_tickcount) <= 0) {
-						if (conn->resend_counter == NUMTRIES_DATA) {
-							// TODO: write error
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-
-						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
-						conn->resend_counter++;
-
-						//log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
-						rfifo->ofs_mid = rfifo->ofs_beg;
-					}
-				}
-
-				datasz = rfifo_availread(rfifo);
-				if (datasz != 0) {
-
-					if (OVERFLOWS(subpack_data_size(1))) {
-						return 0;
-					}
-
-					if (conn->resend_counter == 0) {
-						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
-						conn->resend_counter++;
-					}
-
-					SubPackWrap<subpack_data> subpack;
-
-					int bufsz = (int)(pend - p - subpack_data_size(0));
-					if (datasz > bufsz) datasz = bufsz;
-					subpack.net_src_channel = conn->local.net_channel;
-					subpack.net_packtype = htonl(PACK_DATA);
-					subpack.dst = conn->remote.clipaddr;
-					subpack.net_prev_pos = htonl(rfifo->ofs_mid);
-					subpack.net_count = htonl(datasz);
-					memcpy(p, &subpack, subpack_data_size(0));
-					p += subpack_data_size(0);
-
-					memcpy(p, rfifo_pdata(rfifo), datasz);
-					p += datasz;
-					rfifo_markread(rfifo, datasz);
-
-					//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
-
-				}
-
-				if (conn->pump_send->eof) {
-					if (rfifo->ofs_end == rfifo->ofs_beg) {
-						/* all sent data is confirmed */
-
-						if (conn->resend_counter != 0) {
-							if ((int)(now - conn->resend_next_tickcount) > 0) break; /* case */
-						}
-					}
-
-					if (OVERFLOWS(sizeof(subpack_ack))) {
-						return 0;
-					}
-
-					SubPackWrap<subpack_ack> subpack;
-
-					subpack.net_src_channel = conn->local.net_channel;
-					subpack.net_packtype = htonl(PACK_FIN);
-					subpack.dst = conn->remote.clipaddr;
-
-					subpack.net_prev_pos = htonl(rfifo->ofs_end);
-					subpack.net_count = htonl(0);
-
-					memcpy(p, &subpack, sizeof(subpack));
-					p += sizeof(subpack);
-
-					if (rfifo->ofs_end == rfifo->ofs_beg) {
-						conn->resend_counter++;
-						if (conn->resend_counter == NUMTRIES_FIN) {
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-						conn->resend_next_tickcount = now + TIMEOUT_FIN;
-						if (then_timeout > TIMEOUT_FIN) then_timeout = TIMEOUT_FIN;
-					}
-				}
-				break;
-			case STATE_NEW_SRV:
-				break;
-			default:
-				abort();
-		}
-		u++;
-	}
-	return then_timeout;
-}
-
-static
-void tell_others_about_data() {
-	_clipsrv_ensure_openclipboard(ctx.hwnd);
-	if (EmptyClipboard()) {
-		SetClipboardData(MY_CF, NULL);
-	}
-	CloseClipboard();
-}
-
-static
-VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
-{
-	tell_others_about_data();
-}
-
-static
-VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
-{
-	KillTimer(_hwnd_null, idEvent);
-	posthavedatamsg();
-}
-
-static
-LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	switch (uMsg) {
-		case WM_HAVE_DATA:
-			ctx.flag_havedata = 1;
-			if (!ctx.flag_sending) {
-				ctx.flag_sending = 1;
-tellothers:
-				tell_others_about_data();
-				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_timeout);
-			}
-			break;
-		case WM_RENDERFORMAT:
-			DWORD whensendagain;
-			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
-			ctx.flag_havedata = 0;
-			EnterCriticalSection(&ctx.lock);
-			whensendagain = ctx.fillpack();
-			LeaveCriticalSection(&ctx.lock);
-			SetClipboardData(MY_CF, ctx.hglob);
-
-			GlobalUnlock(ctx.hglob);
-			ctx.hglob = GlobalReAlloc(ctx.hglob, ctx.p - ctx.pbeg, 0);
-
-			{
-				RPC_CSTR s;
-				UuidToStringA(&ctx.localclipuuid._align, &s);
-				log(INFO, "sending packet %s %ld", s, ctx.npacket);
-				RpcStringFree(&s);
-			}
-
-			ctx.npacket++;
-
-			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
-			switch (whensendagain) {
-				case 0:
-					posthavedatamsg();
-					break;
-				case INFINITE:
-					break;
-				default:
-					ctx.resend_ntimer = SetTimer(NULL, 0, whensendagain, resend_timeout);
-					break;
-			}
-			break;
-		case WM_FORMAT_RENDERED:
-			ctx.newbuf();
-			if (ctx.flag_havedata) {
-				goto tellothers;
-			}
-			ctx.flag_sending = 0;
-			break;
-		case WM_CHANGECBCHAIN:
-			{
-				HWND wndRemove = (HWND)wParam;
-				HWND wndNextNext = (HWND)lParam;
-				log(INFO, "WM_CHANGECBCHAIN %p %p", (void*)wndRemove, (void*)wndNextNext);
-				if (ctx.nextWnd == wndRemove) {
-					log(INFO, "saving next window %p", (void*)wndNextNext);
-					ctx.nextWnd = wndNextNext;
-				} else if (ctx.nextWnd) {
-					log(INFO, "notifying next window %p", (void*)ctx.nextWnd);
-					return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
-				} else {
-					log(INFO, "not notifying next window %p", (void*)ctx.nextWnd);
-				}
-			}
-			break;
-		case WM_DRAWCLIPBOARD:
-			log(INFO, "WM_DRAWCLIPBOARD");
-
-			if (!ctx.in_parsepacket) {
-				ctx.in_parsepacket = 1;
-				get_clip_data_and_parse();
-				ctx.in_parsepacket = 0;
-			}
-
-			if (ctx.nextWnd) {
-				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
-			}
-			break;
-		case WM_UNREGVIEWER:
-			log(INFO, "WM_UNREGVIEWER");
-			_clipsrv_unreg_viewer();
-			break;
-		default:
-			return DefWindowProc( hwnd,uMsg,wParam,lParam);
-	}
-	return 0;
-}
-
-static DWORD WINAPI _clipserv_wnd_thread(void *param)
-{
-	HANDLE ev_inited = (HANDLE)param;
-	MSG msg;
-	createutilitywindowwithproc(&ctx.hwnd, _clipsrv_wndproc, _T("myclipsrv"));
-	if (!ctx.hwnd) abort();
-
-	atexit(_clipsrv_exitproc);
-	SetConsoleCtrlHandler(_clipsrv_ctrlhandler, TRUE);
-
-	/* Not processing WM_DRAWCLIPBOARD somehow prevents SetClipboardViewer() from failure */
-	ctx.in_parsepacket = 1;
-	ctx.nextWnd = SetClipboardViewer(ctx.hwnd);
-	ctx.viewer_installed = 1;
-	ctx.in_parsepacket = 0;
-
-	SetEvent(ev_inited);
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-	return 0;
-}
-
-void clipsrv_init()
-{
-	DWORD tid;
-	InitializeCriticalSection(&ctx.lock);
-
-	UuidCreate(&ctx.localclipuuid._align);
-	for (int i = 0; i < sizeof(ctx.localclipuuid.net.__u_bits); i++) {
-		ctx.nchannel = ctx.nchannel ^ (ctx.nchannel << 8) ^ ctx.localclipuuid.net.__u_bits[i];
-	}
-
-	ctx.newbuf();
-
-	HANDLE ev_inited = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-	HANDLE hTread = CreateThread(NULL, 0, _clipserv_wnd_thread, ev_inited, 0, &tid);
-	CloseHandle(hTread);
-
-	WaitForSingleObject(ev_inited, INFINITE);
-	CloseHandle(ev_inited);
 }
