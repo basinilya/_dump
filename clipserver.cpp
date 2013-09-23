@@ -191,7 +191,7 @@ static
 void ensure_openclip(HWND hwnd)
 {
 	int i;
-	log(INFO, "ensure_openclip() begin");
+	log(DBG, "ensure_openclip() begin");
 	for (i = 0; !OpenClipboard(hwnd); i++) {
 		if (i == 1000) {
 			pWin32Error(WARN, "can't OpenClipboard for too long");
@@ -199,7 +199,7 @@ void ensure_openclip(HWND hwnd)
 		Sleep(1);
 	}
 	ctx.clip_opened = 1;
-	log(INFO, "ensure_openclip() end");
+	log(DBG, "ensure_openclip() end");
 }
 
 static
@@ -237,7 +237,7 @@ static void get_clip_data_and_parse() {
 			}
 			s += sprintf(s, " %u", fmtid);
 		}
-		log(INFO, "formats:%s", buf);
+		log(DBG, "formats:%s", buf);
 	}
 
 	SIZE_T sz;
@@ -361,6 +361,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 				break;
 			case PACK_ACK:
 				GET_PARTIAL(sizeof(subpackheader_base), sizeof(subpack_ack));
+				log(INFO, "got ack");
 
 				for (vector<ClipConnection*>::iterator it = ctx.connections.begin(); it != ctx.connections.end(); it++) {
 					cnn = *it;
@@ -379,6 +380,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 							long ofs_beg = (u_long)rfifo->ofs_beg;
 							if (ofs_beg - prev_pos >= 0) {
 								cnn->resend_counter = 0;
+								log(INFO, "ack: resend_counter = %d", cnn->resend_counter);
 								rfifo_confirmread(rfifo, prev_pos + count - ofs_beg);
 								cnn->pump_recv->bufferavail();
 							}
@@ -580,6 +582,7 @@ void _clipsrv_reg_cnn(ClipConnection *conn)
 
 void _clipsrv_unreg_cnn(ptrdiff_t n)
 {
+	log(INFO, "_clipsrv_unreg_cnn()");
 	ClipConnection *cnn = ctx.connections[n];
 	ctx.connections[n] = ctx.connections.back();
 	ctx.connections.pop_back();
@@ -741,7 +744,7 @@ DWORD clipsrvctx::fillpack()
 				if (rfifo->ofs_mid != rfifo->ofs_beg) {
 					if ((int)(now - conn->resend_next_tickcount) <= 0) {
 						if (conn->resend_counter == NUMTRIES_DATA) {
-							// TODO: write error
+							log(INFO, "write error to clip");
 							_clipsrv_unreg_cnn(u);
 							continue;
 						}
@@ -749,8 +752,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
-
-						//log(INFO, "packet lost: counter = %d, remainder = %d", counter, remainder);
+						log(INFO, "data packet lost: resend_counter = %d", conn->resend_counter);
 						rfifo->ofs_mid = rfifo->ofs_beg;
 					}
 				}
@@ -766,6 +768,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
+						log(INFO, "first data packet: resend_counter = %d", conn->resend_counter);
 					}
 
 					SubPackWrap<subpack_data> subpack;
@@ -856,6 +859,7 @@ static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	log(INFO, "resend_timeout()");
+	log(INFO, "KillTimer(resend_timeout)");
 	KillTimer(_hwnd_null, idEvent);
 	posthavedatamsg();
 }
@@ -865,17 +869,19 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 {
 	switch (uMsg) {
 		case WM_HAVE_DATA:
-			log(INFO, "WM_HAVE_DATA");
+			log(DBG, "WM_HAVE_DATA");
 			ctx.flag_havedata = 1;
 			if (!ctx.flag_sending) {
 				ctx.flag_sending = 1;
 tellothers:
 				tell_others_about_data();
+				log(INFO, "SetTimer(wait_rendermsg_timeout)");
 				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_timeout);
 			}
 			break;
 		case WM_RENDERFORMAT:
-			log(INFO, "WM_RENDERFORMAT");
+			log(DBG, "WM_RENDERFORMAT");
+			log(INFO, "KillTimer(wait_rendermsg_timeout)");
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
@@ -910,6 +916,7 @@ tellothers:
 				case INFINITE:
 					break;
 				default:
+					log(INFO, "SetTimer(resend_timeout)");
 					ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
 					break;
 			}
@@ -938,7 +945,7 @@ tellothers:
 			}
 			break;
 		case WM_DRAWCLIPBOARD:
-			log(INFO, "WM_DRAWCLIPBOARD");
+			log(DBG, "WM_DRAWCLIPBOARD");
 
 			if (!ctx.clip_opened) {
 				get_clip_data_and_parse();
