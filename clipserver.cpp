@@ -800,17 +800,6 @@ void clipsrvctx::unlock_and_send_and_newbuf()
 	_clipsrv_parsepacket(p, pbeg + sizeof(cliptun_data_header) + sizeof(u_long));
 	LeaveCriticalSection(&lock);
 
-	GlobalUnlock(hglob);
-	hglob = GlobalReAlloc(hglob, p - pbeg, 0);
-
-	{
-		RPC_CSTR s;
-		UuidToStringA(&ctx.localclipuuid._align, &s);
-		log(INFO, "sending packet %s %ld", s, ctx.npacket);
-		RpcStringFree(&s);
-	}
-
-	ctx.npacket++;
 	//senddata(hglob);
 	Sleep(WAIT_RENDERMSG_TIMEOUT);
 
@@ -1032,6 +1021,18 @@ tellothers:
 			whensendagain = ctx.fillpack();
 			LeaveCriticalSection(&ctx.lock);
 			SetClipboardData(MY_CF, ctx.hglob);
+
+			GlobalUnlock(ctx.hglob);
+			ctx.hglob = GlobalReAlloc(ctx.hglob, ctx.p - ctx.pbeg, 0);
+
+			{
+				RPC_CSTR s;
+				UuidToStringA(&ctx.localclipuuid._align, &s);
+				log(INFO, "sending packet %s %ld", s, ctx.npacket);
+				RpcStringFree(&s);
+			}
+
+			ctx.npacket++;
 
 			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
 			switch (whensendagain) {
