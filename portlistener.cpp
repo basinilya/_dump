@@ -50,9 +50,9 @@ struct TCPConnection : PinRecv, PinSend {
 	void bufferavail() {
 		rfifo_t *rfifo = &pump_recv->buf;
 		DWORD nb = rfifo_availwrite(rfifo);
-		if (nb != 0 || pump_recv->writeerror) {
+		if (nb != 0 || pump_recv->writeerr) {
 			if (0 == InterlockedExchange(&lock_recv, 1)) {
-				if (pump_recv->writeerror) {
+				if (pump_recv->writeerr) {
 					shutdown(sock, SD_RECEIVE);
 					if (overlap_recv.hEvent) evloop_removelistener(overlap_recv.hEvent);
 				} else {
@@ -143,6 +143,7 @@ struct TCPConnection : PinRecv, PinSend {
 		getpeer(buf, &saddr);
 		pWin32Error(INFO, "peer %s:%d, write failed", buf, ntohs(saddr.sin_port));
 		evloop_removelistener(overlap_send.hEvent);
+		pump_recv->writeerr = 1;
 		pump_recv->bufferavail();
 	}
 

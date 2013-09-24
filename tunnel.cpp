@@ -12,7 +12,7 @@ Tunnel::~Tunnel()
 	if (this->pump_cl2srv.cnn_dst) delete this->pump_cl2srv.cnn_dst;
 }
 
-Pump::Pump() : eof(0), writeerror(0)
+Pump::Pump() : eof(0), writeerr(0)
 {
 	rfifo_init(&this->buf);
 }

@@ -391,6 +391,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 						if (cnn->state == STATE_SYN) {
 							log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.net_channel), cnn->remote.clipname);
 							cnn->state = STATE_EST;
+							cnn->resend_counter = 0;
 							cnn->remote.clipaddr = u.remote;
 							cnn->tun->connected();
 							break;
@@ -758,6 +759,8 @@ DWORD clipsrvctx::fillpack()
 					} else {
 						if (conn->resend_counter == NUMTRIES_DATA) {
 							log(INFO, "write error to clip");
+							conn->pump_recv->writeerr = 1;
+							conn->pump_recv->bufferavail();
 							_clipsrv_unreg_cnn(u);
 							continue;
 						}
