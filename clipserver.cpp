@@ -127,9 +127,41 @@ struct Cliplistener {
 	}
 };
 
+/*
+struct avgcalc {
+	int count;
+	double avg;
+	double calc(double d) {
+		int newcount = count + 1;
+		avg = (avg * count + d) / newcount;
+		if (newcount < 10) count = newcount;
+		return avg;
+	}
+};
+*/
+
+#define KEEP 5
+struct max_of_last {
+	DWORD a[KEEP];
+	int idx;
+	void add(DWORD n) {
+		a[idx % KEEP] = n;
+		idx++;
+	}
+	DWORD getmax() {
+		int i;
+		DWORD m = 0;
+		for (i = 0; i < KEEP; i++) {
+			if (m < a[i]) m = a[i];
+		}
+		return m;
+	}
+};
+
 struct clipsrvctx {
 
-	DWORD wait_rendermsg_timeout;
+	DWORD tickcount_a, tickcount_b;
+	max_of_last max_rendermsg;
 
 	DWORD whensendagain;
 	int clip_opened;
@@ -829,6 +861,7 @@ void tell_others_about_data() {
 	if (EmptyClipboard()) {
 		SetClipboardData(MY_CF, NULL);
 	}
+	ctx.tickcount_a = GetTickCount();
 	closeclip();
 }
 
@@ -836,6 +869,7 @@ static
 VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	log(INFO, "wait_rendermsg_timeout()");
+	ctx.max_rendermsg.add(ctx.max_rendermsg.getmax() * 2);
 	tell_others_about_data();
 }
 
@@ -863,11 +897,12 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				ctx.flag_sending = 1;
 tellothers:
 				tell_others_about_data();
-				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.wait_rendermsg_timeout, wait_rendermsg_timeout);
+				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() + 50, wait_rendermsg_timeout);
 			}
 			break;
 		case WM_RENDERFORMAT:
 			log(INFO, "WM_RENDERFORMAT");
+			ctx.max_rendermsg.add(GetTickCount() - ctx.tickcount_a);
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
@@ -974,7 +1009,7 @@ void clipsrv_init()
 {
 	DWORD tid;
 
-	ctx.wait_rendermsg_timeout = WAIT_RENDERMSG_DEFAULT_TIMEOUT;
+	ctx.max_rendermsg.add(WAIT_RENDERMSG_DEFAULT_TIMEOUT);
 
 	InitializeCriticalSection(&ctx.lock);
 
