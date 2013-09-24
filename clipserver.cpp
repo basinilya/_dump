@@ -675,7 +675,8 @@ void clipsrvctx::newbuf()
 DWORD clipsrvctx::fillpack()
 {
 	DWORD now = GetTickCount();
-	DWORD then_timeout = INFINITE;
+	DWORD dw;
+	DWORD min_timeout = INFINITE;
 	log(DBG, "fillpack(); now = %u", now);
 
 	u_long ul = htonl(npacket);
@@ -691,7 +692,11 @@ DWORD clipsrvctx::fillpack()
 			case STATE_SYN:
 				{
 					if (conn->resend_counter != 0) {
-						if (!ISCONNTIMEOUT()) break; /* case */
+						if (!ISCONNTIMEOUT()) {
+							dw = conn->resend_next_tickcount - now;
+							if (min_timeout > dw) min_timeout = dw;
+							break; /* case */
+						}
 						if (conn->resend_counter == NUMTRIES_SYN) {
 							_clipsrv_unreg_cnn(u);
 							continue;
@@ -705,7 +710,7 @@ DWORD clipsrvctx::fillpack()
 					}
 
 					conn->resend_next_tickcount = now + TIMEOUT_SYN;
-					if (then_timeout > TIMEOUT_SYN) then_timeout = TIMEOUT_SYN;
+					if (min_timeout > TIMEOUT_SYN) min_timeout = TIMEOUT_SYN;
 					conn->resend_counter++;
 
 					SubPackWrap<subpack_syn> subpack;
@@ -747,7 +752,10 @@ DWORD clipsrvctx::fillpack()
 				rfifo = &conn->pump_send->buf;
 
 				if (rfifo->ofs_mid != rfifo->ofs_beg) {
-					if (ISCONNTIMEOUT()) {
+					if (!ISCONNTIMEOUT()) {
+						dw = conn->resend_next_tickcount - now;
+						if (min_timeout > dw) min_timeout = dw;
+					} else {
 						if (conn->resend_counter == NUMTRIES_DATA) {
 							log(INFO, "write error to clip");
 							_clipsrv_unreg_cnn(u);
@@ -755,7 +763,7 @@ DWORD clipsrvctx::fillpack()
 						}
 
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
+						if (min_timeout > TIMEOUT_DATA) min_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
 						log(DBG, "lost data subpacket: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 						rfifo->ofs_mid = rfifo->ofs_beg;
@@ -771,7 +779,7 @@ DWORD clipsrvctx::fillpack()
 
 					if (conn->resend_counter == 0) {
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
+						if (min_timeout > TIMEOUT_DATA) min_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
 						log(DBG, "first data packet: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 					}
@@ -802,7 +810,11 @@ DWORD clipsrvctx::fillpack()
 						/* all sent data is confirmed */
 
 						if (conn->resend_counter != 0) {
-							if (!ISCONNTIMEOUT()) break; /* case */
+							if (!ISCONNTIMEOUT()) {
+								dw = conn->resend_next_tickcount - now;
+								if (min_timeout > dw) min_timeout = dw;
+								break; /* case */
+							}
 						}
 					}
 
@@ -828,7 +840,7 @@ DWORD clipsrvctx::fillpack()
 							continue;
 						}
 						conn->resend_next_tickcount = now + TIMEOUT_FIN;
-						if (then_timeout > TIMEOUT_FIN) then_timeout = TIMEOUT_FIN;
+						if (min_timeout > TIMEOUT_FIN) min_timeout = TIMEOUT_FIN;
 					}
 				}
 				break;
@@ -839,7 +851,7 @@ DWORD clipsrvctx::fillpack()
 		}
 		u++;
 	}
-	return then_timeout;
+	return min_timeout;
 }
 
 static

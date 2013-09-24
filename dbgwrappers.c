@@ -47,7 +47,7 @@ void dumpdata(const char *data, int sz, char const *fmt, ...)
 	log(DBG, "%s: %s", msg, dst);
 }
 
-void dbg_rfifo_markwrite1(rfifo_t *rfifo, rfifo_long count)
+void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
 {
 	{
 		HANDLE h;
