@@ -47,7 +47,7 @@ void rfifo_init(rfifo_t *rfifo)
 	rfifo->ofs_mid = 0;
 }
 
-void rfifo_markwrite123(rfifo_t *rfifo, rfifo_long count)
+void rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
 {
   InterlockedExchangeAdd(&rfifo->ofs_end, count);
 }

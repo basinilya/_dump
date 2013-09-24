@@ -3,6 +3,7 @@
 #include "mytunnel.h"
 #include "myutilitywindow.h"
 #include "mylogging.h"
+#include "rfifo.h"
 
 #include <windows.h>
 #include <rpc.h> /* for UuidCreate() */

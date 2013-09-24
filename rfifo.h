@@ -24,7 +24,7 @@ char *rfifo_pdata(rfifo_t *rfifo);
 rfifo_long rfifo_availwrite(rfifo_t *rfifo);
 char *rfifo_pfree(rfifo_t *rfifo);
 void rfifo_init(rfifo_t *rfifo);
-void rfifo_markwrite123(rfifo_t *rfifo, rfifo_long count);
+void rfifo_markwrite(rfifo_t *rfifo, rfifo_long count);
 
 void rfifo_markread(rfifo_t *rfifo, rfifo_long count);
 void rfifo_confirmread(rfifo_t *rfifo, rfifo_long count);

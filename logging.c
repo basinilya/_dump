@@ -15,8 +15,7 @@ static void _winet_log(int level, char const *emsg)
 	SYSTEMTIME time;
 	//if (level == WINET_LOG_DEBUG) return;
 	GetLocalTime(&time);
-	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg);
-	fflush(stdout);
+	//printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
 	localfile = (FILE*)flog;
 	if (!localfile) {
 		localfile = fopen("logs/cliptund.log", "w");
