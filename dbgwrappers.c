@@ -17,7 +17,7 @@ static volatile LONG currentclipowner = 0;
 void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername)
 {
 	BOOL b;
-	log(INFO, "KillTimer(%s)", timername);
+	log(DBG, "KillTimer(%s)", timername);
 	b = KillTimer(hWnd, uIDEvent);
 	if (!b) {
 		pWin32Error(ERR, "KillTimer() failed");
@@ -27,7 +27,7 @@ void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername)
 
 UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername)
 {
-	log(INFO, "SetTimer(%u, %s)", uElapse, timername);
+	log(DBG, "SetTimer(%u, %s)", uElapse, timername);
 	return SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc);
 }
 
@@ -44,7 +44,7 @@ void dumpdata(const char *data, int sz, char const *fmt, ...)
 	va_start(args, fmt);
 	vsprintf(msg, fmt, args);
 	va_end(args);
-	log(INFO, "%s: %s", msg, dst);
+	log(DBG, "%s: %s", msg, dst);
 }
 
 void dbg_rfifo_markwrite1(rfifo_t *rfifo, rfifo_long count)
@@ -97,7 +97,7 @@ BOOL dbg_OpenClipboard(HWND hwnd) {
 	if (b) {
 		currentclipowner = GetCurrentThreadId();
 		whenclipopened = GetTickCount();
-		//log(INFO, "opened clipboard %p", (void*)hwnd);
+		//log(DBG, "opened clipboard %p", (void*)hwnd);
 	}
 	SetLastError(dw);
 	return b;
@@ -158,7 +158,7 @@ void dbg_CloseClipboard() {
 		pWin32Error(WARN, "CloseClipboard() failed");
 	}
 	log(DBG, "         CloseClipboard() end");
-	//log(INFO, "closed clipboard after %d mks", i);
+	//log(DBG, "closed clipboard after %d mks", i);
 }
 
 void dbg_CloseHandle(const char *file, int line, HANDLE hObject) {

@@ -13,9 +13,7 @@ static void _winet_log(int level, char const *emsg)
 {
 	FILE *localfile;
 	SYSTEMTIME time;
-	//if (level == WINET_LOG_DEBUG) return;
 	GetLocalTime(&time);
-	//printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
 	localfile = (FILE*)flog;
 	if (!localfile) {
 		localfile = fopen("logs/cliptund.log", "w");
@@ -30,6 +28,10 @@ static void _winet_log(int level, char const *emsg)
 		fprintf(localfile, "%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg);
 		fflush(localfile);
 	}
+
+	if (level == WINET_LOG_DEBUG) return;
+
+	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
 
 	if (level == WINET_LOG_ERROR)
 		winet_evtlog(emsg, EVENTLOG_ERROR_TYPE);

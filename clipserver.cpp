@@ -230,7 +230,7 @@ void closeclip() {
 }
 
 static void get_clip_data_and_parse() {
-	log(INFO, "get_clip_data_and_parse()");
+	log(DBG, "get_clip_data_and_parse()");
 	char buf[MAXPACKETSIZE];
 
 	const char *pend, *p;
@@ -297,7 +297,7 @@ static void get_clip_data_and_parse() {
 
 		RPC_CSTR s;
 		UuidToStringA(&remote._align, &s);
-		log(INFO, "received packet: %s %ld; sz = %d", s, npacket, (int)sz);
+		log(DBG, "received packet: %s %ld; sz = %d", s, npacket, (int)sz);
 		RpcStringFree(&s);
 
 		EnterCriticalSection(&ctx.lock);
@@ -399,10 +399,10 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 							long new_pos = ntohl(u.data.net_new_pos);
 							long ofs_beg = (u_long)rfifo->ofs_beg;
 							long ofs_mid = (u_long)rfifo->ofs_mid;
-							log(INFO, "got ack: ..%ld", new_pos);
+							log(DBG, "got ack: ..%ld", new_pos);
 							if (ofs_mid - new_pos >= 0 && new_pos - ofs_beg >= 0) {
 								cnn->resend_counter = 0;
-								log(INFO, "ack: resend_counter = %d", cnn->resend_counter);
+								log(DBG, "ack: resend_counter = %d", cnn->resend_counter);
 								rfifo_confirmread(rfifo, new_pos - ofs_beg);
 								cnn->pump_recv->bufferavail();
 							}
@@ -427,7 +427,7 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					rfifo_t *rfifo = &cnn->pump_recv->buf;
 					long new_pos = ntohl(u.data.net_new_pos);
 					long ofs_end = (u_long)rfifo->ofs_end;
-					log(INFO, "got data: %ld..%ld (%ld)", new_pos - count, new_pos, count);
+					log(DBG, "got data: %ld..%ld (%ld)", new_pos - count, new_pos, count);
 					if (new_pos - ofs_end >= 0) {
 						if (cnn->prev_recv_pos - (new_pos - count) > 0) {
 							cnn->prev_recv_pos = new_pos - count;
@@ -605,7 +605,7 @@ void _clipsrv_reg_cnn(ClipConnection *conn)
 
 void _clipsrv_unreg_cnn(ptrdiff_t n)
 {
-	log(INFO, "_clipsrv_unreg_cnn()");
+	log(DBG, "_clipsrv_unreg_cnn()");
 	ClipConnection *cnn = ctx.connections[n];
 	ctx.connections[n] = ctx.connections.back();
 	ctx.connections.pop_back();
@@ -676,7 +676,7 @@ DWORD clipsrvctx::fillpack()
 {
 	DWORD now = GetTickCount();
 	DWORD then_timeout = INFINITE;
-	log(INFO, "fillpack(); now = %u", now);
+	log(DBG, "fillpack(); now = %u", now);
 
 	u_long ul = htonl(npacket);
 	memcpy(p, &ul, sizeof(u_long));
@@ -757,7 +757,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
-						log(INFO, "lost data subpacket: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
+						log(DBG, "lost data subpacket: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 						rfifo->ofs_mid = rfifo->ofs_beg;
 					}
 				}
@@ -773,7 +773,7 @@ DWORD clipsrvctx::fillpack()
 						conn->resend_next_tickcount = now + TIMEOUT_DATA;
 						if (then_timeout > TIMEOUT_DATA) then_timeout = TIMEOUT_DATA;
 						conn->resend_counter++;
-						log(INFO, "first data packet: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
+						log(DBG, "first data packet: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
 					}
 
 					SubPackWrap<subpack_data> subpack;
@@ -793,7 +793,7 @@ DWORD clipsrvctx::fillpack()
 					p += datasz;
 					rfifo_markread(rfifo, datasz);
 
-					//log(INFO, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
+					//log(DBG, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
 
 				}
 
@@ -845,7 +845,7 @@ DWORD clipsrvctx::fillpack()
 static
 void advertise_packet() {
 	ctx.npacket++;
-	log(INFO, "advertise_packet(); npacket = %d", ctx.npacket);
+	log(DBG, "advertise_packet(); npacket = %d", ctx.npacket);
 	ensure_openclip(ctx.hwnd);
 	if (EmptyClipboard()) {
 		SetClipboardData(MY_CF, NULL);
@@ -857,16 +857,16 @@ void advertise_packet() {
 static
 VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
-	log(INFO, "wait_rendermsg_timeout()");
+	log(DBG, "wait_rendermsg_timeout()");
 	ctx.max_rendermsg.add(ctx.max_rendermsg.getmax() * 2 + 50);
-	log(INFO, "packet lost", ctx.npacket);
+	log(DBG, "packet lost", ctx.npacket);
 	advertise_packet();
 }
 
 static
 VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
-	log(INFO, "resend_timeout()");
+	log(DBG, "resend_timeout()");
 	posthavedatamsg();
 }
 
@@ -891,13 +891,13 @@ tellothers:
 			}
 			break;
 		case WM_RENDERFORMAT:
-			log(INFO, "WM_RENDERFORMAT");
+			log(DBG, "WM_RENDERFORMAT");
 			ctx.max_rendermsg.add(GetTickCount() - ctx.tickcount_a);
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
 			ctx.whensendagain = ctx.fillpack();
-			log(INFO, "fillpack() returned %u", ctx.whensendagain);
+			log(DBG, "fillpack() returned %u", ctx.whensendagain);
 			LeaveCriticalSection(&ctx.lock);
 
 			GlobalUnlock(ctx.hglob);
@@ -911,14 +911,14 @@ tellothers:
 			{
 				RPC_CSTR s;
 				UuidToStringA(&ctx.localclipuuid._align, &s);
-				log(INFO, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
+				log(DBG, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
 				RpcStringFree(&s);
 			}
 
 			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
 			break;
 		case WM_FORMAT_RENDERED:
-			log(INFO, "WM_FORMAT_RENDERED");
+			log(DBG, "WM_FORMAT_RENDERED");
 
 			ctx.newbuf();
 
@@ -1019,7 +1019,7 @@ void clipsrv_init()
 }
 
 static int dupandreplace() {
-	//log(INFO, "dupandreplace");
+	//log(DBG, "dupandreplace");
 	UINT fmtid;
 	HANDLE hglbsrc;
 	struct {
