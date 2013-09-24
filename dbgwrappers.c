@@ -12,15 +12,23 @@
 
 DWORD whenclipopened;
 
-volatile LONG currentclipowner = 0;
+static volatile LONG currentclipowner = 0;
 
-void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent) {
+void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername)
+{
 	BOOL b;
+	log(INFO, "KillTimer(%s)", timername);
 	b = KillTimer(hWnd, uIDEvent);
 	if (!b) {
 		pWin32Error(ERR, "KillTimer() failed");
 		abort();
 	}
+}
+
+UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername)
+{
+	log(INFO, "SetTimer(%u, %s)", uElapse, timername);
+	return SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc);
 }
 
 void dumpdata(const char *data, int sz, char const *fmt, ...)
@@ -46,12 +54,14 @@ void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
 		DWORD nb;
 		void *p;
 		char filename[100];
-		sprintf(filename, "aaa-%p.dat", rfifo);
-		h = CreateFile(filename, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		sprintf(filename, "logs/aaa-%p.dat", rfifo);
 		p = rfifo_pfree(rfifo);
 		dumpdata(p, (int)count, "writing %ld at %lx to %p", (long)count, (long)rfifo->ofs_end, rfifo);
-		WriteFile(h, p, count, &nb, NULL);
-		CloseHandle(h);
+		h = CreateFile(filename, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (h != INVALID_HANDLE_VALUE) {
+			WriteFile(h, p, count, &nb, NULL);
+			CloseHandle(h);
+		}
 	}
 	rfifo_markwrite123(rfifo, count);
 }

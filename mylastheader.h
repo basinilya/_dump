@@ -21,7 +21,8 @@
 extern "C" {
 #endif
 
-void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent);
+void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername);
+UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername);
 void dumpdata(const char *data, int sz, char const *fmt, ...);
 void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count);
 void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add);
@@ -47,7 +48,8 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 
 #ifdef DEBUG_CLIPTUND
 
-#define KillTimer dbg_KillTimer
+#define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
+#define SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc) dbg_SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc, #lpTimerFunc)
 #define rfifo_markwrite dbg_rfifo_markwrite
 #define SetClipboardViewer dbg_SetClipboardViewer
 #define SetConsoleCtrlHandler dbg_SetConsoleCtrlHandler

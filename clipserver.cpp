@@ -21,7 +21,7 @@ using namespace cliptund;
 
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 
-#define WAIT_RENDERMSG_TIMEOUT 1000
+#define WAIT_RENDERMSG_DEFAULT_TIMEOUT 500
 
 #define NUMTRIES_SYN 10
 #define TIMEOUT_SYN 1000
@@ -30,7 +30,7 @@ using namespace cliptund;
 #define TIMEOUT_FIN 1000
 
 #define NUMTRIES_DATA 6
-#define TIMEOUT_DATA 5000
+#define TIMEOUT_DATA 3000
 
 #define WM_UNREGVIEWER WM_USER
 #define WM_FORMAT_RENDERED (WM_USER+1)
@@ -128,6 +128,8 @@ struct Cliplistener {
 };
 
 struct clipsrvctx {
+
+	DWORD wait_rendermsg_timeout;
 
 	DWORD whensendagain;
 	int clip_opened;
@@ -654,27 +656,6 @@ void clipsrvctx::newbuf()
 	p += sizeof(localclipuuid.net);
 }
 
-/*
-void clipsrvctx::unlock_and_send_and_newbuf()
-{
-	_clipsrv_parsepacket(p, pbeg + sizeof(cliptun_data_header) + sizeof(u_long));
-	LeaveCriticalSection(&lock);
-
-	//senddata(hglob);
-	Sleep(WAIT_RENDERMSG_TIMEOUT);
-
-	newbuf();
-
-}
-
-void clipsrvctx::unlock_and_send_and_newbuf_and_lock()
-{
-	unlock_and_send_and_newbuf();
-	wantmore = 1;
-	EnterCriticalSection(&lock);
-}
-*/
-
 DWORD clipsrvctx::fillpack()
 {
 	DWORD now = GetTickCount();
@@ -874,7 +855,6 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			ctx.flag_havedata = 1;
 
 			if (ctx.resend_ntimer) {
-				log(INFO, "KillTimer(resend_timeout)");
 				KillTimer(NULL, ctx.resend_ntimer);
 				ctx.resend_ntimer = 0;
 			}
@@ -883,13 +863,11 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				ctx.flag_sending = 1;
 tellothers:
 				tell_others_about_data();
-				log(INFO, "SetTimer(wait_rendermsg_timeout)");
-				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, WAIT_RENDERMSG_TIMEOUT, wait_rendermsg_timeout);
+				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.wait_rendermsg_timeout, wait_rendermsg_timeout);
 			}
 			break;
 		case WM_RENDERFORMAT:
 			log(INFO, "WM_RENDERFORMAT");
-			log(INFO, "KillTimer(wait_rendermsg_timeout)");
 			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
 			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
@@ -925,7 +903,6 @@ tellothers:
 			}
 
 			if (ctx.whensendagain != INFINITE) {
-				log(INFO, "SetTimer(%u, resend_timeout)", ctx.whensendagain);
 				ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
 			}
 
@@ -996,6 +973,9 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 void clipsrv_init()
 {
 	DWORD tid;
+
+	ctx.wait_rendermsg_timeout = WAIT_RENDERMSG_DEFAULT_TIMEOUT;
+
 	InitializeCriticalSection(&ctx.lock);
 
 	UuidCreate(&ctx.localclipuuid._align);
