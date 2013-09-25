@@ -970,6 +970,9 @@ tellothers:
 				get_clip_data_and_parse();
 			}
 
+			/* SetClipboardViewer() sends WM_DRAWCLIPBOARD and fails with our last error */
+			SetLastError(ERROR_SUCCESS);
+
 			if (ctx.nextWnd) {
 				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
 			}

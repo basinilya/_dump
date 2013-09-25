@@ -77,6 +77,7 @@ void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add)
 HWND dbg_SetClipboardViewer(HWND hWndNewViewer)
 {
 	HWND hwndres;
+	SetLastError(ERROR_SUCCESS);
 	hwndres = SetClipboardViewer(hWndNewViewer);
 	if (!hwndres && GetLastError() != 0) {
 		pWin32Error(ERR, "SetClipboardViewer() failed");
