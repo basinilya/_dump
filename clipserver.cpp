@@ -758,8 +758,8 @@ DWORD clipsrvctx::fillpack()
 						if (min_timeout > dw) min_timeout = dw;
 					} else {
 						if (conn->resend_counter == NUMTRIES_DATA) {
-							log(INFO, "write error to clip");
-							conn->pump_recv->writeerr = 1;
+							log(INFO, "write error to clip: timeout");
+							conn->pump_send->writeerr = 1;
 							conn->pump_recv->bufferavail();
 							_clipsrv_unreg_cnn(u);
 							continue;

@@ -179,6 +179,13 @@ BOOL dbg_GetOverlappedResult(const char *file, int line, HANDLE hFile, LPOVERLAP
 	SetLastError(dw);
 	return b;
 }
+
+void dbg_CancelIo(HANDLE hFile)
+{
+	log(DBG, "CancelIo(hFile=%p(%lld))", (void*)hFile, (long long)hFile);
+	CancelIo(hFile);
+}
+
 BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
 	HANDLE copyev;
 	BOOL b;

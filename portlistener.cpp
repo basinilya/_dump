@@ -48,6 +48,7 @@ struct TCPConnection : PinRecv, PinSend {
 	volatile LONG lock_recv;
 
 	void bufferavail() {
+		log(DBG, "TCPConnection.bufferavail()");
 		rfifo_t *rfifo = &pump_recv->buf;
 		DWORD nb = rfifo_availwrite(rfifo);
 		if (nb != 0 || pump_recv->writeerr) {
@@ -64,6 +65,11 @@ struct TCPConnection : PinRecv, PinSend {
 						readerror(FALSE);
 					}
 				}
+			} else {
+				if (pump_recv->writeerr) {
+					shutdown(sock, SD_RECEIVE);
+				}
+				//SetEve
 			}
 		}
 	}
@@ -91,6 +97,7 @@ struct TCPConnection : PinRecv, PinSend {
 		pump_recv->eof = 1;
 		evloop_removelistener(overlap_recv.hEvent);
 		pump_send->havedata();
+		/* no more bufferavail() */
 	}
 
 	void onEventRecv() {
@@ -143,8 +150,9 @@ struct TCPConnection : PinRecv, PinSend {
 		getpeer(buf, &saddr);
 		pWin32Error(INFO, "peer %s:%d, write failed", buf, ntohs(saddr.sin_port));
 		evloop_removelistener(overlap_send.hEvent);
-		pump_recv->writeerr = 1;
+		pump_send->writeerr = 1;
 		pump_recv->bufferavail();
+		/* no more havedata() */
 	}
 
 	void onEventSend() {
