@@ -128,7 +128,7 @@ struct Cliplistener {
 	}
 };
 
-#define KEEP 5
+#define KEEP 10
 struct max_of_last {
 	DWORD a[KEEP];
 	int idx;
@@ -873,9 +873,11 @@ static
 VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
 	log(DBG, "wait_rendermsg_timeout()");
-	ctx.max_rendermsg.add(ctx.max_rendermsg.getmax() * 2 + 50);
 	log(DBG, "packet lost", ctx.npacket);
 	advertise_packet();
+	ctx.max_rendermsg.add(ctx.max_rendermsg.getmax() * 2 + 50);
+	KillTimer(NULL, ctx.wait_rendermsg_ntimer);
+	ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() * 2 + 50, wait_rendermsg_timeout);
 }
 
 static
@@ -902,7 +904,7 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				ctx.flag_sending = 1;
 tellothers:
 				advertise_packet();
-				ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() + 50, wait_rendermsg_timeout);
+					ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() * 2 + 50, wait_rendermsg_timeout);
 			}
 			break;
 		case WM_RENDERFORMAT:
