@@ -667,7 +667,7 @@ void clipsrvctx::fillpack()
 			case STATE_EST:
 				rfifo_t *rfifo;
 				long cur_pos;
-				int datasz;
+				int datasz, chunksz;
 
 				cur_pos = conn->pump_recv->buf.ofs_end;
 				if (conn->prev_recv_pos != cur_pos) {
@@ -690,8 +690,8 @@ void clipsrvctx::fillpack()
 
 				rfifo = &conn->pump_send->buf;
 
-				datasz = rfifo_availread(rfifo);
-				if (datasz != 0) {
+				chunksz = rfifo_availread(rfifo);
+				if (chunksz != 0) {
 
 					if (OVERFLOWS(subpack_data_size(1))) {
 						return;
@@ -699,20 +699,32 @@ void clipsrvctx::fillpack()
 
 					SubPackWrap<subpack_data> subpack;
 
-					int bufsz = (int)(pend - p - subpack_data_size(0));
-					if (datasz > bufsz) datasz = bufsz;
 					subpack.net_src_channel = conn->local.net_channel;
 					subpack.net_packtype = htonl(PACK_DATA);
 					subpack.dst = conn->remote.clipaddr;
-					subpack.net_new_pos = htonl(rfifo->ofs_mid + datasz);
-					subpack.net_count = htonl(datasz);
-					memcpy(p, &subpack, subpack_data_size(0));
-					p += subpack_data_size(0);
 
-					memcpy(p, rfifo_pdata(rfifo), datasz);
-					dumpdata(p, (int)datasz, "reading %ld at %lx from %p: ", (long)datasz, (long)rfifo->ofs_mid, rfifo);
-					p += datasz;
-					rfifo_markread(rfifo, datasz);
+					char *phdr = p;
+					p += subpack_data_size(0);
+					int bufsz = (int)(pend - p);
+
+					datasz = 0;
+					do {
+
+						if (chunksz > bufsz) chunksz = bufsz;
+
+						memcpy(p, rfifo_pdata(rfifo), chunksz);
+						dumpdata(p, (int)chunksz, "reading %ld at %lx from %p: ", (long)chunksz, (long)rfifo->ofs_mid, rfifo);
+						p += chunksz;
+						rfifo_markread(rfifo, chunksz);
+						datasz += chunksz;
+						bufsz -= chunksz;
+
+						chunksz = rfifo_availread(rfifo);
+					} while (chunksz && bufsz);
+
+					subpack.net_new_pos = htonl(rfifo->ofs_mid);
+					subpack.net_count = htonl(datasz);
+					memcpy(phdr, &subpack, subpack_data_size(0));
 
 					//log(DBG, "Sending DATA %ld..%ld (%ld bytes)", ntohl(subpack.net_prev_pos), ntohl(subpack.net_prev_pos) + ntohl(subpack.net_count), ntohl(subpack.net_count));
 
@@ -879,7 +891,7 @@ void clipsrv_init()
 	InitializeCriticalSection(&ctx.lock);
 
 	const char *s = getenv("CLIPTUN_DELAY");
-	if (s) {
+	if (s && s[0]) {
 		ctx.delay = atoi(s);
 	} else {
 		ctx.delay = 10;
