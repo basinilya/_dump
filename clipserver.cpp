@@ -18,7 +18,7 @@ using namespace std;
 using namespace cliptund;
 
 #define MY_CF CF_RIFF
-#define MAXPACKETSIZE 8192
+#define MAXPACKETSIZE 30000
 
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 
@@ -805,12 +805,12 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			if (!ctx.clip_opened) {
 				if (get_clip_data_and_parse()) {
 					ctx.flag_sending = 1;
-					if (1 || (ctx.lastgot + ctx.lastsent == 0)) {
-						log(DBG, "sleeping %d ms", ctx.delay);
-						SetTimer(NULL, 0, ctx.delay, sleep_timeout);
-					} else {
-						PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
+					int delay = ctx.delay;
+					if (ctx.lastgot + ctx.lastsent == 0) {
+						delay = delay + 300;
 					}
+					log(DBG, "sleeping %d ms", delay);
+					SetTimer(NULL, 0, delay, sleep_timeout);
 				}
 			}
 
@@ -884,6 +884,7 @@ void clipsrv_init()
 	} else {
 		ctx.delay = 10;
 	}
+	log(INFO, "delay: %d ms", ctx.delay);
 	UuidCreate(&ctx.localclipuuid._align);
 	for (int i = 0; i < sizeof(ctx.localclipuuid.net.__u_bits); i++) {
 		ctx.nchannel = ctx.nchannel ^ (ctx.nchannel << 8) ^ ctx.localclipuuid.net.__u_bits[i];

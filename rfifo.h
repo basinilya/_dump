@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define RFIFO_BUFSZ 2048
+#define RFIFO_BUFSZ 90000
 
 typedef LONG rfifo_long;
 
