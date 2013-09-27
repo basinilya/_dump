@@ -22,20 +22,9 @@ using namespace cliptund;
 
 #define CLIPTUN_DATA_HEADER "!cliptun!"
 
-#define WAIT_RENDERMSG_DEFAULT_TIMEOUT 500
-
-#define NUMTRIES_SYN 10
-#define TIMEOUT_SYN 1000
-
-#define NUMTRIES_FIN 4
-#define TIMEOUT_FIN 1000
-
-#define NUMTRIES_DATA 6
-#define TIMEOUT_DATA 3000
-
-#define WM_UNREGVIEWER WM_USER
-#define WM_FORMAT_RENDERED (WM_USER+1)
-#define WM_HAVE_DATA (WM_USER+2)
+#define WM_HAVEDATA (WM_USER+0)
+#define WM_ADVERTISE_PACKET (WM_USER+1)
+#define WM_UNREGVIEWER (WM_USER+2)
 
 #define MAX_FORMATS 100
 
@@ -101,9 +90,6 @@ struct ClipConnection : Connection {
 	cnnstate_t state;
 	long prev_recv_pos;
 
-	int resend_counter;
-	DWORD resend_next_tickcount;
-
 	ClipConnection(Tunnel *tun);
 
 	void bufferavail();
@@ -128,38 +114,12 @@ struct Cliplistener {
 	}
 };
 
-#define KEEP 10
-struct max_of_last {
-	DWORD a[KEEP];
-	int idx;
-	void add(DWORD n) {
-		a[idx % KEEP] = n;
-		idx++;
-	}
-	DWORD getmax() {
-		int i;
-		DWORD m = 0;
-		for (i = 0; i < KEEP; i++) {
-			if (m < a[i]) m = a[i];
-		}
-		return m;
-	}
-};
-
 struct clipsrvctx {
-
-	DWORD tickcount_a, tickcount_b;
-	max_of_last max_rendermsg;
-
-	DWORD whensendagain;
+	SIZE_T lastgot, lastsent;
 	int clip_opened;
 	vector<Cliplistener*> listeners;
 
 	int flag_sending;
-	int flag_havedata;
-
-	UINT_PTR wait_rendermsg_ntimer;
-	UINT_PTR resend_ntimer;
 
 	volatile LONG viewer_installed;
 	HWND nextWnd;
@@ -171,7 +131,6 @@ struct clipsrvctx {
 	volatile LONG nchannel;
 	long npacket;
 	HWND hwnd;
-	int havedata;
 	CRITICAL_SECTION lock;
 	std::vector<ClipConnection *> connections;
 
@@ -182,7 +141,7 @@ struct clipsrvctx {
 	char *pend;
 
 	void newbuf();
-	DWORD fillpack();
+	void fillpack();
 } ctx;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
@@ -229,7 +188,7 @@ void closeclip() {
 	ctx.clip_opened = 0;
 }
 
-static void get_clip_data_and_parse() {
+static bool get_clip_data_and_parse() {
 	log(DBG, "get_clip_data_and_parse()");
 	char buf[MAXPACKETSIZE];
 
@@ -238,7 +197,7 @@ static void get_clip_data_and_parse() {
 	int flag = 0;
 
 	if (GetClipboardOwner() == ctx.hwnd) {
-		return;
+		return false;
 	}
 
 	ensure_openclip(ctx.hwnd);
@@ -265,7 +224,7 @@ static void get_clip_data_and_parse() {
 	HGLOBAL hglob = GetClipboardData(MY_CF);
 	if (hglob) {
 		sz = GlobalSize(hglob);
-		if (sz > sizeofpacketheader) {
+		if (sz >= sizeofpacketheader) {
 			p = (char*)GlobalLock(hglob);
 			pend = p + sz;
 			if (0 == memcmp(p, cliptun_data_header, sizeof(cliptun_data_header))) {
@@ -280,8 +239,12 @@ static void get_clip_data_and_parse() {
 					flag = 1;
 				}
 				//printf("received %d\n", (int)sz);
+			} else {
+				log(DBG, "header not matching");
 			}
 			GlobalUnlock(hglob);
+		} else {
+			log(DBG, "data size too small: %ld", (long)sz);
 		}
 	} else if (GetLastError() != ERROR_SUCCESS) {
 		pWin32Error(INFO, "GetClipboardData() failed");
@@ -295,6 +258,9 @@ static void get_clip_data_and_parse() {
 		memcpy(&ul, p + sizeof(net_uuid_t), sizeof(u_long));
 		long npacket = ntohl(ul);
 
+		sz -= sizeofpacketheader;
+		ctx.lastgot = sz;
+
 		RPC_CSTR s;
 		UuidToStringA(&remote._align, &s);
 		log(DBG, "received packet: %s %ld; sz = %d", s, npacket, (int)sz);
@@ -304,6 +270,7 @@ static void get_clip_data_and_parse() {
 		_clipsrv_parsepacket(pend, p);
 		LeaveCriticalSection(&ctx.lock);
 	}
+	return flag != 0;
 }
 
 void _clipsrv_parsepacket(const char *pend, const char *p)
@@ -391,7 +358,6 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 						if (cnn->state == STATE_SYN) {
 							log(INFO, "connected clip %ld -> %s", ntohl(cnn->local.net_channel), cnn->remote.clipname);
 							cnn->state = STATE_EST;
-							cnn->resend_counter = 0;
 							cnn->remote.clipaddr = u.remote;
 							cnn->tun->connected();
 							break;
@@ -402,8 +368,6 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 							long ofs_mid = (u_long)rfifo->ofs_mid;
 							log(DBG, "got ack: ..%ld", new_pos);
 							if (ofs_mid - new_pos >= 0 && new_pos - ofs_beg >= 0) {
-								cnn->resend_counter = 0;
-								log(DBG, "ack: resend_counter = %d", cnn->resend_counter);
 								rfifo_confirmread(rfifo, new_pos - ofs_beg);
 								cnn->pump_recv->bufferavail();
 							}
@@ -620,7 +584,6 @@ struct ClipsrvConnectionFactory : ConnectionFactory {
 		ClipConnection *cnn = new ClipConnection(tun);
 		cnn->local.net_channel = htonl(InterlockedIncrement(&ctx.nchannel));
 		cnn->state = STATE_SYN;
-		cnn->resend_counter = 0;
 		strcpy(cnn->remote.clipname, clipname);
 
 		cnn->tun = tun;
@@ -642,17 +605,13 @@ void ClipConnection::bufferavail() {
 	if (state == STATE_NEW_SRV) {
 		prev_recv_pos--;
 		state = STATE_EST;
-		resend_counter = 0;
 	}
 	havedata();
 }
 
-static void posthavedatamsg() {
-	PostMessage(ctx.hwnd, WM_HAVE_DATA, 0, 0);
-}
-
 void ClipConnection::havedata() {
-	posthavedatamsg();
+	if (ctx.flag_sending) return;
+	PostMessage(ctx.hwnd, WM_HAVEDATA, 0, 0);
 }
 
 ClipConnection::ClipConnection(Tunnel *tun) : Connection(tun), prev_recv_pos(0)
@@ -673,18 +632,13 @@ void clipsrvctx::newbuf()
 	p += sizeof(localclipuuid.net);
 }
 
-DWORD clipsrvctx::fillpack()
+void clipsrvctx::fillpack()
 {
-	DWORD now = GetTickCount();
-	DWORD dw;
-	DWORD min_timeout = INFINITE;
-	log(DBG, "fillpack(); now = %u", now);
+	log(DBG, "fillpack()");
 
 	u_long ul = htonl(npacket);
 	memcpy(p, &ul, sizeof(u_long));
 	p += sizeof(u_long);
-
-#define ISCONNTIMEOUT() ((int)(now - conn->resend_next_tickcount) >= 0)
 
 	for(unsigned u = 0; u < connections.size();) {
 		ClipConnection *conn = connections[u];
@@ -692,27 +646,11 @@ DWORD clipsrvctx::fillpack()
 		switch (state) {
 			case STATE_SYN:
 				{
-					if (conn->resend_counter != 0) {
-						if (!ISCONNTIMEOUT()) {
-							dw = conn->resend_next_tickcount - now;
-							if (min_timeout > dw) min_timeout = dw;
-							break; /* case */
-						}
-						if (conn->resend_counter == NUMTRIES_SYN) {
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-					}
-
 					size_t clipnamesize = strlen(conn->remote.clipname)+1;
 
 					if (OVERFLOWS(subpack_syn_size(clipnamesize))) {
-						return 0;
+						return;
 					}
-
-					conn->resend_next_tickcount = now + TIMEOUT_SYN;
-					if (min_timeout > TIMEOUT_SYN) min_timeout = TIMEOUT_SYN;
-					conn->resend_counter++;
 
 					SubPackWrap<subpack_syn> subpack;
 					subpack.net_src_channel = conn->local.net_channel;
@@ -732,12 +670,11 @@ DWORD clipsrvctx::fillpack()
 
 				cur_pos = conn->pump_recv->buf.ofs_end;
 				if (conn->prev_recv_pos != cur_pos) {
-					/* if this ack is lost, they will just resend the data */
 
 					SubPackWrap<subpack_ack> subpack;
 
 					if (OVERFLOWS(sizeof(subpack))) {
-						return 0;
+						return;
 					}
 					subpack.net_src_channel = conn->local.net_channel;
 					subpack.net_packtype = htonl(PACK_ACK);
@@ -752,39 +689,11 @@ DWORD clipsrvctx::fillpack()
 
 				rfifo = &conn->pump_send->buf;
 
-				if (rfifo->ofs_mid != rfifo->ofs_beg) {
-					if (!ISCONNTIMEOUT()) {
-						dw = conn->resend_next_tickcount - now;
-						if (min_timeout > dw) min_timeout = dw;
-					} else {
-						if (conn->resend_counter == NUMTRIES_DATA) {
-							log(INFO, "write error to clip: timeout");
-							conn->pump_send->writeerr = 1;
-							conn->pump_recv->bufferavail();
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-
-						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (min_timeout > TIMEOUT_DATA) min_timeout = TIMEOUT_DATA;
-						conn->resend_counter++;
-						log(DBG, "lost data subpacket: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
-						rfifo->ofs_mid = rfifo->ofs_beg;
-					}
-				}
-
 				datasz = rfifo_availread(rfifo);
 				if (datasz != 0) {
 
 					if (OVERFLOWS(subpack_data_size(1))) {
-						return 0;
-					}
-
-					if (conn->resend_counter == 0) {
-						conn->resend_next_tickcount = now + TIMEOUT_DATA;
-						if (min_timeout > TIMEOUT_DATA) min_timeout = TIMEOUT_DATA;
-						conn->resend_counter++;
-						log(DBG, "first data packet: resend_counter = %d, resend_next_tickcount = %u", conn->resend_counter, conn->resend_next_tickcount);
+						return;
 					}
 
 					SubPackWrap<subpack_data> subpack;
@@ -811,18 +720,10 @@ DWORD clipsrvctx::fillpack()
 				if (conn->pump_send->eof) {
 					if (rfifo->ofs_end == rfifo->ofs_beg) {
 						/* all sent data is confirmed */
-
-						if (conn->resend_counter != 0) {
-							if (!ISCONNTIMEOUT()) {
-								dw = conn->resend_next_tickcount - now;
-								if (min_timeout > dw) min_timeout = dw;
-								break; /* case */
-							}
-						}
 					}
 
 					if (OVERFLOWS(sizeof(subpack_ack))) {
-						return 0;
+						return;
 					}
 
 					SubPackWrap<subpack_ack> subpack;
@@ -837,13 +738,8 @@ DWORD clipsrvctx::fillpack()
 					p += sizeof(subpack);
 
 					if (rfifo->ofs_end == rfifo->ofs_beg) {
-						conn->resend_counter++;
-						if (conn->resend_counter == NUMTRIES_FIN) {
-							_clipsrv_unreg_cnn(u);
-							continue;
-						}
-						conn->resend_next_tickcount = now + TIMEOUT_FIN;
-						if (min_timeout > TIMEOUT_FIN) min_timeout = TIMEOUT_FIN;
+						_clipsrv_unreg_cnn(u);
+						continue;
 					}
 				}
 				break;
@@ -854,100 +750,75 @@ DWORD clipsrvctx::fillpack()
 		}
 		u++;
 	}
-	return min_timeout;
 }
 
 static
-void advertise_packet() {
-	ctx.npacket++;
-	log(DBG, "advertise_packet(); npacket = %d", ctx.npacket);
-	ensure_openclip(ctx.hwnd);
-	if (EmptyClipboard()) {
-		SetClipboardData(MY_CF, NULL);
-	}
-	ctx.tickcount_a = GetTickCount();
-	closeclip();
-}
-
-static
-VOID CALLBACK wait_rendermsg_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+VOID CALLBACK sleep_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
-	log(DBG, "wait_rendermsg_timeout()");
-	log(DBG, "packet lost", ctx.npacket);
-	advertise_packet();
-	ctx.max_rendermsg.add(ctx.max_rendermsg.getmax() * 2 + 50);
-	KillTimer(NULL, ctx.wait_rendermsg_ntimer);
-	ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() * 2 + 50, wait_rendermsg_timeout);
-}
-
-static
-VOID CALLBACK resend_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
-{
-	log(DBG, "resend_timeout()");
-	posthavedatamsg();
+	KillTimer(_hwnd_null, idEvent);
+	PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
 }
 
 static
 LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
-		case WM_HAVE_DATA:
-			log(DBG, "WM_HAVE_DATA");
-			ctx.flag_havedata = 1;
-
-			if (ctx.resend_ntimer) {
-				KillTimer(NULL, ctx.resend_ntimer);
-				ctx.resend_ntimer = 0;
+		case WM_HAVEDATA:
+			log(DBG, "WM_HAVEDATA");
+			if (ctx.flag_sending) break;
+			ctx.flag_sending = 1;
+			/* fallthrough */
+		case WM_ADVERTISE_PACKET:
+			log(DBG, "WM_ADVERTISE_PACKET");
+			ctx.npacket++;
+			log(DBG, "advertise_packet(); npacket = %d", ctx.npacket);
+			ensure_openclip(ctx.hwnd);
+			if (EmptyClipboard()) {
+				SetClipboardData(MY_CF, NULL);
 			}
-
-			if (!ctx.flag_sending) {
-				ctx.flag_sending = 1;
-tellothers:
-				advertise_packet();
-					ctx.wait_rendermsg_ntimer = SetTimer(NULL, 0, ctx.max_rendermsg.getmax() * 2 + 50, wait_rendermsg_timeout);
-			}
+			closeclip();
 			break;
 		case WM_RENDERFORMAT:
 			log(DBG, "WM_RENDERFORMAT");
-			ctx.max_rendermsg.add(GetTickCount() - ctx.tickcount_a);
-			KillTimer(NULL, ctx.wait_rendermsg_ntimer);
-			ctx.flag_havedata = 0;
 			EnterCriticalSection(&ctx.lock);
-			ctx.whensendagain = ctx.fillpack();
-			log(DBG, "fillpack() returned %u", ctx.whensendagain);
+			ctx.fillpack();
 			LeaveCriticalSection(&ctx.lock);
-
 			GlobalUnlock(ctx.hglob);
 			SIZE_T newsz;
 			newsz = ctx.p - ctx.pbeg;
 			ctx.hglob = GlobalReAlloc(ctx.hglob, newsz, 0);
-
+			newsz -= sizeofpacketheader;
+			ctx.lastsent = newsz;
 			SetClipboardData(MY_CF, ctx.hglob);
-
-			newsz = GlobalSize(ctx.hglob);
 			{
 				RPC_CSTR s;
 				UuidToStringA(&ctx.localclipuuid._align, &s);
 				log(DBG, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
 				RpcStringFree(&s);
 			}
-
-			PostMessage(hwnd, WM_FORMAT_RENDERED, 0, 0);
-			break;
-		case WM_FORMAT_RENDERED:
-			log(DBG, "WM_FORMAT_RENDERED");
-
 			ctx.newbuf();
+			break;
+		case WM_DRAWCLIPBOARD:
+			log(DBG, "WM_DRAWCLIPBOARD");
 
-			if (ctx.flag_havedata || ctx.whensendagain == 0) {
-				goto tellothers;
+			if (!ctx.clip_opened) {
+				if (get_clip_data_and_parse()) {
+					ctx.flag_sending = 1;
+					if (1 && (ctx.lastgot + ctx.lastsent == 0)) {
+						log(DBG, "sleeping");
+						SetTimer(NULL, 0, 40, sleep_timeout);
+					} else {
+						PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
+					}
+				}
 			}
 
-			if (ctx.whensendagain != INFINITE) {
-				ctx.resend_ntimer = SetTimer(NULL, 0, ctx.whensendagain, resend_timeout);
-			}
+			/* SetClipboardViewer() sends WM_DRAWCLIPBOARD and fails with our last error */
+			SetLastError(ERROR_SUCCESS);
 
-			ctx.flag_sending = 0;
+			if (ctx.nextWnd) {
+				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
+			}
 			break;
 		case WM_CHANGECBCHAIN:
 			{
@@ -963,20 +834,6 @@ tellothers:
 				} else {
 					log(INFO, "not notifying next window %p", (void*)ctx.nextWnd);
 				}
-			}
-			break;
-		case WM_DRAWCLIPBOARD:
-			log(DBG, "WM_DRAWCLIPBOARD");
-
-			if (!ctx.clip_opened) {
-				get_clip_data_and_parse();
-			}
-
-			/* SetClipboardViewer() sends WM_DRAWCLIPBOARD and fails with our last error */
-			SetLastError(ERROR_SUCCESS);
-
-			if (ctx.nextWnd) {
-				return SendMessage(ctx.nextWnd,uMsg,wParam,lParam);
 			}
 			break;
 		case WM_UNREGVIEWER:
@@ -1017,8 +874,6 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 void clipsrv_init()
 {
 	DWORD tid;
-
-	ctx.max_rendermsg.add(WAIT_RENDERMSG_DEFAULT_TIMEOUT);
 
 	InitializeCriticalSection(&ctx.lock);
 
