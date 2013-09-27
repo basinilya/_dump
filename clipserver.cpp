@@ -806,7 +806,7 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 					ctx.flag_sending = 1;
 					if (1 && (ctx.lastgot + ctx.lastsent == 0)) {
 						log(DBG, "sleeping");
-						SetTimer(NULL, 0, 40, sleep_timeout);
+						SetTimer(NULL, 0, 10, sleep_timeout);
 					} else {
 						PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
 					}
