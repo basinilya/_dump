@@ -31,13 +31,15 @@ UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimer
 	return SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc);
 }
 
+#define DUMPBYTES 128
 void dumpdata(const char *data, int sz, char const *fmt, ...)
 {
 	char msg[1024];
 	va_list args;
 	int i;
-	char dst[10*2+1];
-	for (i = 0; i < sz && i < 10; i++) {
+	char dst[DUMPBYTES*2+1];
+	dst[0] = '\0';
+	for (i = 0; i < sz && i < DUMPBYTES; i++) {
 		sprintf(&dst[i*2], "%02X", (unsigned char)data[i]);
 	}
 
@@ -56,7 +58,7 @@ void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count)
 		char filename[100];
 		sprintf(filename, "logs/aaa-%p.dat", rfifo);
 		p = rfifo_pfree(rfifo);
-		dumpdata(p, (int)count, "writing %ld at %lx to %p", (long)count, (long)rfifo->ofs_end, rfifo);
+		dumpdata(p, (int)count, "writing %ld at 0x%llx(%lld) to %p", (long)count, (long long)rfifo->ofs_end, (long long)rfifo->ofs_end, rfifo);
 		h = CreateFile(filename, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (h != INVALID_HANDLE_VALUE) {
 			WriteFile(h, p, count, &nb, NULL);

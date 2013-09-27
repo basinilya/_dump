@@ -393,17 +393,28 @@ void _clipsrv_parsepacket(const char *pend, const char *p)
 					rfifo_t *rfifo = &cnn->pump_recv->buf;
 					long new_pos = ntohl(u.data.net_new_pos);
 					long ofs_end = (u_long)rfifo->ofs_end;
+
+					dumpdata(p, (int)count, "got data subpacket %d", (int)count);
 					log(DBG, "got data: %ld..%ld (%ld)", new_pos - count, new_pos, count);
 					if (new_pos - ofs_end >= 0) {
 						if (cnn->prev_recv_pos - (new_pos - count) > 0) {
 							cnn->prev_recv_pos = new_pos - count;
 						}
 
+						long skip = ofs_end - (new_pos - count);
 						long datasz = new_pos - ofs_end;
-						long bufsz = rfifo_availwrite(rfifo);
-						if (datasz > bufsz) datasz = bufsz;
-						memcpy(rfifo_pfree(rfifo), p + count - datasz, datasz);
-						rfifo_markwrite(rfifo, datasz);
+
+						for(;;) {
+							if (!datasz) break;
+							long chunksz = rfifo_availwrite(rfifo);
+							if (!chunksz) break;
+							if (chunksz > datasz) chunksz = datasz;
+							memcpy(rfifo_pfree(rfifo), p + skip, chunksz);
+							rfifo_markwrite(rfifo, chunksz);
+							skip += chunksz;
+							datasz -= chunksz;
+						}
+
 						cnn->havedata();
 						cnn->pump_send->havedata();
 					}
@@ -713,7 +724,7 @@ void clipsrvctx::fillpack()
 						if (chunksz > bufsz) chunksz = bufsz;
 
 						memcpy(p, rfifo_pdata(rfifo), chunksz);
-						dumpdata(p, (int)chunksz, "reading %ld at %lx from %p: ", (long)chunksz, (long)rfifo->ofs_mid, rfifo);
+						dumpdata(p, (int)chunksz, "reading %d at %llx(%lld) from %p: ", (int)chunksz, (long long)rfifo->ofs_mid, (long long)rfifo->ofs_mid, rfifo);
 						p += chunksz;
 						rfifo_markread(rfifo, chunksz);
 						datasz += chunksz;
@@ -721,6 +732,7 @@ void clipsrvctx::fillpack()
 
 						chunksz = rfifo_availread(rfifo);
 					} while (chunksz && bufsz);
+					dumpdata(p - datasz, (int)datasz, "send data subpacket %d at %llx(%lld)", (int)datasz, (long long)(p - datasz), (long long)(p - datasz));
 
 					subpack.net_new_pos = htonl(rfifo->ofs_mid);
 					subpack.net_count = htonl(datasz);
