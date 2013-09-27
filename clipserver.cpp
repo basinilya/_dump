@@ -116,6 +116,7 @@ struct Cliplistener {
 
 struct clipsrvctx {
 	SIZE_T lastgot, lastsent;
+	int delay;
 	int clip_opened;
 	vector<Cliplistener*> listeners;
 
@@ -804,9 +805,9 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			if (!ctx.clip_opened) {
 				if (get_clip_data_and_parse()) {
 					ctx.flag_sending = 1;
-					if (1 && (ctx.lastgot + ctx.lastsent == 0)) {
-						log(DBG, "sleeping");
-						SetTimer(NULL, 0, 10, sleep_timeout);
+					if (1 || (ctx.lastgot + ctx.lastsent == 0)) {
+						log(DBG, "sleeping %d ms", ctx.delay);
+						SetTimer(NULL, 0, ctx.delay, sleep_timeout);
 					} else {
 						PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
 					}
@@ -877,6 +878,12 @@ void clipsrv_init()
 
 	InitializeCriticalSection(&ctx.lock);
 
+	const char *s = getenv("CLIPTUN_DELAY");
+	if (s) {
+		ctx.delay = atoi(s);
+	} else {
+		ctx.delay = 10;
+	}
 	UuidCreate(&ctx.localclipuuid._align);
 	for (int i = 0; i < sizeof(ctx.localclipuuid.net.__u_bits); i++) {
 		ctx.nchannel = ctx.nchannel ^ (ctx.nchannel << 8) ^ ctx.localclipuuid.net.__u_bits[i];
