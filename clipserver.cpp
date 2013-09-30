@@ -801,6 +801,9 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			ctx.npacket++;
 			log(DBG, "advertise_packet(); npacket = %d", ctx.npacket);
 			ensure_openclip(ctx.hwnd);
+			if (!ctx.we_own_clip) {
+				ctx.saveclip();
+			}
 			if (EmptyClipboard()) {
 				SetClipboardData(MY_CF, NULL);
 				ctx.we_own_clip = 1;
