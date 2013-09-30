@@ -52,7 +52,7 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
 #define CancelIo dbg_CancelIo
 #define SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc) dbg_SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc, #lpTimerFunc)
-#define rfifo_markwrite dbg_rfifo_markwrite
+//#define rfifo_markwrite dbg_rfifo_markwrite
 #define SetClipboardViewer dbg_SetClipboardViewer
 #define SetConsoleCtrlHandler dbg_SetConsoleCtrlHandler
 #define EmptyClipboard dbg_EmptyClipboard

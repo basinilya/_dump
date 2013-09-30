@@ -7,13 +7,14 @@
 
 static void winet_evtlog(char const *logmsg, long type);
 
-static volatile FILE *flog;
+//static volatile FILE *flog;
 
 static void _winet_log(int level, char const *emsg)
 {
-	FILE *localfile;
+	//FILE *localfile;
 	SYSTEMTIME time;
 	GetLocalTime(&time);
+	/*
 	localfile = (FILE*)flog;
 	if (!localfile) {
 		localfile = fopen("logs/cliptund.log", "w");
@@ -22,12 +23,16 @@ static void _winet_log(int level, char const *emsg)
 				fclose(localfile);
 				localfile = (FILE*)flog;
 			}
+		} else {
+			file opened, but global variable not assigned
+			???
 		}
 	}
 	if (localfile) {
 		fprintf(localfile, "%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg);
 		fflush(localfile);
 	}
+	*/
 
 	if (level == WINET_LOG_DEBUG) return;
 

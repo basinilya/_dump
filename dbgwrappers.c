@@ -38,6 +38,7 @@ void dumpdata(const char *data, int sz, char const *fmt, ...)
 	va_list args;
 	int i;
 	char dst[DUMPBYTES*2+1];
+	return;
 	dst[0] = '\0';
 	for (i = 0; i < sz && i < DUMPBYTES; i++) {
 		sprintf(&dst[i*2], "%02X", (unsigned char)data[i]);
