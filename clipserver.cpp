@@ -790,6 +790,7 @@ VOID CALLBACK sleep_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD 
 static
 LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
+	UINT fmtid;
 	switch (uMsg) {
 		case WM_HAVEDATA:
 			log(DBG, "WM_HAVEDATA");
@@ -806,29 +807,42 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			}
 			if (EmptyClipboard()) {
 				SetClipboardData(MY_CF, NULL);
+
+				for (savedclip_t::iterator it = ctx.datas.begin(); it != ctx.datas.end(); it++) {
+					fmtid = it->first;
+					SetClipboardData(fmtid, NULL);
+				}
+
 				ctx.we_own_clip = 1;
 			}
 			closeclip();
 			break;
 		case WM_RENDERFORMAT:
-			log(DBG, "WM_RENDERFORMAT");
-			EnterCriticalSection(&ctx.lock);
-			ctx.fillpack();
-			LeaveCriticalSection(&ctx.lock);
-			GlobalUnlock(ctx.hglob);
-			SIZE_T newsz;
-			newsz = ctx.p - ctx.pbeg;
-			ctx.hglob = GlobalReAlloc(ctx.hglob, newsz, 0);
-			newsz -= sizeofpacketheader;
-			ctx.lastsent = newsz;
-			SetClipboardData(MY_CF, ctx.hglob);
-			{
-				RPC_CSTR s;
-				UuidToStringA(&ctx.localclipuuid._align, &s);
-				log(DBG, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
-				RpcStringFree(&s);
+			fmtid = wParam;
+			log(DBG, "WM_RENDERFORMAT %u", fmtid);
+			if (fmtid == MY_CF) {
+				EnterCriticalSection(&ctx.lock);
+				ctx.fillpack();
+				LeaveCriticalSection(&ctx.lock);
+				GlobalUnlock(ctx.hglob);
+				SIZE_T newsz;
+				newsz = ctx.p - ctx.pbeg;
+				ctx.hglob = GlobalReAlloc(ctx.hglob, newsz, 0);
+				newsz -= sizeofpacketheader;
+				ctx.lastsent = newsz;
+				SetClipboardData(MY_CF, ctx.hglob);
+				{
+					RPC_CSTR s;
+					UuidToStringA(&ctx.localclipuuid._align, &s);
+					log(DBG, "sending packet %s %ld; sz = %d", s, ctx.npacket, (int)newsz);
+					RpcStringFree(&s);
+				}
+				ctx.newbuf();
+			} else {
+				savedclip_t::iterator it = ctx.datas.find(fmtid);
+				SetClipboardData(fmtid, it->second.hglbl);
+				ctx.datas.erase(it);
 			}
-			ctx.newbuf();
 			break;
 		case WM_DRAWCLIPBOARD:
 			log(DBG, "WM_DRAWCLIPBOARD");
