@@ -11,6 +11,7 @@
 #include <tchar.h>
 
 #include <vector>
+#include <map>
 
 #include "mylastheader.h"
 
@@ -25,8 +26,6 @@ using namespace cliptund;
 #define WM_HAVEDATA (WM_USER+0)
 #define WM_ADVERTISE_PACKET (WM_USER+1)
 #define WM_UNREGVIEWER (WM_USER+2)
-
-#define MAX_FORMATS 100
 
 #define OVERFLOWS(sz) ((sz) > (size_t)(pend - p))
 
@@ -114,6 +113,12 @@ struct Cliplistener {
 	}
 };
 
+struct _clipdata {
+	HANDLE hglbl;
+	BOOL (WINAPI *freefunc)(HANDLE h);
+};
+typedef map<UINT, _clipdata> savedclip_t;
+
 struct clipsrvctx {
 	SIZE_T lastgot, lastsent;
 	int delay;
@@ -143,6 +148,10 @@ struct clipsrvctx {
 
 	void newbuf();
 	void fillpack();
+
+	savedclip_t datas;
+	int we_own_clip;
+	void saveclip();
 } ctx;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
@@ -209,13 +218,7 @@ static bool get_clip_data_and_parse() {
 		buf[0] = '\0';
 		for (fmtid = 0;;) {
 			fmtid = EnumClipboardFormats(fmtid);
-			if (fmtid == 0) {
-				if (GetLastError() != ERROR_SUCCESS) {
-					pWin32Error(ERR, "EnumClipboardFormats() failed");
-					abort();
-				}
-				break;
-			}
+			if (fmtid == 0) break;
 			s += sprintf(s, " %u", fmtid);
 		}
 		log(DBG, "formats:%s", buf);
@@ -800,6 +803,7 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 			ensure_openclip(ctx.hwnd);
 			if (EmptyClipboard()) {
 				SetClipboardData(MY_CF, NULL);
+				ctx.we_own_clip = 1;
 			}
 			closeclip();
 			break;
@@ -835,6 +839,8 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 					}
 					log(DBG, "sleeping %d ms", delay);
 					SetTimer(NULL, 0, delay, sleep_timeout);
+				} else {
+					ctx.we_own_clip = 0;
 				}
 			}
 
@@ -925,44 +931,42 @@ void clipsrv_init()
 	CloseHandle(ev_inited);
 }
 
-static int dupandreplace() {
-	//log(DBG, "dupandreplace");
+/*
+template<typename T>
+typename T::iterator
+insertNoCheck(T &map, const typename T::key_type &key ) {
+  return map.insert(map.begin(), typename T::value_type(key, typename T::mapped_type()));
+}
+*/
+
+void clipsrvctx::saveclip() {
+
+	for (savedclip_t::iterator it = datas.begin(); it != datas.end(); it++) {
+		_clipdata &data = it->second;
+		data.freefunc(data.hglbl);
+	}
+	datas.clear();
+
 	UINT fmtid;
 	HANDLE hglbsrc;
-	struct {
-		HANDLE hglbl;
-		UINT fmtid;
-		BOOL (WINAPI *freefunc)(HANDLE h);
-	} datas[MAX_FORMATS];
+
 	char ignored[CF_MAX] = { 0 };
 	#undef IGNORE
 	#define IGNORE(fmt) ignored[fmt] = 1;
-
-	int ndatas, i;
 
 	LPVOID psrc, pdst;
 	SIZE_T sz;
 
 	/* duplicate clipboard contents */
-	for (ndatas = 0, fmtid = 0;;) {
+	for (fmtid = 0;;) {
 		fmtid = EnumClipboardFormats(fmtid);
-		if (fmtid == 0) {
-			if (GetLastError() != ERROR_SUCCESS) {
-				pWin32Error(ERR, "EnumClipboardFormats() failed");
-				goto err;
-			}
-			break;
-		}
+		if (fmtid == 0) break;
 		if (fmtid == MY_CF) {
 			//printf("not duplicating my format\n");
 			continue;
 		}
-		if (ndatas >= MAX_FORMATS) {
-			//printf("too many clipboard formats\n");
-			goto err;
-		}
 
-		if (fmtid < MAX_FORMATS && ignored[fmtid])
+		if (ignored[fmtid])
 		{
 			//printf("ignoring %d\n", (int)fmtid);
 			continue;
@@ -971,14 +975,14 @@ static int dupandreplace() {
 		hglbsrc = GetClipboardData(fmtid);
 		//printf("duplicating format %d, handle = %p\n", (int)fmtid, (void*)hglbsrc);
 		if (!hglbsrc && GetLastError() != ERROR_SUCCESS) {
-			pWin32Error(ERR, "cf %d GetClipboardData() failed", (int)fmtid);
-			goto err;
+			pWin32Error(WARN, "cf %u GetClipboardData() failed", fmtid);
+			continue;
 		}
 
-		datas[ndatas].fmtid = fmtid;
-		datas[ndatas].hglbl = hglbsrc;
+		_clipdata data;
+		data.hglbl = hglbsrc;
 		if (hglbsrc) {
-			datas[ndatas].freefunc = freefunc_GlobalFree;
+			data.freefunc = freefunc_GlobalFree;
 
 			switch(fmtid) {
 				/* none */
@@ -1008,9 +1012,9 @@ static int dupandreplace() {
 				case CF_BITMAP:
 					IGNORE(CF_DIB);
 					IGNORE(CF_DIBV5);
-					datas[ndatas].freefunc = DeleteObject;
-					datas[ndatas].hglbl = (HANDLE)dupbitmap((HBITMAP)hglbsrc);
-					if (!datas[ndatas].hglbl) goto err;
+					data.freefunc = DeleteObject;
+					data.hglbl = (HANDLE)dupbitmap((HBITMAP)hglbsrc);
+					if (!data.hglbl) continue;
 					goto cont_ok;
 
 				/* GlobalFree */
@@ -1040,27 +1044,26 @@ static int dupandreplace() {
 
 			sz = GlobalSize(hglbsrc);
 			if (sz == 0) {
-				pWin32Error(ERR, "cf %d GlobalSize() failed", (int)fmtid);
-				goto err;
+				pWin32Error(WARN, "cf %d GlobalSize() failed", (int)fmtid);
+				continue;
 			}
-			datas[ndatas].hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
-			if (datas[ndatas].hglbl == NULL) {
-				pWin32Error(ERR, "GlobalAlloc() failed");
-				goto err;
-			}
-
+			data.hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
 			psrc = GlobalLock(hglbsrc);
-			pdst = GlobalLock(datas[ndatas].hglbl);
+			pdst = GlobalLock(data.hglbl);
 			memcpy(pdst, psrc, sz);
-			GlobalUnlock(datas[ndatas].hglbl);
+			GlobalUnlock(data.hglbl);
 			GlobalUnlock(hglbsrc);
 		}
 
 cont_ok:
-		ndatas++;
+		datas[fmtid] = data;
 
 	}
+}
 
+#if 0
+int foo() {
+	int ndatas = 4;
 	/* clear clipboard contents */
 	//printf("emptying clipboard\n");
 	if (!EmptyClipboard()) {
@@ -1086,3 +1089,4 @@ cont_ok:
 
 	return 0;
 }
+#endif

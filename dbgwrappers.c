@@ -25,6 +25,16 @@ void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername)
 	}
 }
 
+HGLOBAL dbg_GlobalAlloc(UINT uFlags, SIZE_T dwBytes)
+{
+	HGLOBAL hglob = GlobalAlloc(uFlags, dwBytes);
+	if (hglob == NULL) {
+		pWin32Error(ERR, "GlobalAlloc() failed");
+		abort();
+	}
+	return hglob;
+}
+
 UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername)
 {
 	log(DBG, "SetTimer(%u, %s)", uElapse, timername);
@@ -75,6 +85,16 @@ void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add)
 		pWin32Error(ERR, "SetConsoleCtrlHandler() failed");
 		abort();
 	}
+}
+
+UINT dbg_EnumClipboardFormats(UINT format)
+{
+	UINT fmtid = EnumClipboardFormats(format);
+	if (fmtid == 0 && GetLastError() != ERROR_SUCCESS) {
+		pWin32Error(ERR, "EnumClipboardFormats() failed");
+		abort();
+	}
+	return fmtid;
 }
 
 HWND dbg_SetClipboardViewer(HWND hWndNewViewer)

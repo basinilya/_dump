@@ -22,11 +22,13 @@ extern "C" {
 #endif
 
 void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername);
+HGLOBAL dbg_GlobalAlloc(UINT uFlags, SIZE_T dwBytes);
 void dbg_CancelIo(HANDLE hFile);
 UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername);
 void dumpdata(const char *data, int sz, char const *fmt, ...);
 void dbg_rfifo_markwrite(rfifo_t *rfifo, rfifo_long count);
 void dbg_SetConsoleCtrlHandler(PHANDLER_ROUTINE HandlerRoutine, BOOL Add);
+UINT dbg_EnumClipboardFormats(UINT format);
 HWND dbg_SetClipboardViewer(HWND hWndNewViewer);
 BOOL dbg_EmptyClipboard();
 HANDLE dbg_SetClipboardData(UINT uFormat, HANDLE hMem);
@@ -50,9 +52,11 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #ifdef DEBUG_CLIPTUND
 
 #define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
+#define GlobalAlloc dbg_GlobalAlloc
 #define CancelIo dbg_CancelIo
 #define SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc) dbg_SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc, #lpTimerFunc)
 //#define rfifo_markwrite dbg_rfifo_markwrite
+#define EnumClipboardFormats dbg_EnumClipboardFormats
 #define SetClipboardViewer dbg_SetClipboardViewer
 #define SetConsoleCtrlHandler dbg_SetConsoleCtrlHandler
 #define EmptyClipboard dbg_EmptyClipboard
