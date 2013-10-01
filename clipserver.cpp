@@ -115,7 +115,8 @@ struct Cliplistener {
 
 struct _clipdata {
 	HANDLE hglbl;
-	BOOL (WINAPI *freefunc)(HANDLE h);
+	VOID (WINAPI *freefunc)(HANDLE h);
+	HANDLE (*dupfunc)(HANDLE h);
 };
 typedef map<UINT, _clipdata> savedclip_t;
 
@@ -205,10 +206,6 @@ static bool get_clip_data_and_parse() {
 	const char *pend, *p;
 
 	int flag = 0;
-
-	if (GetClipboardOwner() == ctx.hwnd) {
-		return false;
-	}
 
 	ensure_openclip(ctx.hwnd);
 
@@ -572,11 +569,6 @@ err:
 	return rcBitmap;
 }
 
-static BOOL WINAPI freefunc_GlobalFree(HANDLE h)
-{
-	return GlobalFree(h) == NULL;
-}
-
 void _clipsrv_reg_cnn(ClipConnection *conn)
 {
 	conn->tun->AddRef();
@@ -839,15 +831,18 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				}
 				ctx.newbuf();
 			} else {
-				savedclip_t::iterator it = ctx.datas.find(fmtid);
-				SetClipboardData(fmtid, it->second.hglbl);
-				ctx.datas.erase(it);
+				log(DBG, "rendering fmt = %u", fmtid);
+				_clipdata &data = ctx.datas[fmtid];
+				HANDLE hdata = data.dupfunc(data.hglbl);
+				if (hdata) {
+					SetClipboardData(fmtid, hdata);
+				}
 			}
 			break;
 		case WM_DRAWCLIPBOARD:
 			log(DBG, "WM_DRAWCLIPBOARD");
 
-			if (!ctx.clip_opened) {
+			if (!ctx.clip_opened && GetClipboardOwner() != ctx.hwnd) {
 				if (get_clip_data_and_parse()) {
 					ctx.flag_sending = 1;
 					int delay = ctx.delay;
@@ -857,6 +852,7 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 					log(DBG, "sleeping %d ms", delay);
 					SetTimer(NULL, 0, delay, sleep_timeout);
 				} else {
+					log(DBG, "someone put something to clipboard");
 					ctx.we_own_clip = 0;
 				}
 			}
@@ -956,7 +952,26 @@ insertNoCheck(T &map, const typename T::key_type &key ) {
 }
 */
 
+HGLOBAL duphglob(HGLOBAL hglbsrc) {
+	HGLOBAL hglbdst;
+	LPVOID psrc, pdst;
+	SIZE_T sz;
+	sz = GlobalSize(hglbsrc);
+	if (sz == 0) {
+		pWin32Error(WARN, "GlobalSize() failed");
+		return NULL;
+	}
+	hglbdst = GlobalAlloc(GMEM_MOVEABLE, sz);
+	psrc = GlobalLock(hglbsrc);
+	pdst = GlobalLock(hglbdst);
+	memcpy(pdst, psrc, sz);
+	GlobalUnlock(hglbdst);
+	GlobalUnlock(hglbsrc);
+	return hglbdst;
+}
+
 void clipsrvctx::saveclip() {
+	log(DBG, "saveclip()");
 
 	for (savedclip_t::iterator it = datas.begin(); it != datas.end(); it++) {
 		_clipdata &data = it->second;
@@ -971,9 +986,6 @@ void clipsrvctx::saveclip() {
 	#undef IGNORE
 	#define IGNORE(fmt) ignored[fmt] = 1;
 
-	LPVOID psrc, pdst;
-	SIZE_T sz;
-
 	/* duplicate clipboard contents */
 	for (fmtid = 0;;) {
 		fmtid = EnumClipboardFormats(fmtid);
@@ -983,7 +995,7 @@ void clipsrvctx::saveclip() {
 			continue;
 		}
 
-		if (ignored[fmtid])
+		if (fmtid < CF_MAX && ignored[fmtid])
 		{
 			//printf("ignoring %d\n", (int)fmtid);
 			continue;
@@ -999,8 +1011,6 @@ void clipsrvctx::saveclip() {
 		_clipdata data;
 		data.hglbl = hglbsrc;
 		if (hglbsrc) {
-			data.freefunc = freefunc_GlobalFree;
-
 			switch(fmtid) {
 				/* none */
 				case CF_OWNERDISPLAY:
@@ -1029,7 +1039,8 @@ void clipsrvctx::saveclip() {
 				case CF_BITMAP:
 					IGNORE(CF_DIB);
 					IGNORE(CF_DIBV5);
-					data.freefunc = DeleteObject;
+					data.freefunc = (VOID (WINAPI *)(HANDLE))DeleteObject;
+					data.dupfunc = (HANDLE (*)(HANDLE))dupbitmap;
 					data.hglbl = (HANDLE)dupbitmap((HBITMAP)hglbsrc);
 					if (!data.hglbl) continue;
 					goto cont_ok;
@@ -1058,23 +1069,14 @@ void clipsrvctx::saveclip() {
 					IGNORE(CF_TEXT);
 					break;
 			}
-
-			sz = GlobalSize(hglbsrc);
-			if (sz == 0) {
-				pWin32Error(WARN, "cf %d GlobalSize() failed", (int)fmtid);
-				continue;
-			}
-			data.hglbl = GlobalAlloc(GMEM_MOVEABLE, sz);
-			psrc = GlobalLock(hglbsrc);
-			pdst = GlobalLock(data.hglbl);
-			memcpy(pdst, psrc, sz);
-			GlobalUnlock(data.hglbl);
-			GlobalUnlock(hglbsrc);
-		}
-
+			data.freefunc = (VOID (WINAPI *)(HANDLE))GlobalFree;
+			data.dupfunc = duphglob;
 cont_ok:
-		datas[fmtid] = data;
-
+			data.hglbl = data.dupfunc(hglbsrc);
+			if (data.hglbl) {
+				datas[fmtid] = data;
+			}
+		}
 	}
 }
 

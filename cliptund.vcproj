@@ -238,7 +238,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\logging.c"
+				RelativePath=".\logging.cpp"
 				>
 			</File>
 			<File
