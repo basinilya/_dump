@@ -210,7 +210,7 @@ void dbg_CancelIo(HANDLE hFile)
 	CancelIo(hFile);
 }
 
-BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
+BOOL dbg_WriteFile123(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWORD nNumberOfBytesToWrite,LPDWORD lpNumberOfBytesWritten,LPOVERLAPPED lpOverlapped) {
 	HANDLE copyev;
 	BOOL b;
 	DWORD dw;
@@ -243,7 +243,7 @@ BOOL dbg_WriteFile(const char *file, int line, HANDLE hFile,LPCVOID lpBuffer,DWO
 	SetLastError(dw);
 	return b;
 }
-BOOL dbg_ReadFile(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
+BOOL dbg_ReadFile123(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DWORD nNumberOfBytesToRead,LPDWORD lpNumberOfBytesRead,LPOVERLAPPED lpOverlapped) {
 	HANDLE copyev;
 	BOOL b;
 	DWORD dw;

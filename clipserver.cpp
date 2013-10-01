@@ -153,6 +153,8 @@ struct clipsrvctx {
 	savedclip_t datas;
 	int we_own_clip;
 	void saveclip();
+
+	UINT_PTR nadvertize;
 } ctx;
 
 const char cliptun_data_header[] = CLIPTUN_DATA_HEADER;
@@ -780,6 +782,14 @@ VOID CALLBACK sleep_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD 
 }
 
 static
+VOID CALLBACK advertize_timeout(HWND _hwnd_null, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+{
+	log(INFO, "advertize_timeout");
+	KillTimer(_hwnd_null, idEvent);
+	PostMessage(ctx.hwnd, WM_ADVERTISE_PACKET, 0, 0);
+}
+
+static
 LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	UINT fmtid;
@@ -808,11 +818,13 @@ LRESULT CALLBACK _clipsrv_wndproc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 				ctx.we_own_clip = 1;
 			}
 			closeclip();
+			ctx.nadvertize = SetTimer(NULL, 0, 5000, advertize_timeout);
 			break;
 		case WM_RENDERFORMAT:
 			fmtid = wParam;
 			log(DBG, "WM_RENDERFORMAT %u", fmtid);
 			if (fmtid == MY_CF) {
+				KillTimer(NULL, ctx.nadvertize);
 				EnterCriticalSection(&ctx.lock);
 				ctx.fillpack();
 				LeaveCriticalSection(&ctx.lock);
