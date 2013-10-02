@@ -24,8 +24,7 @@
 #if !defined(_CLIPTUND_H)
 #define _CLIPTUND_H
 
-#include <winsock2.h>
-#include <tchar.h>
+#include <atlbase.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,8 +38,6 @@ int winet_main(int argc, char const **argv);
 #ifdef __cplusplus
 }
 #endif
-
-#include <atlbase.h>
 
 typedef IUnknown ISimpleRefcount;
 
@@ -60,4 +57,3 @@ protected:
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) { abort(); return 0; }
 
 #endif /* #if !defined(_CLIPTUND_H) */
-
