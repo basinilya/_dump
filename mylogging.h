@@ -1,8 +1,6 @@
 #ifndef _MYLOGGING_H
 #define _MYLOGGING_H
 
-#include <tchar.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
