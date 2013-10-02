@@ -159,12 +159,11 @@ static int winet_load_cfg(char const *cfgfilename) {
 						}
 					}
 				} else if (0 == strcmp(*pword, "clip")) {
-					word_t *clipname;
 					pword++;
 					if (pword < pwordend) {
-						clipname = pword;
+						word_t *pclipname = pword;
 						pword++;
-						connfact = clipsrv_CreateConnectionFactory(*clipname);
+						connfact = clipsrv_CreateConnectionFactory(*pclipname);
 						goto aaa;
 					}
 				}
@@ -175,53 +174,21 @@ static int winet_load_cfg(char const *cfgfilename) {
 					if (pword < pwordend && 0 == strcmp(*pword, "port")) {
 						pword++;
 						if (pword < pwordend && sscanf(*pword, "%hd", &port) == 1) {
-							tcp_create_listener(connfact, port);
-							npmaps++;
+							if (0 == tcp_create_listener(connfact, port)) {
+								npmaps++;
+							}
 						}
 					} else if (pword < pwordend && 0 == strcmp(*pword, "clip")) {
-						word_t *clipname;
 						pword++;
 						if (pword < pwordend) {
-							clipname = pword;
-							clipsrv_create_listener(connfact, *clipname);
+							word_t *pclipname = pword;
+							clipsrv_create_listener(connfact, *pclipname);
 							npmaps++;
 						}
 					}
 				}
 			}
 		}
-#if 0
-		if (rc == 6 && sscanf(s3, "%hd", &port) == 1
-			&& 0 == strcmp(s1, "listen")
-			&& 0 == strcmp(s2, "port")
-			&& 0 == strcmp(s4, "forward")
-			&& 0 == strcmp(s5, "clip"))
-		{
-			ConnectionFactory *connfact = clipsrv_CreateConnectionFactory(s6);
-			rc = tcp_create_listener(port, connfact);
-			if (rc == -1) {
-				fclose(conf_file);
-				return -1;
-			}
-			if (rc == 0) npmaps++;
-		}
-		else if (rc == 8 && sscanf(s8, "%hd", &port) == 1
-			&& 0 == strcmp(s1, "listen")
-			&& 0 == strcmp(s2, "clip")
-			&& 0 == strcmp(s4, "forward")
-			&& 0 == strcmp(s5, "host")
-			&& 0 == strcmp(s7, "port"))
-		{
-			ConnectionFactory *connfact = tcp_CreateConnectionFactory(s6, port);
-			rc = clipsrv_create_listener(connfact, s3);
-			if (rc == -1) {
-				fclose(conf_file);
-				return -1;
-			}
-			if (rc == 0) npmaps++;
-		}
-#endif
-
 	}
 	fclose(conf_file);
 	if (!npmaps) {

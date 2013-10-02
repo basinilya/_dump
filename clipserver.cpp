@@ -493,7 +493,7 @@ BOOL WINAPI _clipsrv_ctrlhandler( DWORD fdwCtrlType )
 	return FALSE;
 }
 
-int clipsrv_create_listener(ConnectionFactory *connfact, const char clipname[40+1])
+void clipsrv_create_listener(ConnectionFactory *connfact, const char clipname[40+1])
 {
 	Cliplistener *listener = new Cliplistener();
 	listener->net_channel = htonl(InterlockedIncrement(&ctx.nchannel));
@@ -501,7 +501,6 @@ int clipsrv_create_listener(ConnectionFactory *connfact, const char clipname[40+
 	strcpy(listener->clipname, clipname);
 	ctx.listeners.push_back(listener);
 	log(INFO, "listening on clip %s", clipname);
-	return 0;
 }
 
 static HBITMAP dupbitmap(HBITMAP hbitmap)
