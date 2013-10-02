@@ -641,6 +641,10 @@ void clipsrvctx::newbuf()
 	p += sizeof(localclipuuid.net);
 }
 
+static int alldatasent(rfifo_t *rfifo) {
+	return rfifo->ofs_end == rfifo->ofs_beg;
+}
+
 void clipsrvctx::fillpack()
 {
 	log(DBG, "fillpack()");
@@ -740,7 +744,7 @@ void clipsrvctx::fillpack()
 				}
 
 				if (conn->pump_send->eof) {
-					if (rfifo->ofs_end == rfifo->ofs_beg) {
+					if (alldatasent(rfifo)) {
 						/* all sent data is confirmed */
 					}
 
@@ -759,8 +763,10 @@ void clipsrvctx::fillpack()
 					memcpy(p, &subpack, sizeof(subpack));
 					p += sizeof(subpack);
 
-					if (rfifo->ofs_end == rfifo->ofs_beg) {
-						_clipsrv_unreg_cnn(u);
+					if (alldatasent(rfifo)) {
+						if (conn->pump_recv->eof && alldatasent(&conn->pump_recv->buf)) {
+							_clipsrv_unreg_cnn(u);
+						}
 						continue;
 					}
 				}
