@@ -56,7 +56,6 @@ using namespace cliptund;
 
 
 static int winet_load_cfg(char const *cfgfile);
-static void winet_cleanup(void);
 
 static int sk_timeout = -1;
 static int linger_timeo = 60;
@@ -155,19 +154,6 @@ static int winet_load_cfg(char const *cfgfilename) {
 	return 0;
 }
 
-static void winet_cleanup(void) {
-	/* TODO: Looks like we don't wait for threads, that may use 'user','pass' or 'envSnapshot'  */
-/*
-	for (i = 0; i < npmaps; i++) {
-		closesocket(pmaps[i].sock);
-		if (pmaps[i].a.lsn.user)
-			free(pmaps[i].a.lsn.user);
-		if (pmaps[i].a.lsn.pass)
-			free(pmaps[i].a.lsn.pass);
-	}
-	*/
-}
-
 int winet_stop_service(void) {
 
 	stopsvc++;
@@ -223,10 +209,6 @@ int winet_main(int argc, char const **argv) {
 	for (; !stopsvc;) {
 		evloop_processnext();
 	}
-
-//cleanup:
-	winet_cleanup();
-	WSACleanup();
 
 	return rc;
 }

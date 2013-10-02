@@ -22,6 +22,7 @@ extern "C" {
 #endif
 
 void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername);
+HANDLE dbg_CreateEvent(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, LPCTSTR lpName);
 HGLOBAL dbg_GlobalAlloc(UINT uFlags, SIZE_T dwBytes);
 void dbg_CancelIo(HANDLE hFile);
 UINT_PTR dbg_SetTimer(HWND hWnd,UINT_PTR nIDEvent,UINT uElapse,TIMERPROC lpTimerFunc, const char *timername);
@@ -52,6 +53,8 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #ifdef DEBUG_CLIPTUND
 
 #define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
+#undef CreateEvent
+#define CreateEvent dbg_CreateEvent
 #define GlobalAlloc dbg_GlobalAlloc
 #define CancelIo dbg_CancelIo
 #define SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc) dbg_SetTimer(hWnd,nIDEvent,uElapse,lpTimerFunc, #lpTimerFunc)

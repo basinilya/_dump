@@ -138,10 +138,6 @@ int evloop_processnext()
 	EnterCriticalSection(&ctx.lock);
 	if (ctx.controlEventsPool.empty()) {
 		ev = CreateEvent(NULL, FALSE, FALSE, NULL);
-		if (!ev) {
-			printf("CreateEvent() failed\n");
-			abort();
-		}
 	} else {
 		ev = ctx.controlEventsPool.back();
 		ctx.controlEventsPool.pop_back();

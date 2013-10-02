@@ -25,6 +25,16 @@ void dbg_KillTimer(HWND hWnd, UINT_PTR uIDEvent, const char *timername)
 	}
 }
 
+HANDLE dbg_CreateEvent(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, LPCTSTR lpName)
+{
+	HANDLE ev = CreateEvent(lpEventAttributes, bManualReset, bInitialState, lpName);
+	if (!ev) {
+		pWin32Error(ERR, "CreateEvent() failed");
+		abort();
+	}
+	return ev;
+}
+
 HGLOBAL dbg_GlobalAlloc(UINT uFlags, SIZE_T dwBytes)
 {
 	HGLOBAL hglob = GlobalAlloc(uFlags, dwBytes);
