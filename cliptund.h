@@ -38,18 +38,6 @@ int winet_main(int argc, char const **argv);
 char *winet_inet_ntoa(struct in_addr addr, char *buf, int size);
 int winet_inet_aton(const char *cp, struct in_addr *inp);
 
-/*
-typedef struct wsaevent_handler {
-	int (*func)(DWORD i_event, WSAEVENT ev, void *param);
-	void *param;
-} wsaevent_handler;
-
-void hEvents_add(WSAEVENT ev, const wsaevent_handler *handler_model);
-WSAEVENT *hEvents_getall();
-DWORD hEvents_size();
-wsaevent_handler *datas_get(DWORD index);
-*/
-
 #ifdef __cplusplus
 }
 #endif
@@ -57,14 +45,6 @@ wsaevent_handler *datas_get(DWORD index);
 #include <atlbase.h>
 
 typedef IUnknown ISimpleRefcount;
-
-/*
-struct ISimpleRefcount {
-	virtual ULONG STDMETHODCALLTYPE AddRef() = 0;
-	virtual ULONG STDMETHODCALLTYPE Release() = 0;
-	//virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void __RPC_FAR *__RPC_FAR *ppvObject) = 0;
-};
-*/
 
 struct SimpleRefcount : ISimpleRefcount {
 	volatile LONG refcount;
