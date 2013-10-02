@@ -38,6 +38,15 @@ static void overlap_reset(LPOVERLAPPED overlap) {
 	overlap->hEvent = ev;
 }
 
+static
+char *winet_inet_ntoa(struct in_addr addr, char *buf, int size) {
+	char const *ip;
+
+	ip = inet_ntoa(addr);
+
+	return strncpy(buf, ip, size);
+}
+
 struct TCPConnection : PinRecv, PinSend {
 	DeclRefcountMethods(tun->)
 

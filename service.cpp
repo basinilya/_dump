@@ -102,14 +102,20 @@ int main(int argc, char const *argv[]) {
 	       WINET_APPNAME, WINET_VERSION);
 
 	if (argc > 1) {
+		if (!strcmp(argv[1], "--debug")) {
+			dbgsvc = 1;
+			return debug_service(argc - 1, argv + 1);
+		}
+	}
+
+	printf("service mode is broken\n");
+	return 1;
+
+	if (argc > 1) {
 		if (!strcmp(argv[1], "--install"))
 			return install_service();
 		else if (!strcmp(argv[1], "--remove"))
 			return remove_service();
-		else if (!strcmp(argv[1], "--debug")) {
-			dbgsvc = 1;
-			return debug_service(argc - 1, argv + 1);
-		}
 	}
 
 	printf("%s --install         to install the service\n", WINET_APPNAME);

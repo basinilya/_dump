@@ -35,8 +35,6 @@ extern "C" {
 
 int winet_stop_service(void);
 int winet_main(int argc, char const **argv);
-char *winet_inet_ntoa(struct in_addr addr, char *buf, int size);
-int winet_inet_aton(const char *cp, struct in_addr *inp);
 
 #ifdef __cplusplus
 }
