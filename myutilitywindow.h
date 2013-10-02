@@ -1,5 +1,5 @@
-#ifndef _MYUTILITYWINDOW_H
-#define _MYUTILITYWINDOW_H
+#ifndef _CLIPTUN_UTILITYWINDOW_H
+#define _CLIPTUN_UTILITYWINDOW_H
 
 #include <windows.h>
 
@@ -30,4 +30,4 @@ HWND _createutilitywindow(WNDCLASS *wndclass);
 }
 #endif
 
-#endif /* _MYUTILITYWINDOW_H */
+#endif /* _CLIPTUN_UTILITYWINDOW_H */

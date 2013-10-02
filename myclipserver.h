@@ -1,5 +1,5 @@
-#ifndef _MYCLIPSERVER_H
-#define _MYCLIPSERVER_H
+#ifndef _CLIPTUN_CLIPSERVER_H
+#define _CLIPTUN_CLIPSERVER_H
 
 #include "mytunnel.h"
 

@@ -1,5 +1,5 @@
-#ifndef _MY_EVENTLOOP_H
-#define _MY_EVENTLOOP_H
+#ifndef _CLIPTUN__EVENTLOOP_H
+#define _CLIPTUN__EVENTLOOP_H
 
 #include <windows.h>
 

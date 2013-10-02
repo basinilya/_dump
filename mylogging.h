@@ -1,5 +1,5 @@
-#ifndef _MYLOGGING_H
-#define _MYLOGGING_H
+#ifndef _CLIPTUN_LOGGING_H
+#define _CLIPTUN_LOGGING_H
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,5 @@
-#ifndef _MYTUNNEL_H
-#define _MYTUNNEL_H
+#ifndef _CLIPTUN_TUNNEL_H
+#define _CLIPTUN_TUNNEL_H
 
 #include "cliptund.h"
 #include "myeventloop.h"

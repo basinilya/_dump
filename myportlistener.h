@@ -1,5 +1,5 @@
-#ifndef _MYPORTLISTENER_H
-#define _MYPORTLISTENER_H
+#ifndef _CLIPTUN_PORTLISTENER_H
+#define _CLIPTUN_PORTLISTENER_H
 
 #include "mytunnel.h"
 
