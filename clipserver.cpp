@@ -918,11 +918,8 @@ static DWORD WINAPI _clipserv_wnd_thread(void *param)
 	atexit(_clipsrv_exitproc);
 	SetConsoleCtrlHandler(_clipsrv_ctrlhandler, TRUE);
 
-	/* Not processing WM_DRAWCLIPBOARD somehow prevents SetClipboardViewer() from failure */
-	ctx.clip_opened = 1;
 	ctx.nextWnd = SetClipboardViewer(ctx.hwnd);
 	ctx.viewer_installed = 1;
-	ctx.clip_opened = 0;
 
 	SetEvent(ev_inited);
 	while (GetMessage(&msg, NULL, 0, 0))
