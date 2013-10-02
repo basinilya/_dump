@@ -120,6 +120,17 @@ void cliptund_pWinsockError(int lvl, char const *fmt, ...)
 	va_end(args);
 }
 
+static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size)
+{
+
+#ifdef _UNICODE
+	MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, size);
+#else
+	strncpy(buf, str, size);
+#endif
+	return buf;
+}
+
 static void winet_evtlog(char const *logmsg, long type) {
 	DWORD err;
 	HANDLE hesrc;

@@ -62,49 +62,6 @@ static int sk_timeout = -1;
 static int linger_timeo = 60;
 static int stopsvc;
 
-
-_TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size)
-{
-
-#ifdef _UNICODE
-	MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, size);
-#else
-	strncpy(buf, str, size);
-#endif
-	return buf;
-}
-
-/*
-typedef struct data_recv {
-	SOCKET sock;
-} data_recv;
-
-static int recv_handler_func(DWORD i_event, WSAEVENT ev, void *param)
-{
-	WSANETWORKEVENTS netevs;
-	data_recv *data = (data_recv *)param;
-
-	if (0 != WSAEnumNetworkEvents(data->sock, ev, &netevs)) {
-		pWinsockError(ERR, "WSAEnumNetworkEvents() failed");
-		return -1;
-	}
-	if (netevs.lNetworkEvents & FD_READ) {
-		int i;
-		char buf[100];
-		i = netevs.iErrorCode[FD_READ_BIT];
-		if (i != 0) {
-			winet_log(ERR, "[%s] FD_READ failed with error %d\n", WINET_APPNAME, i);
-			return -1;
-		}
-		i = recv(data->sock, buf, 100, 0);
-		i = 0;
-	}
-
-	return 0;
-}
-*/
-
-
 #undef STRINGIZE2
 #undef STRINGIZE
 #define STRINGIZE2(x) #x
@@ -154,7 +111,7 @@ static int winet_load_cfg(char const *cfgfilename) {
 							if (pword < pwordend && sscanf(*pword, "%hd", &port) == 1) {
 								pword++;
 								connfact = tcp_CreateConnectionFactory(*host, port);
-								goto aaa;
+								goto connfact_ok;
 							}
 						}
 					}
@@ -164,11 +121,11 @@ static int winet_load_cfg(char const *cfgfilename) {
 						word_t *pclipname = pword;
 						pword++;
 						connfact = clipsrv_CreateConnectionFactory(*pclipname);
-						goto aaa;
+						goto connfact_ok;
 					}
 				}
 				continue;
-				aaa:
+				connfact_ok:
 				if (pword < pwordend && 0 == strcmp(*pword, "listen")) {
 					pword++;
 					if (pword < pwordend && 0 == strcmp(*pword, "port")) {

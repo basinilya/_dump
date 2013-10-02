@@ -18,7 +18,6 @@ void cliptund_pSysError(int lvl, char const *fmt, ...);
 void cliptund_pWinsockError(int lvl, char const *fmt, ...);
 void cliptund_pWin32Error(int lvl, char const *fmt, ...);
 void cliptund_log(int lvl, char const *fmt, ...);
-_TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size);
 
 #ifdef __cplusplus
 }
