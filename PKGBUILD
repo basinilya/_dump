@@ -1,6 +1,6 @@
 pkgname="gedit-textwrap-plugin"
 pkgver=0.2.1
-pkgrel=0
+pkgrel=3
 pkgdesc="Toggle Text Wrap Setting by Menu Entry or Toolbar Button"
 url="http://hartmann-it-design.de/gedit/TextWrap/"
 license=("GPL3")
@@ -15,5 +15,5 @@ build() {
     install -m644 TextWrap.plugin TextWrap.py $pkgdir/usr/lib/gedit/plugins
 }
 
-md5sums=('c190755749c7397864ab86bc6f788a18'
-         '767e2e8eed17a6d79f13813c5d419c66')
+md5sums=('0d18547dacebe144229ed05f3f01c6f3'
+         '8ff3cf38c7ac770c071208add0c2f4d3')
