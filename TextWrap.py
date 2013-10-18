@@ -47,8 +47,7 @@
 
 
 # import basic requisites
-import gedit
-import gtk
+from gi.repository import GObject, Gtk, Gedit
 
 # for the texts in the UI elements we use gettext (do we realy?)
 from gettext import gettext as _
@@ -96,7 +95,7 @@ class ToggleTextWrapHelper:
         _active_view = self._window.get_active_view()
         try:
             _current_wrap_mode = _active_view.get_wrap_mode()
-            if _current_wrap_mode == gtk.WRAP_NONE:
+            if _current_wrap_mode == Gtk.WrapMode.NONE:
                 self._initial_toggle_state = False
             else:
                 self._initial_toggle_state = True
@@ -123,12 +122,12 @@ class ToggleTextWrapHelper:
         # Get the GtkUIManager
         self._manager = self._window.get_ui_manager()
         # Create a new action group
-        self._action_group = gtk.ActionGroup("PluginActions")
+        self._action_group = Gtk.ActionGroup("PluginActions")
         
         ## LEFT IN AS AN EXAMPLE:
         ## Create a toggle action (the classic way) ...
-        #self._toggle_linebreak_action = gtk.ToggleAction(name="ToggleTextWrap", label="Text Wrap", tooltip="Toggle Current Text Wrap Setting", stock_id=gtk.STOCK_EXECUTE)
-        #self._toggle_linebreak_action = gtk.ToggleAction(name="ToggleTextWrap", label="Text Wrap", tooltip="Toggle Current Text Wrap Setting", file="gtk-execute.png")
+        #self._toggle_linebreak_action = Gtk.ToggleAction(name="ToggleTextWrap", label="Text Wrap", tooltip="Toggle Current Text Wrap Setting", stock_id=Gtk.STOCK_EXECUTE)
+        #self._toggle_linebreak_action = Gtk.ToggleAction(name="ToggleTextWrap", label="Text Wrap", tooltip="Toggle Current Text Wrap Setting", file="gtk-execute.png")
         ## connect my callback function to the action ...
         #self._toggle_linebreak_action.connect("activate", self.on_toggle_linebreak)
         ## and add the action with Ctrl+Shift+L as its keyboard shortcut
@@ -136,13 +135,13 @@ class ToggleTextWrapHelper:
         ## END OF EXAMPLE CODE
         
         # Create a toggle action (convenience way: see 16.1.2.2. in PyGTK Manual)
-        #gtk.STOCK_INSERT_CROSS_REFERENCE
-        #gtk.STOCK_INSERT-CROSS-REFERENCE
-        #gtk.STOCK_INSERT_FOOTNOTE
+        #Gtk.STOCK_INSERT_CROSS_REFERENCE
+        #Gtk.STOCK_INSERT-CROSS-REFERENCE
+        #Gtk.STOCK_INSERT_FOOTNOTE
         #None
         self._action_group.add_toggle_actions([(
                 "ToggleTextWrap", 
-                gtk.STOCK_OK, 
+                Gtk.STOCK_OK, 
                 _("Text Wrap"), 
                 "<Ctrl><Shift>B", 
                 _("Toggle Current Text Wrap Setting"), 
@@ -179,7 +178,7 @@ class ToggleTextWrapHelper:
                 print "Plugin", plugin_name, "current wrap mode", _current_wrap_mode
             # Get our action and set state according to current wrap mode
             _current_action = self._action_group.get_action("ToggleTextWrap")
-            if _current_wrap_mode == gtk.WRAP_NONE:
+            if _current_wrap_mode == Gtk.WrapMode.NONE:
                 _current_action.set_active(False)
             else:
                 _current_action.set_active(True)
@@ -187,7 +186,7 @@ class ToggleTextWrapHelper:
             return
 
 
-    def on_toggle_linebreak(self, action):
+    def on_toggle_linebreak(self, action, _dummy):
         if self._DEBUG:
             print "Plugin", plugin_name, "action in", self._window
         _active_view = self._window.get_active_view()
@@ -199,9 +198,9 @@ class ToggleTextWrapHelper:
         if self._DEBUG:
             print "Plugin", plugin_name, "current action state", _is_active
         if _is_active:
-            _active_view.set_wrap_mode(gtk.WRAP_WORD)
+            _active_view.set_wrap_mode(Gtk.WrapMode.WORD)
         else:
-            _active_view.set_wrap_mode(gtk.WRAP_NONE)
+            _active_view.set_wrap_mode(Gtk.WrapMode.NONE)
 
 
     def _console(self, vartext):
@@ -212,22 +211,21 @@ class ToggleTextWrapHelper:
 
 
 # define the plugin derivate class
-class ToggleTextWrapPlugin(gedit.Plugin):
+class ToggleTextWrapPlugin(GObject.Object, Gedit.WindowActivatable):
+
+    window = GObject.property(type=Gedit.Window)
 
     def __init__(self):
-        gedit.Plugin.__init__(self)
+        GObject.Object.__init__(self)
         self._instances = {}
 
+    def do_activate(self):
+        self._instances[self.window] = ToggleTextWrapHelper(self, self.window)
 
-    def activate(self, window):
-        self._instances[window] = ToggleTextWrapHelper(self, window)
+    def do_deactivate(self):
+        self._instances[self.window].deactivate()
+        del self._instances[self.window]
 
-
-    def deactivate(self, window):
-        self._instances[window].deactivate()
-        del self._instances[window]
-
-
-    def update_ui(self, window):
-        self._instances[window].update_ui()
+    def do_update_state(self):
+        self._instances[self.window].update_ui()
 
