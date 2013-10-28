@@ -33,7 +33,7 @@ build() {
   make install dst_dir=${pkgdir}
   cp -f ${pkgdir}/etc/sysconfig/ss5 ${startdir}/ss5.confd
   rm -rf ${pkgdir}/etc/sysconfig
-  rm -rf ${pkgdir}/etc/rc.d/init.d
+  rm -rf ${pkgdir}/etc/rc.d
   
   install -D -m644 ${startdir}/ss5.confd ${pkgdir}/etc/conf.d/ss5
   install -D -m644 ${srcdir}/ss5.service ${pkgdir}/usr/lib/systemd/system/ss5.service
