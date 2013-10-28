@@ -21,7 +21,7 @@ build() {
 
   autoconf
   EXTRA_LIBS='-lcrypto' ./configure --with-libpath=/usr/lib \
-  --with-conf_path_base=/etc \
+  --with-confpathbase=/etc \
   --with-passwordfile=/etc/ss5/ss5.passwd \
   --with-configfile=/etc/ss5/ss5.conf \
   --with-profilepath=/etc/ss5 \
