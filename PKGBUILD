@@ -1,5 +1,6 @@
 # Contributor: <fedor@yu.wildpark.net>
-# Contributor: miau9202
+# Contributor: miau9202 ( https://aur.archlinux.org/account/miau9202/ )
+# Contributor: leniviy ( https://aur.archlinux.org/account/leniviy/ )
 
 pkgname=ss5
 pkgver=3.8.9_8
@@ -20,7 +21,7 @@ build() {
 
   autoconf
   EXTRA_LIBS='-lcrypto' ./configure --with-libpath=/usr/lib \
-  --with-confpathbase=/etc \
+  --with-conf_path_base=/etc \
   --with-passwordfile=/etc/ss5/ss5.passwd \
   --with-configfile=/etc/ss5/ss5.conf \
   --with-profilepath=/etc/ss5 \
