@@ -21,6 +21,8 @@ build() {
 
   patch -Np1 -i ${srcdir}/peersfile.patch
 
+  [ x"$CFLAGS" = x ] || export CFLAGS=${CFLAGS//-D_FORTIFY_SOURCE=2/} # workaround bad use of snprintf()
+
   autoconf
   EXTRA_LIBS='-lcrypto' ./configure --with-libpath=/usr/lib \
   --with-confpathbase=/etc \
