@@ -34,11 +34,24 @@
 #include <string.h>
 #include <math.h>
 
+extern "C" {
+
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
+
+}
+
+#undef av_err2str
+struct _av_err2str_buf {
+	char buf[AV_ERROR_MAX_STRING_SIZE];
+};
+
+#define av_err2str(errnum) \
+    av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
+
 
 /* 5 seconds stream duration */
 #define STREAM_DURATION   200.0
