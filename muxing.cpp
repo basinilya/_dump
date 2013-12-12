@@ -484,6 +484,8 @@ int main(int argc, char **argv)
     AVOutputFormat *fmt;
     AVFormatContext *oc;
     AVStream *audio_st, *video_st;
+    AVStream *tmp_video_st;
+    int allow_one_frame = 0;
     AVCodec *audio_codec, *video_codec;
     double audio_time, video_time;
     int ret;
@@ -514,6 +516,11 @@ int main(int argc, char **argv)
         return 1;
     }
     fmt = oc->oformat;
+
+    if (0 == strcmp(fmt->name, "mp3")) {
+        allow_one_frame = 1;
+        //av_opt_set_int(oc->priv_data, "id3v2_version", 3, 0);
+    }
 
     /* Add the audio and video streams using the default format codecs
      * and initialize the codecs. */
@@ -556,6 +563,9 @@ int main(int argc, char **argv)
 
     if (frame)
         frame->pts = 0;
+
+    tmp_video_st = video_st;
+    #define video_st tmp_video_st
     for (;;) {
         /* Compute current audio and video time. */
         audio_time = audio_st ? audio_st->pts.val * av_q2d(audio_st->time_base) : 0.0;
@@ -568,11 +578,14 @@ int main(int argc, char **argv)
         /* write interleaved audio and video frames */
         if (!video_st || (video_st && audio_st && audio_time < video_time)) {
             write_audio_frame(oc, audio_st);
+        } else if (allow_one_frame && frame_count != 0) {
+            tmp_video_st = NULL;
         } else {
             write_video_frame(oc, video_st);
             frame->pts += av_rescale_q(1, video_st->codec->time_base, video_st->time_base);
         }
     }
+    #undef video_st
 
     /* Write the trailer, if any. The trailer must be written before you
      * close the CodecContexts open when you wrote the header; otherwise
