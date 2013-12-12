@@ -58,6 +58,7 @@ struct _av_err2str_buf {
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_NB_FRAMES  ((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
+#define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
 
 static int sws_flags = SWS_BICUBIC;
 
@@ -65,6 +66,8 @@ static int sws_flags = SWS_BICUBIC;
 static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
                             enum AVCodecID codec_id)
 {
+    const AVSampleFormat *psamfmt;
+    const AVPixelFormat *ppixfmt;
     AVCodecContext *c;
     AVStream *st;
 
@@ -86,7 +89,15 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
 
     switch ((*codec)->type) {
     case AVMEDIA_TYPE_AUDIO:
-        c->sample_fmt  = AV_SAMPLE_FMT_FLTP;
+        for (psamfmt = (*codec)->sample_fmts;; psamfmt++) {
+            if (*psamfmt == STREAM_SAMPLE_FMT) {
+                c->sample_fmt       = STREAM_SAMPLE_FMT;
+                break;
+            } else if (*psamfmt == -1) {
+                c->sample_fmt       = (*codec)->sample_fmts[0];
+                break;
+            }
+        }
         c->bit_rate    = 64000;
         c->sample_rate = 44100;
         c->channels    = 2;
@@ -106,7 +117,16 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
         c->time_base.den = STREAM_FRAME_RATE;
         c->time_base.num = 1;
         c->gop_size      = 12; /* emit one intra frame every twelve frames at most */
-        c->pix_fmt       = STREAM_PIX_FMT;
+        for (ppixfmt = (*codec)->pix_fmts;; ppixfmt++) {
+            if (*ppixfmt == STREAM_PIX_FMT) {
+                c->pix_fmt       = STREAM_PIX_FMT;
+                break;
+            }
+            if (*ppixfmt == -1) {
+                c->pix_fmt       = (*codec)->pix_fmts[0];
+                break;
+            }
+        }
         if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
             /* just for testing, we also add B frames */
             c->max_b_frames = 2;
