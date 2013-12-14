@@ -1,14 +1,10 @@
 #include <stdio.h>
 
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 #include <libavformat/avformat.h>
 
-#ifdef __cplusplus
 }
-#endif
 
 #undef av_err2str
 struct _av_err2str_buf {
@@ -19,17 +15,9 @@ struct _av_err2str_buf {
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
 
 #define STREAM_DURATION 30.0
+#define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
 
-static float t, tincr, tincr2;
-static uint8_t **src_samples_data;
-static int       src_samples_linesize;
-static int       src_nb_samples;
-
-static int max_dst_nb_samples;
-static uint8_t **dst_samples_data;
-static int       dst_samples_linesize;
-static int       dst_samples_size;
-
+/* Add an output stream. */
 static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
                             enum AVCodecID codec_id)
 {
@@ -49,12 +37,19 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
         fprintf(stderr, "Could not allocate stream\n");
         exit(1);
     }
-
     st->id = oc->nb_streams-1;
-
     c = st->codec;
 
-    c->sample_fmt  = AV_SAMPLE_FMT_FLTP;
+    const AVSampleFormat *psamfmt;
+    for (psamfmt = (*codec)->sample_fmts;; psamfmt++) {
+        if (*psamfmt == STREAM_SAMPLE_FMT) {
+            c->sample_fmt       = STREAM_SAMPLE_FMT;
+            break;
+        } else if (*psamfmt == -1) {
+            c->sample_fmt       = (*codec)->sample_fmts[0];
+            break;
+        }
+    }
     c->bit_rate    = 64000;
     c->sample_rate = 44100;
     c->channels    = 2;
@@ -65,6 +60,20 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
 
     return st;
 }
+
+/**************************************************************/
+/* audio output */
+
+static float t, tincr, tincr2;
+static uint8_t **src_samples_data;
+static int       src_samples_linesize;
+static int       src_nb_samples;
+
+static int max_dst_nb_samples;
+static uint8_t **dst_samples_data;
+static int       dst_samples_linesize;
+static int       dst_samples_size;
+
 
 static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
@@ -184,6 +193,9 @@ int main(int argc, char* argv[])
     return main1(argc, argv);
 
 	int ret;
+/**************************************************************/
+/* media file output */
+
     AVOutputFormat *fmt;
 	AVFormatContext *oc;
     AVStream *audio_st;
@@ -211,7 +223,7 @@ int main(int argc, char* argv[])
     if (ret < 0) {
         fprintf(stderr, "Could not open '%s': %s\n", filename,
                 av_err2str(ret));
-        exit(1);
+            return 1;
     }
 
     /* Write the stream header, if any. */
