@@ -89,8 +89,7 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
             if (*ppixfmt == STREAM_PIX_FMT) {
                 c->pix_fmt       = STREAM_PIX_FMT;
                 break;
-            }
-            if (*ppixfmt == -1) {
+            } else if (*ppixfmt == -1) {
                 c->pix_fmt       = (*codec)->pix_fmts[0];
                 break;
             }
