@@ -131,7 +131,7 @@ static uint8_t **dst_samples_data;
 static int       dst_samples_linesize;
 static int       dst_samples_size;
 
-struct SwrContext *swr_ctx = NULL;
+static struct SwrContext *swr_ctx = NULL;
 
 static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
@@ -569,6 +569,8 @@ int main1(int argc, char **argv)
     if (!(fmt->flags & AVFMT_NOFILE))
         /* Close the output file. */
         avio_close(oc->pb);
+
+    if (swr_ctx) swr_free(&swr_ctx);
 
     /* free the stream */
     avformat_free_context(oc);

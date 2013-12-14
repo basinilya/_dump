@@ -2,7 +2,11 @@
 
 extern "C" {
 
+#include <libavutil/opt.h>
+#include <libavutil/mathematics.h>
 #include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
 
 }
 
@@ -74,6 +78,7 @@ static uint8_t **dst_samples_data;
 static int       dst_samples_linesize;
 static int       dst_samples_size;
 
+static struct SwrContext *swr_ctx = NULL;
 
 static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
@@ -103,6 +108,29 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
     if (ret < 0) {
         fprintf(stderr, "Could not allocate source samples\n");
         exit(1);
+    }
+
+    /* create resampler context */
+    if (c->sample_fmt != AV_SAMPLE_FMT_S16) {
+        swr_ctx = swr_alloc();
+        if (!swr_ctx) {
+            fprintf(stderr, "Could not allocate resampler context\n");
+            exit(1);
+        }
+
+        /* set options */
+        av_opt_set_int       (swr_ctx, "in_channel_count",   c->channels,       0);
+        av_opt_set_int       (swr_ctx, "in_sample_rate",     c->sample_rate,    0);
+        av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt",      AV_SAMPLE_FMT_S16, 0);
+        av_opt_set_int       (swr_ctx, "out_channel_count",  c->channels,       0);
+        av_opt_set_int       (swr_ctx, "out_sample_rate",    c->sample_rate,    0);
+        av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt",     c->sample_fmt,     0);
+
+        /* initialize the resampling context */
+        if ((ret = swr_init(swr_ctx)) < 0) {
+            fprintf(stderr, "Failed to initialize the resampling context\n");
+            exit(1);
+        }
     }
 
     /* compute the number of converted samples: buffering is avoided
@@ -149,8 +177,33 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st)
     get_audio_frame((int16_t *)src_samples_data[0], src_nb_samples, c->channels);
 
     /* convert samples from native format to destination codec format, using the resampler */
-    dst_samples_data[0] = src_samples_data[0];
-    dst_nb_samples = src_nb_samples;
+    if (swr_ctx) {
+        /* compute destination number of samples */
+        dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, c->sample_rate) + src_nb_samples,
+                                        c->sample_rate, c->sample_rate, AV_ROUND_UP);
+        if (dst_nb_samples > max_dst_nb_samples) {
+            av_free(dst_samples_data[0]);
+            ret = av_samples_alloc(dst_samples_data, &dst_samples_linesize, c->channels,
+                                   dst_nb_samples, c->sample_fmt, 0);
+            if (ret < 0)
+                exit(1);
+            max_dst_nb_samples = dst_nb_samples;
+            dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, dst_nb_samples,
+                                                          c->sample_fmt, 0);
+        }
+
+        /* convert to destination format */
+        ret = swr_convert(swr_ctx,
+                          dst_samples_data, dst_nb_samples,
+                          (const uint8_t **)src_samples_data, src_nb_samples);
+        if (ret < 0) {
+            fprintf(stderr, "Error while converting\n");
+            exit(1);
+        }
+    } else {
+        dst_samples_data[0] = src_samples_data[0];
+        dst_nb_samples = src_nb_samples;
+    }
 
     frame->nb_samples = dst_nb_samples;
     avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
@@ -192,7 +245,7 @@ int main1(int argc, char **argv);
 /* media file output */
 int main(int argc, char* argv[])
 {
-    return main1(argc, argv);
+    //return main1(argc, argv);
 
     AVOutputFormat *fmt;
     AVFormatContext *oc;
@@ -256,6 +309,8 @@ int main(int argc, char* argv[])
 
     /* Close the output file. */
     avio_close(oc->pb);
+
+    if (swr_ctx) swr_free(&swr_ctx);
 
     avformat_free_context(oc);
     return 0;
