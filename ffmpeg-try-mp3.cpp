@@ -188,28 +188,28 @@ static const char filename[] = "out.mp3";
 
 int main1(int argc, char **argv);
 
-int main(int argc, char* argv[])
-{
-    return main1(argc, argv);
-
-	int ret;
 /**************************************************************/
 /* media file output */
+int main(int argc, char* argv[])
+{
+    //return main1(argc, argv);
 
     AVOutputFormat *fmt;
-	AVFormatContext *oc;
+    AVFormatContext *oc;
     AVStream *audio_st;
     AVCodec *audio_codec;
     double audio_time;
+    int ret;
 
-	av_register_all();
-	ret = avformat_alloc_output_context2(&oc, NULL, NULL, filename);
-	if (ret < 0) {
-		char errbuf[200];
-		av_make_error_string(errbuf, sizeof(errbuf), ret);
-		fprintf(stderr, "%s\n", errbuf);
-		exit(1);
-	}
+    /* Initialize libavcodec, and register all codecs and formats. */
+    av_register_all();
+    ret = avformat_alloc_output_context2(&oc, NULL, NULL, filename);
+    if (ret < 0) {
+	    char errbuf[200];
+	    av_make_error_string(errbuf, sizeof(errbuf), ret);
+	    fprintf(stderr, "%s\n", errbuf);
+	    exit(1);
+    }
     fmt = oc->oformat;
     audio_st = add_stream(oc, &audio_codec, fmt->audio_codec);
 
@@ -218,7 +218,7 @@ int main(int argc, char* argv[])
     open_audio(oc, audio_codec, audio_st);
 
     av_dump_format(oc, 0, filename, 1);
-    
+
     ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
     if (ret < 0) {
         fprintf(stderr, "Could not open '%s': %s\n", filename,
@@ -258,5 +258,5 @@ int main(int argc, char* argv[])
     avio_close(oc->pb);
 
     avformat_free_context(oc);
-	return 0;
+    return 0;
 }
