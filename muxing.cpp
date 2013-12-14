@@ -164,7 +164,7 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
     }
 
     /* create resampler context */
-    if (0 && c->sample_fmt != AV_SAMPLE_FMT_S16) {
+    if (c->sample_fmt != AV_SAMPLE_FMT_S16) {
         swr_ctx = swr_alloc();
         if (!swr_ctx) {
             fprintf(stderr, "Could not allocate resampler context\n");

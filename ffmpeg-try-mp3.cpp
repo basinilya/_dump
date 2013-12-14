@@ -192,7 +192,7 @@ int main1(int argc, char **argv);
 /* media file output */
 int main(int argc, char* argv[])
 {
-    //return main1(argc, argv);
+    return main1(argc, argv);
 
     AVOutputFormat *fmt;
     AVFormatContext *oc;
