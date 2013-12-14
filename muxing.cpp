@@ -54,7 +54,7 @@ struct _av_err2str_buf {
 
 
 /* 5 seconds stream duration */
-#define STREAM_DURATION   200.0
+#define STREAM_DURATION   30.0
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_NB_FRAMES  ((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
@@ -478,7 +478,7 @@ static void close_video(AVFormatContext *oc, AVStream *st)
 /**************************************************************/
 /* media file output */
 
-int main(int argc, char **argv)
+int main1(int argc, char **argv)
 {
     const char *filename;
     AVOutputFormat *fmt;
