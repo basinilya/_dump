@@ -41,7 +41,7 @@
 				Name="VCCLCompilerTool"
 				AdditionalOptions="-D__STDC_CONSTANT_MACROS"
 				Optimization="0"
-				AdditionalIncludeDirectories="compat2005;&quot;../ffmpeg-20131211-git-43f9255-win32-dev/include&quot;"
+				AdditionalIncludeDirectories="compat2005;&quot;../ffmpeg-win32-dev/include&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -65,7 +65,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="swscale.lib swresample.lib avcodec.lib avformat.lib avutil.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;../ffmpeg-20131211-git-43f9255-win32-dev/lib&quot;"
+				AdditionalLibraryDirectories="&quot;../ffmpeg-win32-dev/lib&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -121,7 +121,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalOptions="-D__STDC_CONSTANT_MACROS"
-				AdditionalIncludeDirectories="compat2005;&quot;../ffmpeg-20131211-git-43f9255-win32-dev/include&quot;"
+				AdditionalIncludeDirectories="compat2005;&quot;../ffmpeg-win32-dev/include&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
@@ -143,7 +143,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="swscale.lib swresample.lib avcodec.lib avformat.lib avutil.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;../ffmpeg-20131211-git-43f9255-win32-dev/lib&quot;"
+				AdditionalLibraryDirectories="&quot;../ffmpeg-win32-dev/lib&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -187,24 +187,10 @@
 			<File
 				RelativePath=".\ffmpeg-try-mp3.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\muxing.cpp"
 				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
 			</File>
 		</Filter>
 		<Filter

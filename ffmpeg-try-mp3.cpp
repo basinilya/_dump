@@ -21,6 +21,7 @@ struct _av_err2str_buf {
 static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
                             enum AVCodecID codec_id)
 {
+    const AVSampleFormat *psamfmt;
     AVCodecContext *c;
     AVStream *st;
 
@@ -40,7 +41,6 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
     st->id = oc->nb_streams-1;
     c = st->codec;
 
-    const AVSampleFormat *psamfmt;
     for (psamfmt = (*codec)->sample_fmts;; psamfmt++) {
         if (*psamfmt == STREAM_SAMPLE_FMT) {
             c->sample_fmt       = STREAM_SAMPLE_FMT;

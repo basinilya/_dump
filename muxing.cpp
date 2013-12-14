@@ -165,7 +165,7 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
     }
 
     /* create resampler context */
-    if (c->sample_fmt != AV_SAMPLE_FMT_S16) {
+    if (0 && c->sample_fmt != AV_SAMPLE_FMT_S16) {
         swr_ctx = swr_alloc();
         if (!swr_ctx) {
             fprintf(stderr, "Could not allocate resampler context\n");
@@ -487,7 +487,7 @@ int main1(int argc, char **argv)
 
     if (0 == strcmp(fmt->name, "mp3")) {
         allow_one_frame = 1;
-        //av_opt_set_int(oc->priv_data, "id3v2_version", 3, 0);
+        av_opt_set_int(oc->priv_data, "id3v2_version", 3, 0);
     }
 
     /* Add the audio and video streams using the default format codecs
