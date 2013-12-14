@@ -42,7 +42,7 @@
 				AdditionalOptions="-D__STDC_CONSTANT_MACROS"
 				Optimization="0"
 				AdditionalIncludeDirectories="compat2005;&quot;../ffmpeg-win32-dev/include&quot;"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRTDBG_MAP_ALLOC"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"

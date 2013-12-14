@@ -18,11 +18,14 @@ struct _av_err2str_buf {
 #define av_err2str(errnum) \
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
 
-#define STREAM_DURATION 30.0
+#define STREAM_DURATION 0.2
 #define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
 
+static const char filename[] = "out.mp3";
+
+struct Bue {
 /* Add an output stream. */
-static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
+AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
                             enum AVCodecID codec_id)
 {
     const AVSampleFormat *psamfmt;
@@ -68,19 +71,22 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
 /**************************************************************/
 /* audio output */
 
-static float t, tincr, tincr2;
-static uint8_t **src_samples_data;
-static int       src_samples_linesize;
-static int       src_nb_samples;
+float t, tincr, tincr2;
+uint8_t **src_samples_data;
+int       src_samples_linesize;
+int       src_nb_samples;
 
-static int max_dst_nb_samples;
-static uint8_t **dst_samples_data;
-static int       dst_samples_linesize;
-static int       dst_samples_size;
+int max_dst_nb_samples;
+uint8_t **dst_samples_data;
+int       dst_samples_linesize;
+int       dst_samples_size;
 
-static struct SwrContext *swr_ctx = NULL;
+struct SwrContext *swr_ctx;
+Bue() {
+    swr_ctx = NULL;
+}
 
-static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
+void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
     AVCodecContext *c;
     int ret;
@@ -149,7 +155,7 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 
 /* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
  * 'nb_channels' channels. */
-static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
+void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
 {
     int j, i, v;
     int16_t *q;
@@ -164,7 +170,7 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
     }
 }
 
-static void write_audio_frame(AVFormatContext *oc, AVStream *st)
+void write_audio_frame(AVFormatContext *oc, AVStream *st)
 {
     AVCodecContext *c;
     AVPacket pkt = { 0 }; // data and size must be 0;
@@ -230,23 +236,17 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st)
     avcodec_free_frame(&frame);
 }
 
-static void close_audio(AVFormatContext *oc, AVStream *st)
+void close_audio(AVFormatContext *oc, AVStream *st)
 {
     avcodec_close(st->codec);
     av_free(src_samples_data[0]);
     av_free(dst_samples_data[0]);
 }
 
-static const char filename[] = "out.mp3";
-
-int main1(int argc, char **argv);
-
 /**************************************************************/
 /* media file output */
-int main(int argc, char* argv[])
+int main()
 {
-    //return main1(argc, argv);
-
     AVOutputFormat *fmt;
     AVFormatContext *oc;
     AVStream *audio_st;
@@ -255,7 +255,6 @@ int main(int argc, char* argv[])
     int ret;
 
     /* Initialize libavcodec, and register all codecs and formats. */
-    av_register_all();
     ret = avformat_alloc_output_context2(&oc, NULL, NULL, filename);
     if (ret < 0) {
 	    char errbuf[200];
@@ -313,5 +312,29 @@ int main(int argc, char* argv[])
     if (swr_ctx) swr_free(&swr_ctx);
 
     avformat_free_context(oc);
+    return 0;
+}
+};
+
+//int main1(int argc, char **argv);
+
+int main(int argc, char* argv[])
+{
+    //return main1(argc, argv);
+    av_register_all();
+    av_log_set_level(AV_LOG_QUIET);
+
+    Bue *bue;
+
+    bue = new Bue();
+    bue->main();
+    delete bue;
+
+    bue = new Bue();
+    bue->main();
+    delete bue;
+
+    //for(int i = 0;; i++) {   }
+
     return 0;
 }
