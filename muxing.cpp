@@ -1,34 +1,3 @@
-/*
- * Copyright (c) 2003 Fabrice Bellard
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
-/**
- * @file
- * libavformat API example.
- *
- * Output a media file in any supported libavformat format.
- * The default codecs are used.
- * @example doc/examples/muxing.c
- */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -53,7 +22,6 @@ struct _av_err2str_buf {
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
 
 
-/* 5 seconds stream duration */
 #define STREAM_DURATION   30.0
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_NB_FRAMES  ((int)(STREAM_DURATION * STREAM_FRAME_RATE))
@@ -160,9 +128,9 @@ static int       src_samples_linesize;
 static int       src_nb_samples;
 
 static int max_dst_nb_samples;
-uint8_t **dst_samples_data;
-int       dst_samples_linesize;
-int       dst_samples_size;
+static uint8_t **dst_samples_data;
+static int       dst_samples_linesize;
+static int       dst_samples_size;
 
 struct SwrContext *swr_ctx = NULL;
 
@@ -182,9 +150,9 @@ static void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 
     /* init signal generator */
     t     = 0;
-    tincr = 2 * M_PI * 110.0 / c->sample_rate;
+    tincr = (float)(2 * M_PI * 110.0 / c->sample_rate);
     /* increment frequency by 110 Hz per second */
-    tincr2 = 2 * M_PI * 110.0 / c->sample_rate / c->sample_rate;
+    tincr2 = (float)(2 * M_PI * 110.0 / c->sample_rate / c->sample_rate);
 
     src_nb_samples = c->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE ?
         10000 : c->frame_size;
