@@ -344,11 +344,11 @@ int main()
 }
 };
 
-//int main1(int argc, char **argv);
+int main1(int argc, char **argv);
 
 int main(int argc, char* argv[])
 {
-    //return main1(argc, argv);
+    return main1(argc, argv);
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
 
