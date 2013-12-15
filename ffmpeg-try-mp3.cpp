@@ -10,10 +10,6 @@ extern "C" {
 
 }
 
-//#include <map>
-//#include <string>
-//using namespace std;
-
 #undef av_err2str
 struct _av_err2str_buf {
 	char buf[AV_ERROR_MAX_STRING_SIZE];
@@ -28,10 +24,6 @@ struct _av_err2str_buf {
 static const char filename[] = "out.mp3";
 
 struct Bue {
-
-//map<string, int> allocs;
-#define allocs_inc(name) //(allocs[name]++)
-#define allocs_dec(name) //(allocs[name]--)
 
 /* Add an output stream. */
 AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
