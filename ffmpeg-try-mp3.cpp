@@ -54,7 +54,6 @@ AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
         fprintf(stderr, "Could not allocate stream\n");
         exit(1);
     }
-    // closed with the file allocs_inc("AVStream");
     st->id = oc->nb_streams-1;
     c = st->codec;
 
@@ -121,12 +120,16 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
         10000 : c->frame_size;
 
     ret = av_samples_alloc_array_and_samples(&src_samples_data, &src_samples_linesize, c->channels,
-                                             src_nb_samples, c->sample_fmt, 0);
+                                             src_nb_samples, AV_SAMPLE_FMT_S16, 0);
     if (ret < 0) {
         fprintf(stderr, "Could not allocate source samples\n");
         exit(1);
     }
-    allocs_inc("uint8_t*");
+
+    /* compute the number of converted samples: buffering is avoided
+     * ensuring that the output buffer will contain at least all the
+     * converted input samples */
+    max_dst_nb_samples = src_nb_samples;
 
     /* create resampler context */
     if (c->sample_fmt != AV_SAMPLE_FMT_S16) {
@@ -135,7 +138,6 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
             fprintf(stderr, "Could not allocate resampler context\n");
             exit(1);
         }
-        allocs_inc("SwrContext");
 
         /* set options */
         av_opt_set_int       (swr_ctx, "in_channel_count",   c->channels,       0);
@@ -150,19 +152,16 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
             fprintf(stderr, "Failed to initialize the resampling context\n");
             exit(1);
         }
-    }
 
-    /* compute the number of converted samples: buffering is avoided
-     * ensuring that the output buffer will contain at least all the
-     * converted input samples */
-    max_dst_nb_samples = src_nb_samples;
     ret = av_samples_alloc_array_and_samples(&dst_samples_data, &dst_samples_linesize, c->channels,
                                              max_dst_nb_samples, c->sample_fmt, 0);
     if (ret < 0) {
         fprintf(stderr, "Could not allocate destination samples\n");
         exit(1);
     }
-    allocs_inc("uint8_t*");
+    } else {
+        dst_samples_data = src_samples_data;
+    }
     dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, max_dst_nb_samples,
                                                   c->sample_fmt, 0);
 }
@@ -189,7 +188,6 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
     AVCodecContext *c;
     AVPacket pkt = { 0 }; // data and size must be 0;
     AVFrame *frame = av_frame_alloc();
-    allocs_inc("AVFrame");
     int got_packet, ret, dst_nb_samples;
 
     av_init_packet(&pkt);
@@ -203,13 +201,11 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
         dst_nb_samples = av_rescale_rnd(swr_get_delay(swr_ctx, c->sample_rate) + src_nb_samples,
                                         c->sample_rate, c->sample_rate, AV_ROUND_UP);
         if (dst_nb_samples > max_dst_nb_samples) {
-            allocs_dec("uint8_t*");
             av_free(dst_samples_data[0]);
             ret = av_samples_alloc(dst_samples_data, &dst_samples_linesize, c->channels,
                                    dst_nb_samples, c->sample_fmt, 0);
             if (ret < 0)
                 exit(1);
-            allocs_inc("uint8_t*");
             max_dst_nb_samples = dst_nb_samples;
             dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, dst_nb_samples,
                                                           c->sample_fmt, 0);
@@ -224,7 +220,6 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
             exit(1);
         }
     } else {
-        dst_samples_data[0] = src_samples_data[0];
         dst_nb_samples = src_nb_samples;
     }
 
@@ -251,19 +246,21 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
         exit(1);
     }
 freeframe:
-    allocs_dec("AVFrame");
-    avcodec_free_frame(&frame);
+    av_frame_free(&frame);
 }
 
 void close_audio(AVFormatContext *oc, AVStream *st)
 {
     avcodec_close(st->codec);
-    allocs_dec("uint8_t*");
+    if (dst_samples_data != src_samples_data) {
+
+
+        av_free(dst_samples_data[0]);
+
+        av_free(dst_samples_data);
+    }
     av_free(src_samples_data[0]);
-    allocs_dec("uint8_t*");
-    av_free(dst_samples_data[0]);
     av_free(src_samples_data);
-    av_free(dst_samples_data);
 }
 
 /**************************************************************/
@@ -285,7 +282,6 @@ int main()
 	    fprintf(stderr, "%s\n", errbuf);
 	    exit(1);
     }
-    allocs_inc("AVFormatContext");
     fmt = oc->oformat;
     audio_st = add_stream(oc, &audio_codec, fmt->audio_codec);
 
@@ -334,11 +330,9 @@ int main()
     avio_close(oc->pb);
 
     if (swr_ctx) {
-        allocs_dec("SwrContext");
         swr_free(&swr_ctx);
     }
 
-    allocs_dec("AVFormatContext");
     avformat_free_context(oc);
     return 0;
 }
@@ -348,7 +342,7 @@ int main1(int argc, char **argv);
 
 int main(int argc, char* argv[])
 {
-    return main1(argc, argv);
+    //return main1(argc, argv);
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
 
@@ -357,7 +351,8 @@ int main(int argc, char* argv[])
     bue = new Bue();
     bue->main();
     delete bue;
-
+//return 0;
+   if (0)
     for(int i = 0;; i++) {
     bue = new Bue();
     bue->main();
