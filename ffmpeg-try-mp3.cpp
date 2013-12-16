@@ -245,10 +245,7 @@ void close_audio(AVFormatContext *oc, AVStream *st)
 {
     avcodec_close(st->codec);
     if (dst_samples_data != src_samples_data) {
-
-
         av_free(dst_samples_data[0]);
-
         av_free(dst_samples_data);
     }
     av_free(src_samples_data[0]);
@@ -321,10 +318,9 @@ int main()
     /* Close the output file. */
     avio_close(oc->pb);
 
-    if (swr_ctx) {
-        swr_free(&swr_ctx);
-    }
+    if (swr_ctx) swr_free(&swr_ctx);
 
+    /* free the stream */
     avformat_free_context(oc);
     return 0;
 }
