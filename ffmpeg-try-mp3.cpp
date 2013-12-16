@@ -23,25 +23,6 @@ struct _av_err2str_buf {
 
 static const char filename[] = "out.mp3";
 
-static float t, tincr, tincr2;
-
-/* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
- * 'nb_channels' channels. */
-static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
-{
-    int j, i, v;
-    int16_t *q;
-
-    q = samples;
-    for (j = 0; j < frame_size; j++) {
-        v = (int)(sin(t) * 10000);
-        for (i = 0; i < nb_channels; i++)
-            *q++ = v;
-        t     += tincr;
-        tincr += tincr2;
-    }
-}
-
 struct Bue {
 
 /* Add an output stream. */
@@ -91,11 +72,10 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
 /**************************************************************/
 /* audio output */
 
-uint8_t **src_samples_data;
-int       src_samples_linesize;
-int       src_nb_samples;
-
 int max_dst_nb_samples;
+
+uint8_t *s16_samples_data[1];
+
 uint8_t **dst_samples_data;
 int       dst_samples_linesize;
 int       dst_samples_size;
@@ -116,26 +96,10 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
         exit(1);
     }
 
-    /* init signal generator */
-    t     = 0;
-    tincr = (float)(2 * M_PI * 110.0 / c->sample_rate);
-    /* increment frequency by 110 Hz per second */
-    tincr2 = (float)(2 * M_PI * 110.0 / c->sample_rate / c->sample_rate);
-
-    src_nb_samples = c->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE ?
-        10000 : c->frame_size;
-
-    ret = av_samples_alloc_array_and_samples(&src_samples_data, &src_samples_linesize, c->channels,
-                                             src_nb_samples, AV_SAMPLE_FMT_S16, 0);
-    if (ret < 0) {
-        fprintf(stderr, "Could not allocate source samples\n");
-        exit(1);
-    }
-
     /* compute the number of converted samples: buffering is avoided
      * ensuring that the output buffer will contain at least all the
      * converted input samples */
-    max_dst_nb_samples = src_nb_samples;
+    max_dst_nb_samples = 960;
 
     /* create resampler context */
     if (c->sample_fmt != AV_SAMPLE_FMT_S16) {
@@ -159,20 +123,20 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
             exit(1);
         }
 
-    ret = av_samples_alloc_array_and_samples(&dst_samples_data, &dst_samples_linesize, c->channels,
-                                             max_dst_nb_samples, c->sample_fmt, 0);
-    if (ret < 0) {
-        fprintf(stderr, "Could not allocate destination samples\n");
-        exit(1);
-    }
+        ret = av_samples_alloc_array_and_samples(&dst_samples_data, &dst_samples_linesize, c->channels,
+                                                 max_dst_nb_samples, c->sample_fmt, 0);
+        if (ret < 0) {
+            fprintf(stderr, "Could not allocate destination samples\n");
+            exit(1);
+        }
     } else {
-        dst_samples_data = src_samples_data;
+        dst_samples_data = s16_samples_data;
     }
     dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, max_dst_nb_samples,
                                                   c->sample_fmt, 0);
 }
 
-void write_audio_frame(AVFormatContext *oc, AVStream *st)
+void write_audio_frame(int src_nb_samples, uint8_t *data)
 {
     AVCodecContext *c;
     AVPacket pkt = { 0 }; // data and size must be 0;
@@ -180,9 +144,9 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
     int got_packet, ret, dst_nb_samples;
 
     av_init_packet(&pkt);
-    c = st->codec;
+    c = audio_st->codec;
 
-    get_audio_frame((int16_t *)src_samples_data[0], src_nb_samples, c->channels);
+    s16_samples_data[0] = data;
 
     /* convert samples from native format to destination codec format, using the resampler */
     if (swr_ctx) {
@@ -203,7 +167,7 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
         /* convert to destination format */
         ret = swr_convert(swr_ctx,
                           dst_samples_data, dst_nb_samples,
-                          (const uint8_t **)src_samples_data, src_nb_samples);
+                          (const uint8_t **)s16_samples_data, src_nb_samples);
         if (ret < 0) {
             fprintf(stderr, "Error while converting\n");
             exit(1);
@@ -225,10 +189,10 @@ void write_audio_frame(AVFormatContext *oc, AVStream *st)
     if (!got_packet)
         goto freeframe;
 
-    pkt.stream_index = st->index;
+    pkt.stream_index = audio_st->index;
 
     /* Write the compressed frame to the media file. */
-    ret = av_interleaved_write_frame(oc, &pkt);
+    ret = av_interleaved_write_frame(output_ctx, &pkt);
     if (ret != 0) {
         fprintf(stderr, "Error while writing audio frame: %s\n",
                 av_err2str(ret));
@@ -241,12 +205,11 @@ freeframe:
 void close_audio(AVFormatContext *oc, AVStream *st)
 {
     avcodec_close(st->codec);
-    if (dst_samples_data != src_samples_data) {
+    if (swr_ctx) {
+        swr_free(&swr_ctx);
         av_free(dst_samples_data[0]);
         av_free(dst_samples_data);
     }
-    av_free(src_samples_data[0]);
-    av_free(src_samples_data);
 }
 
 AVStream *audio_st;
@@ -292,22 +255,6 @@ Bue() {
     }
 }
 
-void main()
-{
-    double audio_time;
-
-    for (;;) {
-        /* Compute current audio and video time. */
-        audio_time = audio_st->pts.val * av_q2d(audio_st->time_base);
-
-        if (audio_time >= STREAM_DURATION)
-            break;
-
-        /* write interleaved audio and video frames */
-        write_audio_frame(output_ctx, audio_st);
-    }
-}
-
 void close()
 {
     /* Write the trailer, if any. The trailer must be written before you
@@ -322,34 +269,65 @@ void close()
     /* Close the output file. */
     avio_close(output_ctx->pb);
 
-    if (swr_ctx) swr_free(&swr_ctx);
-
     /* free the stream */
     avformat_free_context(output_ctx);
 }
 
 };
 
+static float t, tincr, tincr2;
+static uint8_t **src_samples_data;
+static int       src_samples_linesize;
+static int       src_nb_samples;
+
+/* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
+ * 'nb_channels' channels. */
+static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
+{
+    int j, i, v;
+    int16_t *q;
+
+    q = samples;
+    for (j = 0; j < frame_size; j++) {
+        v = (int)(sin(t) * 10000);
+        for (i = 0; i < nb_channels; i++)
+            *q++ = v;
+        t     += tincr;
+        tincr += tincr2;
+    }
+}
+
+//int main1(int argc, char* argv[]);
+int main1(int argc, char **argv);
 
 int main(int argc, char* argv[])
 {
-    //return main1(argc, argv);
+    return main1(argc, argv);
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
 
     Bue *bue;
 
+    /* init signal generator */
+    t     = 0;
+    tincr = (float)(2 * M_PI * 110.0 / 48000);
+    /* increment frequency by 110 Hz per second */
+    tincr2 = (float)(2 * M_PI * 110.0 / 48000 / 48000);
+
     bue = new Bue();
-    bue->main();
+
+    for (;;) {
+
+        if (t >= STREAM_DURATION)
+            break;
+        int32_t samples[10000]; // aligned pairs
+        get_audio_frame((int16_t*)samples, 10000, 2);
+        /* write interleaved audio and video frames */
+        bue->write_audio_frame(10000, (uint8_t*)samples);
+    }
+
     bue->close();
     delete bue;
-//return 0;
-   if (0)
-    for(int i = 0;; i++) {
-    bue = new Bue();
-    bue->main();
-    delete bue;
-    }
 
     return 0;
 }
