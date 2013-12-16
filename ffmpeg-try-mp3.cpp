@@ -18,7 +18,7 @@ struct _av_err2str_buf {
 #define av_err2str(errnum) \
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
 
-#define STREAM_DURATION 0.2
+#define STREAM_DURATION 30.0
 #define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
 
 static const char filename[] = "out.mp3";
@@ -26,7 +26,7 @@ static const char filename[] = "out.mp3";
 struct Bue {
 
 /* Add an output stream. */
-AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
+static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
                             enum AVCodecID codec_id)
 {
     const AVSampleFormat *psamfmt;
@@ -59,7 +59,7 @@ AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
         }
     }
     c->bit_rate    = 64000;
-    c->sample_rate = 44100;
+    c->sample_rate = 48000;
     c->channels    = 2;
 
     /* Some formats want stream headers to be separate. */
@@ -83,10 +83,6 @@ int       dst_samples_linesize;
 int       dst_samples_size;
 
 struct SwrContext *swr_ctx;
-
-Bue() {
-    swr_ctx = NULL;
-}
 
 void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
@@ -252,48 +248,52 @@ void close_audio(AVFormatContext *oc, AVStream *st)
     av_free(src_samples_data);
 }
 
-/**************************************************************/
-/* media file output */
-int main()
-{
+AVStream *audio_st;
+AVFormatContext *output_ctx;
+
+Bue() {
     AVOutputFormat *fmt;
-    AVFormatContext *oc;
-    AVStream *audio_st;
     AVCodec *audio_codec;
-    double audio_time;
     int ret;
 
+    swr_ctx = NULL;
+
     /* Initialize libavcodec, and register all codecs and formats. */
-    ret = avformat_alloc_output_context2(&oc, NULL, NULL, filename);
+    ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
     if (ret < 0) {
 	    char errbuf[200];
 	    av_make_error_string(errbuf, sizeof(errbuf), ret);
 	    fprintf(stderr, "%s\n", errbuf);
 	    exit(1);
     }
-    fmt = oc->oformat;
-    audio_st = add_stream(oc, &audio_codec, fmt->audio_codec);
+    fmt = output_ctx->oformat;
+    audio_st = add_stream(output_ctx, &audio_codec, fmt->audio_codec);
 
     /* Now that all the parameters are set, we can open the audio and
      * video codecs and allocate the necessary encode buffers. */
-    open_audio(oc, audio_codec, audio_st);
+    open_audio(output_ctx, audio_codec, audio_st);
 
-    av_dump_format(oc, 0, filename, 1);
+    av_dump_format(output_ctx, 0, filename, 1);
 
-    ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
+    ret = avio_open(&output_ctx->pb, filename, AVIO_FLAG_WRITE);
     if (ret < 0) {
         fprintf(stderr, "Could not open '%s': %s\n", filename,
                 av_err2str(ret));
-            return 1;
+            exit(1);
     }
 
     /* Write the stream header, if any. */
-    ret = avformat_write_header(oc, NULL);
+    ret = avformat_write_header(output_ctx, NULL);
     if (ret < 0) {
         fprintf(stderr, "Error occurred when opening output file: %s\n",
                 av_err2str(ret));
-        return 1;
+        exit(1);
     }
+}
+
+void main()
+{
+    double audio_time;
 
     for (;;) {
         /* Compute current audio and video time. */
@@ -303,30 +303,31 @@ int main()
             break;
 
         /* write interleaved audio and video frames */
-        write_audio_frame(oc, audio_st);
+        write_audio_frame(output_ctx, audio_st);
     }
+}
 
+void close()
+{
     /* Write the trailer, if any. The trailer must be written before you
      * close the CodecContexts open when you wrote the header; otherwise
      * av_write_trailer() may try to use memory that was freed on
      * av_codec_close(). */
-    av_write_trailer(oc);
+    av_write_trailer(output_ctx);
 
     /* Close each codec. */
-    close_audio(oc, audio_st);
+    close_audio(output_ctx, audio_st);
 
     /* Close the output file. */
-    avio_close(oc->pb);
+    avio_close(output_ctx->pb);
 
     if (swr_ctx) swr_free(&swr_ctx);
 
     /* free the stream */
-    avformat_free_context(oc);
-    return 0;
+    avformat_free_context(output_ctx);
 }
-};
 
-int main1(int argc, char **argv);
+};
 
 int main(int argc, char* argv[])
 {
@@ -338,6 +339,7 @@ int main(int argc, char* argv[])
 
     bue = new Bue();
     bue->main();
+    bue->close();
     delete bue;
 //return 0;
    if (0)
