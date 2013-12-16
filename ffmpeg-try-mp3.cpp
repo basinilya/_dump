@@ -23,6 +23,25 @@ struct _av_err2str_buf {
 
 static const char filename[] = "out.mp3";
 
+static float t, tincr, tincr2;
+
+/* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
+ * 'nb_channels' channels. */
+static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
+{
+    int j, i, v;
+    int16_t *q;
+
+    q = samples;
+    for (j = 0; j < frame_size; j++) {
+        v = (int)(sin(t) * 10000);
+        for (i = 0; i < nb_channels; i++)
+            *q++ = v;
+        t     += tincr;
+        tincr += tincr2;
+    }
+}
+
 struct Bue {
 
 /* Add an output stream. */
@@ -72,7 +91,6 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
 /**************************************************************/
 /* audio output */
 
-float t, tincr, tincr2;
 uint8_t **src_samples_data;
 int       src_samples_linesize;
 int       src_nb_samples;
@@ -152,23 +170,6 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
     }
     dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, max_dst_nb_samples,
                                                   c->sample_fmt, 0);
-}
-
-/* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
- * 'nb_channels' channels. */
-void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
-{
-    int j, i, v;
-    int16_t *q;
-
-    q = samples;
-    for (j = 0; j < frame_size; j++) {
-        v = (int)(sin(t) * 10000);
-        for (i = 0; i < nb_channels; i++)
-            *q++ = v;
-        t     += tincr;
-        tincr += tincr2;
-    }
 }
 
 void write_audio_frame(AVFormatContext *oc, AVStream *st)
@@ -328,6 +329,7 @@ void close()
 }
 
 };
+
 
 int main(int argc, char* argv[])
 {
