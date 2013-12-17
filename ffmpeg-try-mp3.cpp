@@ -122,7 +122,7 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
         fprintf(stderr, "Could not allocate destination samples\n");
         exit(1);
     }
-    dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, 0/*max_dst_nb_samples*/,
+    dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, dst_nb_samples,
                                                   c->sample_fmt, 0);
 }
 
@@ -155,7 +155,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
 
         int out_count = dst_nb_samples;
 
-        if (nb_samples_total < dst_nb_samples && s16_samples_data != NULL) {
+        if (nb_samples_total < dst_nb_samples && data != NULL) {
             out_count = 0;
         }
 
@@ -176,7 +176,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
                                      dst_samples_data[0], dst_samples_size, 0);
         }
 
-        if (frame != NULL || s16_samples_data == NULL) {
+        if (frame != NULL || data == NULL) {
             ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
             if (ret < 0) {
                 fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
@@ -203,7 +203,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
         }
 
         nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate);
-        if (nb_samples_total < dst_nb_samples && s16_samples_data != NULL) break;
+        if (nb_samples_total < dst_nb_samples && data != NULL) break;
 
         src_nb_samples = 0;
         s16_samples_data = NULL;
@@ -329,10 +329,11 @@ int main(int argc, char* argv[])
 
         if (t/10000.0 >= STREAM_DURATION)
             break;
-        int32_t samples[10000]; // aligned pairs
-        get_audio_frame((int16_t*)samples, 10000, 2);
+        int32_t samples[4000]; // aligned pairs
+        get_audio_frame((int16_t*)samples, 4000, 2);
         /* write interleaved audio and video frames */
-        bue->write_audio_frame(10000, (uint8_t*)samples);
+        bue->write_audio_frame(4000, (uint8_t*)samples);
+        //break;
     }
 
     bue->write_audio_frame(0, NULL);
