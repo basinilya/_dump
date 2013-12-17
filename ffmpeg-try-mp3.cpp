@@ -176,7 +176,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
                                      dst_samples_data[0], dst_samples_size, 0);
         }
 
-        if (ret > 0 || s16_samples_data == NULL) {
+        if (frame != NULL || s16_samples_data == NULL) {
             ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
             if (ret < 0) {
                 fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
@@ -310,8 +310,8 @@ int main2(int argc, char **argv);
 
 int main(int argc, char* argv[])
 {
-    return main2(argc, argv);
-    return main1(argc, argv);
+    //return main2(argc, argv);
+    //return main1(argc, argv);
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
 
