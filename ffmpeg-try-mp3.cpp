@@ -203,7 +203,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
         }
 
         nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate);
-        if (nb_samples_total == 0) break;
+        if (nb_samples_total < dst_nb_samples && s16_samples_data != NULL) break;
 
         src_nb_samples = 0;
         s16_samples_data = NULL;
@@ -334,6 +334,8 @@ int main(int argc, char* argv[])
         /* write interleaved audio and video frames */
         bue->write_audio_frame(10000, (uint8_t*)samples);
     }
+
+    bue->write_audio_frame(0, NULL);
 
     bue->close();
     delete bue;
