@@ -18,10 +18,7 @@ struct _av_err2str_buf {
 #define av_err2str(errnum) \
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
 
-#define STREAM_DURATION 30.0
 #define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
-
-static const char filename[] = "out.mp3";
 
 struct Bue {
 
@@ -223,7 +220,7 @@ void close_audio(AVFormatContext *oc, AVStream *st)
 AVStream *audio_st;
 AVFormatContext *output_ctx;
 
-Bue() {
+Bue(const char *filename) {
     AVOutputFormat *fmt;
     AVCodec *audio_codec;
     int ret;
@@ -308,6 +305,9 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
 int main1(int argc, char **argv);
 int main2(int argc, char **argv);
 
+#define STREAM_DURATION 30.0
+static const char filename[] = "out.wav";
+
 int main(int argc, char* argv[])
 {
     //return main2(argc, argv);
@@ -323,7 +323,7 @@ int main(int argc, char* argv[])
     /* increment frequency by 110 Hz per second */
     tincr2 = (float)(2 * M_PI * 110.0 / 48000 / 48000);
 
-    bue = new Bue();
+    bue = new Bue(filename);
 
     for (;;) {
 
