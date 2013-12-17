@@ -192,6 +192,10 @@
 				RelativePath=".\muxing.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\try-swr.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
