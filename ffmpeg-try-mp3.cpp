@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h> /* for ENOMEM */
 
 extern "C" {
 
@@ -23,7 +24,7 @@ struct _av_err2str_buf {
 struct Bue {
 
 /* Add an output stream. */
-static AVStream *add_stream(AVFormatContext *oc, const AVCodec **codec,
+int add_stream(const AVCodec **codec,
                             enum AVCodecID codec_id)
 {
     AVStream *st;
@@ -31,36 +32,37 @@ static AVStream *add_stream(AVFormatContext *oc, const AVCodec **codec,
     /* find the encoder */
     *codec = avcodec_find_encoder(codec_id);
     if (!(*codec)) {
-        fprintf(stderr, "Could not find encoder for '%s'\n",
-                avcodec_get_name(codec_id));
-        exit(1);
+        // fprintf(stderr, "Could not find encoder for '%s'\n", avcodec_get_name(codec_id));
+        return AVERROR_ENCODER_NOT_FOUND;
     }
 
-    st = avformat_new_stream(oc, *codec);
+    st = avformat_new_stream(output_ctx, *codec);
     if (!st) {
-        fprintf(stderr, "Could not allocate stream\n");
-        exit(1);
+        // fprintf(stderr, "Could not allocate stream\n");
+        return AVERROR(ENOMEM);
     }
-    st->id = oc->nb_streams-1;
+    st->id = output_ctx->nb_streams-1;
 
     /* Some formats want stream headers to be separate. */
-    if (oc->oformat->flags & AVFMT_GLOBALHEADER)
+    if (output_ctx->oformat->flags & AVFMT_GLOBALHEADER)
         st->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
-    return st;
+    audio_st = st;
+    return 0;
 }
 
 
 AVFormatContext *output_ctx;
-AVStream *audio_st;
 AVFrame *shared_frame;
+
+AVStream *audio_st;
 SwrContext *swr_ctx;
 
 int dst_nb_samples;
 uint8_t **dst_samples_data;
 int       dst_samples_size;
 
-void open_audio()
+int open_audio()
 {
     AVCodecContext *c;
     const AVCodec *audio_codec;
@@ -69,7 +71,11 @@ void open_audio()
     const AVSampleFormat *psamfmt;
     int ret;
 
-    audio_st = add_stream(output_ctx, &audio_codec, fmt->audio_codec);
+    ret = add_stream(&audio_codec, fmt->audio_codec);
+    if (ret < 0) {
+        return ret;
+    }
+
     c = audio_st->codec;
 
     for (psamfmt = audio_codec->sample_fmts;; psamfmt++) {
@@ -88,24 +94,19 @@ void open_audio()
     /* open it */
     ret = avcodec_open2(c, audio_codec, NULL);
     if (ret < 0) {
-        fprintf(stderr, "Could not open audio codec: %s\n", av_err2str(ret));
-        exit(1);
+        //fprintf(stderr, "Could not open audio codec: %s\n", av_err2str(ret));
+        goto fail_2;
     }
 
     dst_nb_samples = c->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE ?
         10000 : c->frame_size;
 
-    shared_frame = av_frame_alloc();
-    if (!shared_frame){
-        fprintf(stderr, "Could not allocate frame\n");
-        exit(1);
-    }
-
     /* create resampler context */
     swr_ctx = swr_alloc();
     if (!swr_ctx) {
-        fprintf(stderr, "Could not allocate resampler context\n");
-        exit(1);
+        //fprintf(stderr, "Could not allocate resampler context\n");
+        ret = AVERROR(ENOMEM);
+        goto fail_2;
     }
 
     /* set options */
@@ -118,21 +119,29 @@ void open_audio()
 
     /* initialize the resampling context */
     if ((ret = swr_init(swr_ctx)) < 0) {
-        fprintf(stderr, "Failed to initialize the resampling context\n");
-        exit(1);
+        //fprintf(stderr, "Failed to initialize the resampling context\n");
+        goto fail_1;
     }
 
     ret = av_samples_alloc_array_and_samples(&dst_samples_data, NULL, c->channels,
                                              dst_nb_samples, c->sample_fmt, 0);
     if (ret < 0) {
-        fprintf(stderr, "Could not allocate destination samples\n");
-        exit(1);
+        //fprintf(stderr, "Could not allocate destination samples\n");
+        goto fail_1;
     }
     dst_samples_size = av_samples_get_buffer_size(NULL, c->channels, dst_nb_samples,
                                                   c->sample_fmt, 0);
+    return 0;
+
+fail_1:
+    swr_free(&swr_ctx);
+fail_2:
+    avcodec_close(c);
+
+    return ret;
 }
 
-void open(const char *filename) {
+int open(const char *filename) {
     int ret;
 
     ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
@@ -141,24 +150,51 @@ void open(const char *filename) {
 	    exit(1);
     }
 
-    open_audio();
+    ret = open_audio();
+    if (ret < 0) {
+        goto fail_4_;
+    }
 
     av_dump_format(output_ctx, 0, filename, 1);
 
+    shared_frame = av_frame_alloc();
+    if (!shared_frame){
+        // fprintf(stderr, "Could not allocate frame\n");
+        ret = AVERROR(ENOMEM);
+        goto fail_3_;
+    }
+
     ret = avio_open(&output_ctx->pb, filename, AVIO_FLAG_WRITE);
     if (ret < 0) {
-        fprintf(stderr, "Could not open '%s': %s\n", filename,
-                av_err2str(ret));
-            exit(1);
+        //fprintf(stderr, "Could not open '%s': %s\n", filename, av_err2str(ret));
+        goto fail_2_;
     }
 
     /* Write the stream header, if any. */
     ret = avformat_write_header(output_ctx, NULL);
     if (ret < 0) {
-        fprintf(stderr, "Error occurred when opening output file: %s\n",
-                av_err2str(ret));
-        exit(1);
+        // fprintf(stderr, "Error occurred when opening output file: %s\n", av_err2str(ret));
+        goto fail_1_;
     }
+
+    return 0;
+
+fail_1_:
+    /* Close the output file. */
+    avio_close(output_ctx->pb);
+
+fail_2_:
+    av_frame_free(&shared_frame);
+
+fail_3_:
+    /* Close each codec. */
+    close_audio();
+
+fail_4_:
+    /* free the stream */
+    avformat_free_context(output_ctx);
+
+    return ret;
 }
 
 void encode_and_write_frame(AVFrame *frame)
@@ -245,15 +281,13 @@ void encode_and_write(uint8_t *s16_samples, int nb_samples)
     }
 }
 
-void close_audio(AVFormatContext *oc, AVStream *st)
+void close_audio()
 {
-    avcodec_close(st->codec);
+    avcodec_close(audio_st->codec);
 
     swr_free(&swr_ctx);
     av_free(dst_samples_data[0]);
     av_free(dst_samples_data);
-
-    av_frame_free(&shared_frame);
 }
 
 void close()
@@ -268,7 +302,9 @@ void close()
     av_write_trailer(output_ctx);
 
     /* Close each codec. */
-    close_audio(output_ctx, audio_st);
+    close_audio();
+
+    av_frame_free(&shared_frame);
 
     /* Close the output file. */
     avio_close(output_ctx->pb);
