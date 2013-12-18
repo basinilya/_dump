@@ -126,7 +126,7 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
                                                   c->sample_fmt, 0);
 }
 
-void encode_and_write(AVFrame *frame)
+void encode_and_write_frame(AVFrame *frame)
 {
     AVCodecContext *c = audio_st->codec;
     int got_packet;
@@ -153,38 +153,34 @@ void encode_and_write(AVFrame *frame)
     }
 }
 
-void write_audio_frame(int src_nb_samples, uint8_t *data)
+void encode_and_write(uint8_t *data, int in_count)
 {
     AVCodecContext *c = audio_st->codec;
-    int ret;
-
+    int64_t nb_samples_total;
     uint8_t *s16_samples_data_[1];
     uint8_t **s16_samples_data = NULL;
+    int ret;
 
     if (data) {
         s16_samples_data_[0] = data;
         s16_samples_data = s16_samples_data_;
     }
 
-    /* convert samples from native format to destination codec format, using the resampler */
-
-    /* if we don't have enough to fill the frame, keep the data in swr */
-    int64_t nb_samples_buffered = swr_get_delay(swr_ctx, c->sample_rate);
-    int64_t nb_samples_new = av_rescale_rnd(src_nb_samples, c->sample_rate, 48000, AV_ROUND_UP);
-    int64_t nb_samples_total = nb_samples_buffered + nb_samples_new;
+    /* Estimate nb_samples after appending to buffered.
+     * Using AV_ROUND_DOWN, because better estimate less and get real number on
+     * next iteration than estimate more and get half-empty frame */
+    nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate)
+            + av_rescale_rnd(in_count, c->sample_rate, 48000, AV_ROUND_DOWN);
 
     for(;;) {
         AVFrame *frame = NULL;
-
         int out_count = dst_nb_samples;
 
-        if (nb_samples_total < dst_nb_samples && data != NULL) {
-            out_count = 0;
-        }
+        if (nb_samples_total < dst_nb_samples && data != NULL) out_count = 0;
 
         ret = swr_convert(swr_ctx,
                           dst_samples_data, out_count,
-                          (const uint8_t **)s16_samples_data, src_nb_samples);
+                          (const uint8_t **)s16_samples_data, in_count);
         if (ret < 0) {
             fprintf(stderr, "Error while converting\n");
             exit(1);
@@ -196,17 +192,20 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
             frame->nb_samples = ret;
             avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
                                      dst_samples_data[0], dst_samples_size, 0);
-            encode_and_write(frame);
+            encode_and_write_frame(frame);
             av_frame_unref(frame);
         } else if (data == NULL) {
-            encode_and_write(NULL);
+            /* swr buffer empty and won't be more data */
+            encode_and_write_frame(NULL);
             break;
         }
 
         nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate);
         if (nb_samples_total < dst_nb_samples && data != NULL) break;
 
-        src_nb_samples = 0;
+        /* swr buffered enough samples for another frame */
+        /* reset swr [in] parameters to flush swr buffer */
+        in_count = 0;
         s16_samples_data = NULL;
     }
 }
@@ -286,9 +285,6 @@ void close()
 };
 
 static float t, tincr, tincr2;
-static uint8_t **src_samples_data;
-static int       src_samples_linesize;
-static int       src_nb_samples;
 
 /* Prepare a 16 bit dummy audio frame of 'frame_size' samples and
  * 'nb_channels' channels. */
@@ -320,6 +316,7 @@ int main(int argc, char* argv[])
     av_register_all();
     av_log_set_level(AV_LOG_QUIET);
 
+    do {
     Bue *bue;
 
     /* init signal generator */
@@ -334,17 +331,19 @@ int main(int argc, char* argv[])
 
         if (t/10000.0 >= STREAM_DURATION)
             break;
-        int32_t samples[4000]; // aligned pairs
-        get_audio_frame((int16_t*)samples, 4000, 2);
+        enum { bufsz = 500 };
+        int32_t samples[bufsz]; // aligned pairs
+        get_audio_frame((int16_t*)samples, bufsz, 2);
         /* write interleaved audio and video frames */
-        bue->write_audio_frame(4000, (uint8_t*)samples);
+        bue->encode_and_write((uint8_t*)samples, bufsz);
         //break;
     }
 
-    bue->write_audio_frame(0, NULL);
+    bue->encode_and_write(NULL, 0);
 
     bue->close();
     delete bue;
+    } while(1);
 
     return 0;
 }
