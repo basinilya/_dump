@@ -55,7 +55,7 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
             break;
         }
     }
-    c->bit_rate    = 64000;
+    if (c->bit_rate == 0) c->bit_rate    = 64000;
     c->sample_rate = 48000;
     c->channels    = 2;
 
@@ -74,6 +74,7 @@ uint8_t **dst_samples_data;
 int       dst_samples_size;
 
 struct SwrContext *swr_ctx;
+AVFrame *shared_frame;
 
 void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 {
@@ -91,6 +92,8 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
 
     dst_nb_samples = c->codec->capabilities & CODEC_CAP_VARIABLE_FRAME_SIZE ?
         10000 : c->frame_size;
+
+    shared_frame = av_frame_alloc();
 
     /* create resampler context */
     swr_ctx = swr_alloc();
@@ -123,12 +126,37 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
                                                   c->sample_fmt, 0);
 }
 
-void write_audio_frame(int src_nb_samples, uint8_t *data)
+void encode_and_write(AVFrame *frame)
 {
-    AVCodecContext *c;
+    AVCodecContext *c = audio_st->codec;
+    int got_packet;
+    AVPacket pkt = { 0 }; // data and size must be 0;
     int ret;
 
-    c = audio_st->codec;
+    av_init_packet(&pkt);
+    ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
+    if (ret < 0) {
+        fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
+        exit(1);
+    }
+
+    if (got_packet) {
+        pkt.stream_index = audio_st->index;
+
+        /* Write the compressed frame to the media file. */
+        ret = av_interleaved_write_frame(output_ctx, &pkt);
+        if (ret != 0) {
+            fprintf(stderr, "Error while writing audio frame: %s\n",
+                    av_err2str(ret));
+            exit(1);
+        }
+    }
+}
+
+void write_audio_frame(int src_nb_samples, uint8_t *data)
+{
+    AVCodecContext *c = audio_st->codec;
+    int ret;
 
     uint8_t *s16_samples_data_[1];
     uint8_t **s16_samples_data = NULL;
@@ -146,9 +174,7 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
     int64_t nb_samples_total = nb_samples_buffered + nb_samples_new;
 
     for(;;) {
-        AVPacket pkt = { 0 }; // data and size must be 0;
         AVFrame *frame = NULL;
-        int got_packet;
 
         int out_count = dst_nb_samples;
 
@@ -165,38 +191,16 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
         }
 
         if (ret > 0) {
-            frame = av_frame_alloc();
-            av_init_packet(&pkt);
+            frame = shared_frame;
 
             frame->nb_samples = ret;
             avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
                                      dst_samples_data[0], dst_samples_size, 0);
-        }
-
-        if (frame != NULL || data == NULL) {
-            ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
-            if (ret < 0) {
-                fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
-                exit(1);
-            }
-
-            if (got_packet) {
-                pkt.stream_index = audio_st->index;
-
-                /* Write the compressed frame to the media file. */
-                ret = av_interleaved_write_frame(output_ctx, &pkt);
-                if (ret != 0) {
-                    fprintf(stderr, "Error while writing audio frame: %s\n",
-                            av_err2str(ret));
-                    exit(1);
-                }
-            }
-
-            if (frame) {
-                av_frame_free(&frame);
-            } else {
-                break;
-            }
+            encode_and_write(frame);
+            av_frame_unref(frame);
+        } else if (data == NULL) {
+            encode_and_write(NULL);
+            break;
         }
 
         nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate);
@@ -210,11 +214,12 @@ void write_audio_frame(int src_nb_samples, uint8_t *data)
 void close_audio(AVFormatContext *oc, AVStream *st)
 {
     avcodec_close(st->codec);
-    if (swr_ctx) {
-        swr_free(&swr_ctx);
-        av_free(dst_samples_data[0]);
-        av_free(dst_samples_data);
-    }
+
+    swr_free(&swr_ctx);
+    av_free(dst_samples_data[0]);
+    av_free(dst_samples_data);
+
+    av_frame_free(&shared_frame);
 }
 
 AVStream *audio_st;
@@ -306,7 +311,7 @@ int main1(int argc, char **argv);
 int main2(int argc, char **argv);
 
 #define STREAM_DURATION 30.0
-static const char filename[] = "out.wav";
+static const char filename[] = "out.mp3";
 
 int main(int argc, char* argv[])
 {
