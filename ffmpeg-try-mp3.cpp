@@ -23,11 +23,9 @@ struct _av_err2str_buf {
 struct Bue {
 
 /* Add an output stream. */
-static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
+static AVStream *add_stream(AVFormatContext *oc, const AVCodec **codec,
                             enum AVCodecID codec_id)
 {
-    const AVSampleFormat *psamfmt;
-    AVCodecContext *c;
     AVStream *st;
 
     /* find the encoder */
@@ -44,51 +42,48 @@ static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec,
         exit(1);
     }
     st->id = oc->nb_streams-1;
-    c = st->codec;
-
-    for (psamfmt = (*codec)->sample_fmts;; psamfmt++) {
-        if (*psamfmt == STREAM_SAMPLE_FMT) {
-            c->sample_fmt       = STREAM_SAMPLE_FMT;
-            break;
-        } else if (*psamfmt == -1) {
-            c->sample_fmt       = (*codec)->sample_fmts[0];
-            break;
-        }
-    }
-    if (c->bit_rate == 0) c->bit_rate    = 64000;
-    c->sample_rate = 48000;
-    c->channels    = 2;
 
     /* Some formats want stream headers to be separate. */
     if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+        st->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
     return st;
 }
 
-/**************************************************************/
-/* audio output */
+
+AVFormatContext *output_ctx;
+AVStream *audio_st;
+AVFrame *shared_frame;
+SwrContext *swr_ctx;
 
 int dst_nb_samples;
 uint8_t **dst_samples_data;
 int       dst_samples_size;
 
-struct SwrContext *swr_ctx;
-AVFrame *shared_frame;
-
-AVStream *audio_st;
-AVFormatContext *output_ctx;
-
 void open_audio()
 {
     AVCodecContext *c;
-    AVCodec *audio_codec;
+    const AVCodec *audio_codec;
     AVFormatContext *oc = output_ctx;
     AVOutputFormat *fmt = oc->oformat;
+    const AVSampleFormat *psamfmt;
     int ret;
 
     audio_st = add_stream(output_ctx, &audio_codec, fmt->audio_codec);
     c = audio_st->codec;
+
+    for (psamfmt = audio_codec->sample_fmts;; psamfmt++) {
+        if (*psamfmt == STREAM_SAMPLE_FMT) {
+            c->sample_fmt       = STREAM_SAMPLE_FMT;
+            break;
+        } else if (*psamfmt == -1) {
+            c->sample_fmt       = audio_codec->sample_fmts[0];
+            break;
+        }
+    }
+    if (c->bit_rate == 0) c->bit_rate = 64000;
+    c->sample_rate = 48000;
+    c->channels    = 2;
 
     /* open it */
     ret = avcodec_open2(c, audio_codec, NULL);
@@ -140,15 +135,12 @@ void open_audio()
 void open(const char *filename) {
     int ret;
 
-    /* Initialize libavcodec, and register all codecs and formats. */
     ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
     if (ret < 0) {
 	    fprintf(stderr, "%s\n", av_err2str(ret));
 	    exit(1);
     }
 
-    /* Now that all the parameters are set, we can open the audio and
-     * video codecs and allocate the necessary encode buffers. */
     open_audio();
 
     av_dump_format(output_ctx, 0, filename, 1);
@@ -345,7 +337,7 @@ int main(int argc, char* argv[])
 
     bue->close();
     delete bue;
-    } while(1);
+    } while(0);
 
     return 0;
 }
