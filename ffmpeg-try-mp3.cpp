@@ -21,7 +21,7 @@ struct _av_err2str_buf {
 
 #define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
 
-struct Bue {
+struct AudiofileEncoder {
 
 /* Add an output stream. */
 int add_stream(const AVCodec **codec,
@@ -197,7 +197,7 @@ fail_4_:
     return ret;
 }
 
-void encode_and_write_frame(AVFrame *frame)
+int encode_and_write_frame(AVFrame *frame)
 {
     AVCodecContext *c = audio_st->codec;
     int got_packet;
@@ -207,8 +207,8 @@ void encode_and_write_frame(AVFrame *frame)
     av_init_packet(&pkt);
     ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
     if (ret < 0) {
-        fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
-        exit(1);
+        // fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
+        return ret;
     }
 
     if (got_packet) {
@@ -216,15 +216,15 @@ void encode_and_write_frame(AVFrame *frame)
 
         /* Write the compressed frame to the media file. */
         ret = av_interleaved_write_frame(output_ctx, &pkt);
-        if (ret != 0) {
-            fprintf(stderr, "Error while writing audio frame: %s\n",
-                    av_err2str(ret));
-            exit(1);
+        if (ret < 0) {
+            // fprintf(stderr, "Error while writing audio frame: %s\n", av_err2str(ret));
+            return ret;
         }
     }
+    return 0;
 }
 
-void encode_and_write(uint8_t *s16_samples, int nb_samples)
+int encode_and_write(uint8_t *s16_samples, int nb_samples)
 {
     AVCodecContext *c = audio_st->codec;
     int64_t nb_samples_total;
@@ -253,18 +253,26 @@ void encode_and_write(uint8_t *s16_samples, int nb_samples)
                           dst_samples_data, out_count,
                           (const uint8_t **)s16_samples_ptr_arr, nb_samples);
         if (ret < 0) {
-            fprintf(stderr, "Error while converting\n");
-            exit(1);
+            // fprintf(stderr, "Error while converting\n");
+            return ret;
         }
 
         if (ret > 0) {
             frame = shared_frame;
 
             frame->nb_samples = ret;
-            avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
+            ret = avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
                                      dst_samples_data[0], dst_samples_size, 0);
-            encode_and_write_frame(frame);
+            if (ret < 0) {
+                return ret;
+            }
+
+            ret = encode_and_write_frame(frame);
             av_frame_unref(frame);
+            if (ret < 0) {
+                return ret;
+            }
+
         } else if (s16_samples == NULL) {
             /* swr buffer empty and won't be more data */
             encode_and_write_frame(NULL);
@@ -279,6 +287,7 @@ void encode_and_write(uint8_t *s16_samples, int nb_samples)
         nb_samples = 0;
         s16_samples_ptr_arr = NULL;
     }
+    return 0;
 }
 
 void close_audio()
@@ -337,7 +346,7 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
 int main1(int argc, char **argv);
 int main2(int argc, char **argv);
 
-#define STREAM_DURATION 10
+#define STREAM_DURATION 0.2
 static const char filename[] = "out.mp3";
 
 int main(int argc, char* argv[])
@@ -348,7 +357,7 @@ int main(int argc, char* argv[])
     av_log_set_level(AV_LOG_QUIET);
 
     do {
-    Bue *bue;
+    AudiofileEncoder *bue;
 
     /* init signal generator */
     t     = 0;
@@ -356,7 +365,7 @@ int main(int argc, char* argv[])
     /* increment frequency by 110 Hz per second */
     tincr2 = (float)(2 * M_PI * 110.0 / 48000 / 48000);
 
-    bue = new Bue();
+    bue = new AudiofileEncoder();
     bue->open(filename);
 
     for (;;) {
@@ -373,7 +382,7 @@ int main(int argc, char* argv[])
 
     bue->close();
     delete bue;
-    } while(0);
+    } while(1);
 
     return 0;
 }
