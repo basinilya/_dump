@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <errno.h> /* for ENOMEM */
-
 extern "C" {
 
 #include <libavutil/opt.h>
@@ -11,17 +8,28 @@ extern "C" {
 
 }
 
+#include <stdio.h>
+#include <errno.h> /* for ENOMEM */
+#include <new>
+
 #undef av_err2str
+
+/*
 struct _av_err2str_buf {
 	char buf[AV_ERROR_MAX_STRING_SIZE];
 };
 
 #define av_err2str(errnum) \
     av_make_error_string(_av_err2str_buf().buf, AV_ERROR_MAX_STRING_SIZE, errnum)
+*/
 
-#define STREAM_SAMPLE_FMT AV_SAMPLE_FMT_S16 /* default sample_fmt */
+#define OPUS_SAMPLE_FMT AV_SAMPLE_FMT_S16
+#define OPUS_SAMPLE_RATE 48000
+#define OPUS_NCHANNELS 2
 
-struct AudiofileEncoder {
+#define STREAM_SAMPLE_FMT OPUS_SAMPLE_FMT /* default sample_fmt */
+
+struct audfile {
 
 /* Add an output stream. */
 int add_stream(const AVCodec **codec,
@@ -88,8 +96,8 @@ int open_audio()
         }
     }
     if (c->bit_rate == 0) c->bit_rate = 64000;
-    c->sample_rate = 48000;
-    c->channels    = 2;
+    c->sample_rate = OPUS_SAMPLE_RATE;
+    c->channels    = OPUS_NCHANNELS;
 
     /* open it */
     ret = avcodec_open2(c, audio_codec, NULL);
@@ -110,9 +118,9 @@ int open_audio()
     }
 
     /* set options */
-    av_opt_set_int       (swr_ctx, "in_channel_count",   2,                 0);
-    av_opt_set_int       (swr_ctx, "in_sample_rate",     48000,             0);
-    av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt",      AV_SAMPLE_FMT_S16, 0);
+    av_opt_set_int       (swr_ctx, "in_channel_count",   OPUS_NCHANNELS,    0);
+    av_opt_set_int       (swr_ctx, "in_sample_rate",     OPUS_SAMPLE_RATE,  0);
+    av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt",      OPUS_SAMPLE_FMT,   0);
     av_opt_set_int       (swr_ctx, "out_channel_count",  c->channels,       0);
     av_opt_set_int       (swr_ctx, "out_sample_rate",    c->sample_rate,    0);
     av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt",     c->sample_fmt,     0);
@@ -146,8 +154,8 @@ int open(const char *filename) {
 
     ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
     if (ret < 0) {
-	    fprintf(stderr, "%s\n", av_err2str(ret));
-	    exit(1);
+	    //fprintf(stderr, "%s\n", av_err2str(ret));
+        return ret;
     }
 
     ret = open_audio();
@@ -224,12 +232,13 @@ int encode_and_write_frame(AVFrame *frame)
     return 0;
 }
 
-int encode_and_write(uint8_t *s16_samples, int nb_samples)
+int encode_and_write(const uint8_t *s16_samples, int nb_samples)
 {
     AVCodecContext *c = audio_st->codec;
     int64_t nb_samples_total;
-    uint8_t *s16_samples_ptr_arr_[1];
-    uint8_t **s16_samples_ptr_arr = NULL;
+    const uint8_t *s16_samples_ptr_arr_[1];
+    const uint8_t **s16_samples_ptr_arr = NULL;
+    enum { _chk_fmt = 1 / ( OPUS_SAMPLE_FMT == AV_SAMPLE_FMT_S16 ? 1 : 0 ) }; /* I don't support others */
     int ret;
 
     if (s16_samples) {
@@ -241,7 +250,7 @@ int encode_and_write(uint8_t *s16_samples, int nb_samples)
      * Using AV_ROUND_DOWN, because better estimate less and get real number on
      * next iteration than estimate more and get half-empty frame */
     nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate)
-            + av_rescale_rnd(nb_samples, c->sample_rate, 48000, AV_ROUND_DOWN);
+            + av_rescale_rnd(nb_samples, c->sample_rate, OPUS_SAMPLE_RATE, AV_ROUND_DOWN);
 
     for(;;) {
         AVFrame *frame = NULL;
@@ -251,7 +260,7 @@ int encode_and_write(uint8_t *s16_samples, int nb_samples)
 
         ret = swr_convert(swr_ctx,
                           dst_samples_data, out_count,
-                          (const uint8_t **)s16_samples_ptr_arr, nb_samples);
+                          s16_samples_ptr_arr, nb_samples);
         if (ret < 0) {
             // fprintf(stderr, "Error while converting\n");
             return ret;
@@ -343,10 +352,30 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
     }
 }
 
+int audfile_open(audfile **out_obj, const char *filename)
+{
+    *out_obj = new (std::nothrow)audfile;
+    if (!*out_obj) {
+        return AVERROR(ENOMEM);
+    }
+    return (*out_obj)->open(filename);
+}
+
+int audfile_encode_and_write(audfile *obj, const uint8_t *s16_samples, int nb_samples)
+{
+    return obj->encode_and_write(s16_samples, nb_samples);
+}
+
+void audfile_close(audfile *obj)
+{
+    obj->close();
+    delete obj;
+}
+
 int main1(int argc, char **argv);
 int main2(int argc, char **argv);
 
-#define STREAM_DURATION 0.2
+#define STREAM_DURATION 10
 static const char filename[] = "out.mp3";
 
 int main(int argc, char* argv[])
@@ -357,16 +386,15 @@ int main(int argc, char* argv[])
     av_log_set_level(AV_LOG_QUIET);
 
     do {
-    AudiofileEncoder *bue;
+    audfile *bue;
 
     /* init signal generator */
     t     = 0;
-    tincr = (float)(2 * M_PI * 110.0 / 48000);
+    tincr = (float)(2 * M_PI * 110.0 / OPUS_SAMPLE_RATE);
     /* increment frequency by 110 Hz per second */
-    tincr2 = (float)(2 * M_PI * 110.0 / 48000 / 48000);
+    tincr2 = (float)(2 * M_PI * 110.0 / OPUS_SAMPLE_RATE / OPUS_SAMPLE_RATE);
 
-    bue = new AudiofileEncoder();
-    bue->open(filename);
+    audfile_open(&bue, filename);
 
     for (;;) {
 
@@ -374,15 +402,14 @@ int main(int argc, char* argv[])
             break;
         enum { bufsz = 500 };
         int32_t samples[bufsz]; // aligned pairs
-        get_audio_frame((int16_t*)samples, bufsz, 2);
+        get_audio_frame((int16_t*)samples, bufsz, OPUS_NCHANNELS);
         /* write interleaved audio and video frames */
-        bue->encode_and_write((uint8_t*)samples, bufsz);
+        audfile_encode_and_write(bue, (uint8_t*)samples, bufsz);
         //break;
     }
 
-    bue->close();
-    delete bue;
-    } while(1);
+    audfile_close(bue);
+    } while(0);
 
     return 0;
 }
