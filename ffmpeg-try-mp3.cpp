@@ -76,15 +76,22 @@ int       dst_samples_size;
 struct SwrContext *swr_ctx;
 AVFrame *shared_frame;
 
-void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
+AVStream *audio_st;
+AVFormatContext *output_ctx;
+
+void open_audio()
 {
     AVCodecContext *c;
+    AVCodec *audio_codec;
+    AVFormatContext *oc = output_ctx;
+    AVOutputFormat *fmt = oc->oformat;
     int ret;
 
-    c = st->codec;
+    audio_st = add_stream(output_ctx, &audio_codec, fmt->audio_codec);
+    c = audio_st->codec;
 
     /* open it */
-    ret = avcodec_open2(c, codec, NULL);
+    ret = avcodec_open2(c, audio_codec, NULL);
     if (ret < 0) {
         fprintf(stderr, "Could not open audio codec: %s\n", av_err2str(ret));
         exit(1);
@@ -94,6 +101,10 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
         10000 : c->frame_size;
 
     shared_frame = av_frame_alloc();
+    if (!shared_frame){
+        fprintf(stderr, "Could not allocate frame\n");
+        exit(1);
+    }
 
     /* create resampler context */
     swr_ctx = swr_alloc();
@@ -126,6 +137,38 @@ void open_audio(AVFormatContext *oc, AVCodec *codec, AVStream *st)
                                                   c->sample_fmt, 0);
 }
 
+void open(const char *filename) {
+    int ret;
+
+    /* Initialize libavcodec, and register all codecs and formats. */
+    ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
+    if (ret < 0) {
+	    fprintf(stderr, "%s\n", av_err2str(ret));
+	    exit(1);
+    }
+
+    /* Now that all the parameters are set, we can open the audio and
+     * video codecs and allocate the necessary encode buffers. */
+    open_audio();
+
+    av_dump_format(output_ctx, 0, filename, 1);
+
+    ret = avio_open(&output_ctx->pb, filename, AVIO_FLAG_WRITE);
+    if (ret < 0) {
+        fprintf(stderr, "Could not open '%s': %s\n", filename,
+                av_err2str(ret));
+            exit(1);
+    }
+
+    /* Write the stream header, if any. */
+    ret = avformat_write_header(output_ctx, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "Error occurred when opening output file: %s\n",
+                av_err2str(ret));
+        exit(1);
+    }
+}
+
 void encode_and_write_frame(AVFrame *frame)
 {
     AVCodecContext *c = audio_st->codec;
@@ -153,34 +196,34 @@ void encode_and_write_frame(AVFrame *frame)
     }
 }
 
-void encode_and_write(uint8_t *data, int in_count)
+void encode_and_write(uint8_t *s16_samples, int nb_samples)
 {
     AVCodecContext *c = audio_st->codec;
     int64_t nb_samples_total;
-    uint8_t *s16_samples_data_[1];
-    uint8_t **s16_samples_data = NULL;
+    uint8_t *s16_samples_ptr_arr_[1];
+    uint8_t **s16_samples_ptr_arr = NULL;
     int ret;
 
-    if (data) {
-        s16_samples_data_[0] = data;
-        s16_samples_data = s16_samples_data_;
+    if (s16_samples) {
+        s16_samples_ptr_arr_[0] = s16_samples;
+        s16_samples_ptr_arr = s16_samples_ptr_arr_;
     }
 
     /* Estimate nb_samples after appending to buffered.
      * Using AV_ROUND_DOWN, because better estimate less and get real number on
      * next iteration than estimate more and get half-empty frame */
     nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate)
-            + av_rescale_rnd(in_count, c->sample_rate, 48000, AV_ROUND_DOWN);
+            + av_rescale_rnd(nb_samples, c->sample_rate, 48000, AV_ROUND_DOWN);
 
     for(;;) {
         AVFrame *frame = NULL;
         int out_count = dst_nb_samples;
 
-        if (nb_samples_total < dst_nb_samples && data != NULL) out_count = 0;
+        if (nb_samples_total < dst_nb_samples && s16_samples != NULL) out_count = 0;
 
         ret = swr_convert(swr_ctx,
                           dst_samples_data, out_count,
-                          (const uint8_t **)s16_samples_data, in_count);
+                          (const uint8_t **)s16_samples_ptr_arr, nb_samples);
         if (ret < 0) {
             fprintf(stderr, "Error while converting\n");
             exit(1);
@@ -194,19 +237,19 @@ void encode_and_write(uint8_t *data, int in_count)
                                      dst_samples_data[0], dst_samples_size, 0);
             encode_and_write_frame(frame);
             av_frame_unref(frame);
-        } else if (data == NULL) {
+        } else if (s16_samples == NULL) {
             /* swr buffer empty and won't be more data */
             encode_and_write_frame(NULL);
             break;
         }
 
         nb_samples_total = swr_get_delay(swr_ctx, c->sample_rate);
-        if (nb_samples_total < dst_nb_samples && data != NULL) break;
+        if (nb_samples_total < dst_nb_samples && s16_samples != NULL) break;
 
         /* swr buffered enough samples for another frame */
         /* reset swr [in] parameters to flush swr buffer */
-        in_count = 0;
-        s16_samples_data = NULL;
+        nb_samples = 0;
+        s16_samples_ptr_arr = NULL;
     }
 }
 
@@ -221,51 +264,11 @@ void close_audio(AVFormatContext *oc, AVStream *st)
     av_frame_free(&shared_frame);
 }
 
-AVStream *audio_st;
-AVFormatContext *output_ctx;
-
-Bue(const char *filename) {
-    AVOutputFormat *fmt;
-    AVCodec *audio_codec;
-    int ret;
-
-    swr_ctx = NULL;
-
-    /* Initialize libavcodec, and register all codecs and formats. */
-    ret = avformat_alloc_output_context2(&output_ctx, NULL, NULL, filename);
-    if (ret < 0) {
-	    char errbuf[200];
-	    av_make_error_string(errbuf, sizeof(errbuf), ret);
-	    fprintf(stderr, "%s\n", errbuf);
-	    exit(1);
-    }
-    fmt = output_ctx->oformat;
-    audio_st = add_stream(output_ctx, &audio_codec, fmt->audio_codec);
-
-    /* Now that all the parameters are set, we can open the audio and
-     * video codecs and allocate the necessary encode buffers. */
-    open_audio(output_ctx, audio_codec, audio_st);
-
-    av_dump_format(output_ctx, 0, filename, 1);
-
-    ret = avio_open(&output_ctx->pb, filename, AVIO_FLAG_WRITE);
-    if (ret < 0) {
-        fprintf(stderr, "Could not open '%s': %s\n", filename,
-                av_err2str(ret));
-            exit(1);
-    }
-
-    /* Write the stream header, if any. */
-    ret = avformat_write_header(output_ctx, NULL);
-    if (ret < 0) {
-        fprintf(stderr, "Error occurred when opening output file: %s\n",
-                av_err2str(ret));
-        exit(1);
-    }
-}
-
 void close()
 {
+    /* send EOF to encoder */
+    encode_and_write(NULL, 0);
+
     /* Write the trailer, if any. The trailer must be written before you
      * close the CodecContexts open when you wrote the header; otherwise
      * av_write_trailer() may try to use memory that was freed on
@@ -306,7 +309,7 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
 int main1(int argc, char **argv);
 int main2(int argc, char **argv);
 
-#define STREAM_DURATION 30.0
+#define STREAM_DURATION 10
 static const char filename[] = "out.mp3";
 
 int main(int argc, char* argv[])
@@ -325,7 +328,8 @@ int main(int argc, char* argv[])
     /* increment frequency by 110 Hz per second */
     tincr2 = (float)(2 * M_PI * 110.0 / 48000 / 48000);
 
-    bue = new Bue(filename);
+    bue = new Bue();
+    bue->open(filename);
 
     for (;;) {
 
@@ -338,8 +342,6 @@ int main(int argc, char* argv[])
         bue->encode_and_write((uint8_t*)samples, bufsz);
         //break;
     }
-
-    bue->encode_and_write(NULL, 0);
 
     bue->close();
     delete bue;
