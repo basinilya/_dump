@@ -47,7 +47,7 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 }
 #endif
 
-#ifdef DEBUG_WINZEROFREE
+#ifdef DEBUG_MYPROG
 
 #define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
 #undef CreateEvent
@@ -76,4 +76,4 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #define listen(s,backlog) dbg_listen(__FILE__, __LINE__, s,backlog)
 #define getpeername(s,name,namelen) dbg_getpeername(__FILE__, __LINE__, s,name,namelen)
 
-#endif /* DEBUG_WINZEROFREE */
+#endif /* DEBUG_MYPROG */

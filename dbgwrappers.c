@@ -1,4 +1,4 @@
-#ifdef DEBUG_WINZEROFREE
+#ifdef DEBUG_MYPROG
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <wspiapi.h>
@@ -6,7 +6,7 @@
 #include <windows.h>
 #include "mylogging.h"
 
-#undef DEBUG_WINZEROFREE
+#undef DEBUG_MYPROG
 #include "mylastheader.h"
 
 DWORD whenclipopened;
@@ -255,4 +255,4 @@ BOOL dbg_ReadFile123(const char *file, int line, HANDLE hFile,LPVOID lpBuffer,DW
 	return b;
 }
 
-#endif /* DEBUG_WINZEROFREE */
+#endif /* DEBUG_MYPROG */
