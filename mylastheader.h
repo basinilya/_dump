@@ -8,10 +8,10 @@
 #define WARN MYPROG_LOG_WARNING
 #define ERR MYPROG_LOG_ERROR
 
-#define pSysError     winzerofree_pSysError
-#define pWinsockError winzerofree_pWinsockError
-#define pWin32Error   winzerofree_pWin32Error
-#define log           winzerofree_log
+#define pSysError     myprog_pSysError
+#define pWinsockError myprog_pWinsockError
+#define pWin32Error   myprog_pWin32Error
+#define log           myprog_log
 
 #define COUNTOF(a) (sizeof(a) / sizeof(a[0]))
 

@@ -47,7 +47,7 @@ static char *cleanstr(char *s)
 }
 
 
-static void __winzerofree_log(int level, char mode, DWORD eNum, const char* fmt, va_list args)
+static void __myprog_log(int level, char mode, DWORD eNum, const char* fmt, va_list args)
 {
 	char emsg[1024];
 	char *pend = emsg + sizeof(emsg);
@@ -90,34 +90,34 @@ static void __winzerofree_log(int level, char mode, DWORD eNum, const char* fmt,
 	_myprog_log(level, emsg);
 }
 
-void winzerofree_pSysError(int lvl, char const *fmt, ...)
+void myprog_pSysError(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	int myerrno = errno;
 
 	va_start(args, fmt);
-	__winzerofree_log(lvl, 's', myerrno, fmt, args);
+	__myprog_log(lvl, 's', myerrno, fmt, args);
 	va_end(args);
 }
 
-void winzerofree_pWin32Error(int lvl, char const *fmt, ...)
+void myprog_pWin32Error(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = GetLastError();
 
 	va_start(args, fmt);
-	__winzerofree_log(lvl, 'w', eNum, fmt, args);
+	__myprog_log(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 
 #if 0
-void winzerofree_pWinsockError(int lvl, char const *fmt, ...)
+void myprog_pWinsockError(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = WSAGetLastError();
 
 	va_start(args, fmt);
-	__winzerofree_log(lvl, 'w', eNum, fmt, args);
+	__myprog_log(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 #endif
@@ -158,11 +158,11 @@ static void myprog_evtlog(char const *logmsg, long type) {
 	}
 }
 
-void winzerofree_log(int lvl, char const *fmt, ...)
+void myprog_log(int lvl, char const *fmt, ...)
 {
 	va_list args;
 
 	va_start(args, fmt);
-	__winzerofree_log(lvl, 'm', 0, fmt, args);
+	__myprog_log(lvl, 'm', 0, fmt, args);
 	va_end(args);
 }

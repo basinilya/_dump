@@ -12,10 +12,10 @@ extern "C" {
 #define MYPROG_LOG_WARNING 3
 #define MYPROG_LOG_ERROR 4
 
-void winzerofree_pSysError(int lvl, char const *fmt, ...);
-void winzerofree_pWinsockError(int lvl, char const *fmt, ...);
-void winzerofree_pWin32Error(int lvl, char const *fmt, ...);
-void winzerofree_log(int lvl, char const *fmt, ...);
+void myprog_pSysError(int lvl, char const *fmt, ...);
+void myprog_pWinsockError(int lvl, char const *fmt, ...);
+void myprog_pWin32Error(int lvl, char const *fmt, ...);
+void myprog_log(int lvl, char const *fmt, ...);
 
 #ifdef __cplusplus
 }
