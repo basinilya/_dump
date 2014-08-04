@@ -5,11 +5,11 @@
 
 #include "mylastheader.h"
 
-static void winet_evtlog(char const *logmsg, long type);
+static void myprog_evtlog(char const *logmsg, long type);
 
 //static volatile FILE *flog;
 
-static void _winet_log(int level, char const *emsg)
+static void _myprog_log(int level, char const *emsg)
 {
 	static FILE *flog;
 	static struct _initer {
@@ -29,7 +29,7 @@ static void _winet_log(int level, char const *emsg)
 	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
 
 	if (level == MYPROG_LOG_ERROR)
-		winet_evtlog(emsg, EVENTLOG_ERROR_TYPE);
+		myprog_evtlog(emsg, EVENTLOG_ERROR_TYPE);
 }
 
 static char *cleanstr(char *s)
@@ -87,7 +87,7 @@ static void __winzerofree_log(int level, char mode, DWORD eNum, const char* fmt,
 		*pend = '\0';
 	}
 	pend[-1] = '\n';
-	_winet_log(level, emsg);
+	_myprog_log(level, emsg);
 }
 
 void winzerofree_pSysError(int lvl, char const *fmt, ...)
@@ -122,7 +122,7 @@ void winzerofree_pWinsockError(int lvl, char const *fmt, ...)
 }
 #endif
 
-static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size)
+static _TCHAR *myprog_a2t(char const *str, _TCHAR *buf, int size)
 {
 
 #ifdef _UNICODE
@@ -133,7 +133,7 @@ static _TCHAR *winet_a2t(char const *str, _TCHAR *buf, int size)
 	return buf;
 }
 
-static void winet_evtlog(char const *logmsg, long type) {
+static void myprog_evtlog(char const *logmsg, long type) {
 	DWORD err;
 	HANDLE hesrc;
 	LPTSTR tmsg;
@@ -141,7 +141,7 @@ static void winet_evtlog(char const *logmsg, long type) {
 	LPCTSTR strs[2];
 	_TCHAR wmsg[1024];
 
-	winet_a2t(logmsg, wmsg, COUNTOF(wmsg));
+	myprog_a2t(logmsg, wmsg, COUNTOF(wmsg));
 	tmsg = wmsg;
 
 	err = GetLastError();
