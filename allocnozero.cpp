@@ -118,7 +118,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		pWin32Error(ERR, "SetFileValidData() failed", filename);
 		goto err;
 	}
-	if (!SetFilePointerEx(hFile, 0, NULL, FILE_BEGIN)) {
+	filesize2.QuadPart = 0;
+	if (!SetFilePointerEx(hFile, filesize2, NULL, FILE_BEGIN)) {
 		pWin32Error(ERR, "SetFilePointerEx() failed", filename);
 		goto err;
 	}
