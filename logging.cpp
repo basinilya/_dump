@@ -24,11 +24,11 @@ static void _winet_log(int level, char const *emsg)
 		fflush(flog);
 	}
 
-	if (level == WINET_LOG_DEBUG) return;
+	if (level == MYPROG_LOG_DEBUG) return;
 
 	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
 
-	if (level == WINET_LOG_ERROR)
+	if (level == MYPROG_LOG_ERROR)
 		winet_evtlog(emsg, EVENTLOG_ERROR_TYPE);
 }
 
@@ -145,9 +145,9 @@ static void winet_evtlog(char const *logmsg, long type) {
 	tmsg = wmsg;
 
 	err = GetLastError();
-	hesrc = RegisterEventSource(NULL, _TEXT(WINET_APPNAME));
+	hesrc = RegisterEventSource(NULL, _TEXT(MYPROG_APPNAME));
 
-	_stprintf(lmsg, _TEXT("%s error: 0x%08x"), _TEXT(WINET_APPNAME), err);
+	_stprintf(lmsg, _TEXT("%s error: 0x%08x"), _TEXT(MYPROG_APPNAME), err);
 	strs[0] = lmsg;
 	strs[1] = tmsg;
 

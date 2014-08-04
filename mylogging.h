@@ -5,12 +5,12 @@
 extern "C" {
 #endif
 
-#define WINET_APPNAME "winzerofree"
+#define MYPROG_APPNAME "winzerofree"
 
-#define WINET_LOG_DEBUG 1
-#define WINET_LOG_MESSAGE 2
-#define WINET_LOG_WARNING 3
-#define WINET_LOG_ERROR 4
+#define MYPROG_LOG_DEBUG 1
+#define MYPROG_LOG_MESSAGE 2
+#define MYPROG_LOG_WARNING 3
+#define MYPROG_LOG_ERROR 4
 
 void winzerofree_pSysError(int lvl, char const *fmt, ...);
 void winzerofree_pWinsockError(int lvl, char const *fmt, ...);

@@ -3,10 +3,10 @@
 #undef INFO
 #undef WARN
 #undef ERR
-#define DBG WINET_LOG_DEBUG
-#define INFO WINET_LOG_MESSAGE
-#define WARN WINET_LOG_WARNING
-#define ERR WINET_LOG_ERROR
+#define DBG MYPROG_LOG_DEBUG
+#define INFO MYPROG_LOG_MESSAGE
+#define WARN MYPROG_LOG_WARNING
+#define ERR MYPROG_LOG_ERROR
 
 #define pSysError     winzerofree_pSysError
 #define pWinsockError winzerofree_pWinsockError

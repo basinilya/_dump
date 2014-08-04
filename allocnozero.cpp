@@ -100,7 +100,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (rc != 0)
 		return rc;
 	
-	hFile = CreateFile(filename, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
+	hFile = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, 0, NULL);
 	if (INVALID_HANDLE_VALUE == hFile) {
 		pWin32Error(ERR, "CreateFile('%S') failed", filename);
 		return 1;
@@ -118,6 +118,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		pWin32Error(ERR, "SetFileValidData() failed", filename);
 		goto err;
 	}
+	if (!SetFilePointerEx(hFile, 0, NULL, FILE_BEGIN)) {
+		pWin32Error(ERR, "SetFilePointerEx() failed", filename);
+		goto err;
+	}
+	log(INFO, "file created");
+
 	CloseHandle(hFile);
 	return 0;
 	err:
