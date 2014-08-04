@@ -8,10 +8,10 @@
 #define WARN WINET_LOG_WARNING
 #define ERR WINET_LOG_ERROR
 
-#define pSysError     cliptund_pSysError
-#define pWinsockError cliptund_pWinsockError
-#define pWin32Error   cliptund_pWin32Error
-#define log           cliptund_log
+#define pSysError     winzerofree_pSysError
+#define pWinsockError winzerofree_pWinsockError
+#define pWin32Error   winzerofree_pWin32Error
+#define log           winzerofree_log
 
 #define COUNTOF(a) (sizeof(a) / sizeof(a[0]))
 
@@ -47,7 +47,7 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 }
 #endif
 
-#ifdef DEBUG_CLIPTUND
+#ifdef DEBUG_WINZEROFREE
 
 #define KillTimer(hWnd, uIDEvent) dbg_KillTimer(hWnd, uIDEvent, #uIDEvent)
 #undef CreateEvent
@@ -76,4 +76,4 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #define listen(s,backlog) dbg_listen(__FILE__, __LINE__, s,backlog)
 #define getpeername(s,name,namelen) dbg_getpeername(__FILE__, __LINE__, s,name,namelen)
 
-#endif /* DEBUG_CLIPTUND */
+#endif /* DEBUG_WINZEROFREE */

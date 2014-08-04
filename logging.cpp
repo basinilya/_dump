@@ -14,7 +14,7 @@ static void _winet_log(int level, char const *emsg)
 	static FILE *flog;
 	static struct _initer {
 		_initer() {
-			flog = fopen("logs/cliptund.log", "w");
+			flog = fopen("logs/winzerofree.log", "w");
 		}
 	} _initer;
 	SYSTEMTIME time;
@@ -47,7 +47,7 @@ static char *cleanstr(char *s)
 }
 
 
-static void __cliptund_log(int level, char mode, DWORD eNum, const char* fmt, va_list args)
+static void __winzerofree_log(int level, char mode, DWORD eNum, const char* fmt, va_list args)
 {
 	char emsg[1024];
 	char *pend = emsg + sizeof(emsg);
@@ -90,34 +90,34 @@ static void __cliptund_log(int level, char mode, DWORD eNum, const char* fmt, va
 	_winet_log(level, emsg);
 }
 
-void cliptund_pSysError(int lvl, char const *fmt, ...)
+void winzerofree_pSysError(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	int myerrno = errno;
 
 	va_start(args, fmt);
-	__cliptund_log(lvl, 's', myerrno, fmt, args);
+	__winzerofree_log(lvl, 's', myerrno, fmt, args);
 	va_end(args);
 }
 
-void cliptund_pWin32Error(int lvl, char const *fmt, ...)
+void winzerofree_pWin32Error(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = GetLastError();
 
 	va_start(args, fmt);
-	__cliptund_log(lvl, 'w', eNum, fmt, args);
+	__winzerofree_log(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 
 #if 0
-void cliptund_pWinsockError(int lvl, char const *fmt, ...)
+void winzerofree_pWinsockError(int lvl, char const *fmt, ...)
 {
 	va_list args;
 	DWORD eNum = WSAGetLastError();
 
 	va_start(args, fmt);
-	__cliptund_log(lvl, 'w', eNum, fmt, args);
+	__winzerofree_log(lvl, 'w', eNum, fmt, args);
 	va_end(args);
 }
 #endif
@@ -158,11 +158,11 @@ static void winet_evtlog(char const *logmsg, long type) {
 	}
 }
 
-void cliptund_log(int lvl, char const *fmt, ...)
+void winzerofree_log(int lvl, char const *fmt, ...)
 {
 	va_list args;
 
 	va_start(args, fmt);
-	__cliptund_log(lvl, 'm', 0, fmt, args);
+	__winzerofree_log(lvl, 'm', 0, fmt, args);
 	va_end(args);
 }

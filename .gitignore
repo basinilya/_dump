@@ -1,5 +1,3 @@
-/cliptund.conf
-
 *.obj
 *.ilk
 *.tli
@@ -29,3 +27,10 @@ mt.dep
 *.tlb
 
 *.user
+
+*.log
+*.tlog
+*.lastbuildstate
+UpgradeLog.htm
+*.opensdf
+*.sdf
