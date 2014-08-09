@@ -7,12 +7,9 @@
 
 static void _myprog_log(int level, char const *emsg)
 {
-	SYSTEMTIME time;
-	GetLocalTime(&time);
-
 	if (level == MYPROG_LOG_DEBUG) return;
-
-	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
+	fputs(emsg, stdout);
+	fflush(stdout);
 }
 
 static char *cleanstr(char *s)
@@ -38,10 +35,6 @@ static void __myprog_log(int level, char mode, DWORD eNum, const char* fmt, va_l
 	unsigned u;
 
 	do {
-		u = _snprintf(pend - count, count, "[%u] ", GetCurrentThreadId());
-		if (u >= count) break;
-		count -= u;
-
 		u = (unsigned)_vsnprintf(pend - count, count, fmt, args);
 		if (u >= count) break;
 		count -= u;

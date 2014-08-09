@@ -1,8 +1,7 @@
-#ifdef DEBUG_MYPROG
 #include <windows.h>
 #include "mylogging.h"
 
-#undef DEBUG_MYPROG
+#define NO_DEBUG_MYPROG
 #include "mylastheader.h"
 
 void dbg_LookupPrivilegeValue(LPCTSTR lpSystemName, LPCTSTR lpName, PLUID   lpLuid)
@@ -40,5 +39,3 @@ void dbg_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPD
 		abort();
 	}
 }
-
-#endif /* DEBUG_MYPROG */

@@ -31,7 +31,7 @@ void dbg_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPD
 }
 #endif
 
-#ifdef DEBUG_MYPROG
+#ifndef NO_DEBUG_MYPROG
 
 #undef LookupPrivilegeValue
 #define LookupPrivilegeValue dbg_LookupPrivilegeValue
@@ -40,4 +40,4 @@ void dbg_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPD
 #define WriteFile dbg_WriteFile
 #define ReadFile dbg_ReadFile
 
-#endif /* DEBUG_MYPROG */
+#endif
