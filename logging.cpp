@@ -5,31 +5,14 @@
 
 #include "mylastheader.h"
 
-static void myprog_evtlog(char const *logmsg, long type);
-
-//static volatile FILE *flog;
-
 static void _myprog_log(int level, char const *emsg)
 {
-	static FILE *flog;
-	static struct _initer {
-		_initer() {
-			flog = fopen("logs/winzerofree.log", "w");
-		}
-	} _initer;
 	SYSTEMTIME time;
 	GetLocalTime(&time);
-	if (flog) {
-		fprintf(flog, "%02d:%02d:%02d.%03d %s", time.wHour, time.wMinute, time.wSecond, time.wMilliseconds, emsg);
-		fflush(flog);
-	}
 
 	if (level == MYPROG_LOG_DEBUG) return;
 
 	printf("%02d:%02d.%03d %s", time.wMinute, time.wSecond, time.wMilliseconds, emsg); fflush(stdout);
-
-	if (level == MYPROG_LOG_ERROR)
-		myprog_evtlog(emsg, EVENTLOG_ERROR_TYPE);
 }
 
 static char *cleanstr(char *s)
@@ -108,54 +91,6 @@ void myprog_pWin32Error(int lvl, char const *fmt, ...)
 	va_start(args, fmt);
 	__myprog_log(lvl, 'w', eNum, fmt, args);
 	va_end(args);
-}
-
-#if 0
-void myprog_pWinsockError(int lvl, char const *fmt, ...)
-{
-	va_list args;
-	DWORD eNum = WSAGetLastError();
-
-	va_start(args, fmt);
-	__myprog_log(lvl, 'w', eNum, fmt, args);
-	va_end(args);
-}
-#endif
-
-static _TCHAR *myprog_a2t(char const *str, _TCHAR *buf, int size)
-{
-
-#ifdef _UNICODE
-	MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, size);
-#else
-	strncpy(buf, str, size);
-#endif
-	return buf;
-}
-
-static void myprog_evtlog(char const *logmsg, long type) {
-	DWORD err;
-	HANDLE hesrc;
-	LPTSTR tmsg;
-	_TCHAR lmsg[128];
-	LPCTSTR strs[2];
-	_TCHAR wmsg[1024];
-
-	myprog_a2t(logmsg, wmsg, COUNTOF(wmsg));
-	tmsg = wmsg;
-
-	err = GetLastError();
-	hesrc = RegisterEventSource(NULL, _TEXT(MYPROG_APPNAME));
-
-	_stprintf(lmsg, _TEXT("%s error: 0x%08x"), _TEXT(MYPROG_APPNAME), err);
-	strs[0] = lmsg;
-	strs[1] = tmsg;
-
-	if (hesrc != NULL) {
-		ReportEvent(hesrc, (WORD) type, 0, 0, NULL, 2, 0, strs, NULL);
-
-		DeregisterEventSource(hesrc);
-	}
 }
 
 void myprog_log(int lvl, char const *fmt, ...)
