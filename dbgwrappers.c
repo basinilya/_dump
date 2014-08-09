@@ -175,24 +175,10 @@ void dbg_CloseClipboard() {
 	//log(DBG, "closed clipboard after %d mks", i);
 }
 
-void dbg_OpenProcessToken(HANDLE ProcessHandle, DWORD DesiredAccess, PHANDLE TokenHandle)
-{
-	if (!OpenProcessToken(ProcessHandle, DesiredAccess, TokenHandle)) {
-		pWin32Error(ERR, "OpenProcessToken() failed");
-		abort();
-	}
-}
 void dbg_LookupPrivilegeValue(LPCTSTR lpSystemName, LPCTSTR lpName, PLUID   lpLuid)
 {
 	if (!LookupPrivilegeValue(lpSystemName, lpName, lpLuid)) {
 		pWin32Error(ERR, "LookupPrivilegeValue() failed");
-		abort();
-	}
-}
-void dbg_AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength)
-{
-	if (!AdjustTokenPrivileges(TokenHandle, DisableAllPrivileges, NewState, BufferLength, PreviousState, ReturnLength)) {
-		pWin32Error(ERR, "AdjustTokenPrivileges() failed");
 		abort();
 	}
 }

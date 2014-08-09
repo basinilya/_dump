@@ -70,11 +70,9 @@ void dbg_getpeername(const char *file, int line, SOCKET s,struct sockaddr * name
 #define GetClipboardData dbg_GetClipboardData
 #define OpenClipboard dbg_OpenClipboard
 #define CloseClipboard dbg_CloseClipboard
-#define OpenProcessToken dbg_OpenProcessToken
 
 #undef LookupPrivilegeValue
 #define LookupPrivilegeValue dbg_LookupPrivilegeValue
-#define AdjustTokenPrivileges dbg_AdjustTokenPrivileges
 #define SetFilePointerEx dbg_SetFilePointerEx
 #define CloseHandle(hObject) dbg_CloseHandle(__FILE__, __LINE__, hObject)
 #define GetOverlappedResult(hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait) dbg_GetOverlappedResult(__FILE__, __LINE__, hFile, lpOverlapped, lpNumberOfBytesTransferred, bWait)

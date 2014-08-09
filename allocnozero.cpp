@@ -9,7 +9,7 @@
 
 #include "mylastheader.h"
 
-static int  obtainPriv(LPCTSTR lpName) {
+static int  obtain_priv(LPCTSTR lpName) {
 	HANDLE hToken;
 	LUID     luid;
 	TOKEN_PRIVILEGES tp;    /* token provileges */
@@ -18,20 +18,29 @@ static int  obtainPriv(LPCTSTR lpName) {
 
 	int rc = 1;
 
-	OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken);
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
+		pWin32Error(ERR, "OpenProcessToken() failed");
+		return 1;
+	}
+
 	LookupPrivilegeValue(NULL, lpName, &luid);
+
 	ZeroMemory(&tp, sizeof (tp));
 	tp.PrivilegeCount = 1;
 	tp.Privileges[0].Luid = luid;
 	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &oldtp, &dwSize);
+
+	if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &oldtp, &dwSize)) {
+		pWin32Error(ERR, "AdjustTokenPrivileges() failed");
+		goto ennd;
+	}
 	rc = 0;
-//ennd:
+ennd:
 	CloseHandle(hToken);
 	return rc;
 }
 
-static char humanSize(double *pSize) {
+static char human_size(double *pSize) {
 	static const char units[] = "BKMGT";
 	const char *unit = units;
 
@@ -42,41 +51,110 @@ static char humanSize(double *pSize) {
 	return *unit;
 }
 
-//#define FL512(typ, x) ( (x) & (~(512 / sizeof(typ))) )
-#define FL512(x) ( (x) & (~(512 - 1)) )
+static void clear_compression_flag(HANDLE hFile) {
+	static USHORT nocompress = COMPRESSION_FORMAT_NONE;
+	DWORD nb;
+	if (!DeviceIoControl(hFile, FSCTL_SET_COMPRESSION, &nocompress, sizeof(nocompress), NULL, 0, &nb, NULL)) {
+		pWin32Error(WARN, "DeviceIoControl(FSCTL_SET_COMPRESSION, 0) failed");
+	}
+}
+
+static long long cwd_free_space() {
+	DWORD SectorsPerCluster, BytesPerSector, NumberOfFreeClusters, TotalNumberOfClusters;
+	if (!GetDiskFreeSpace(NULL, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
+		pWin32Error(ERR, "GetDiskFreeSpace() failed");
+		return 0;
+	}
+	return (long long)SectorsPerCluster * BytesPerSector * NumberOfFreeClusters;
+}
+
+static size_t dirname_len(LPCTSTR path)
+{
+	LPCTSTR p = path;
+	size_t len = 0, sublen = 0;
+
+	for (;; p++) {
+		if (*p == 0) return len;
+		sublen++;
+		if (*p == '/' || *p == '\\') {
+			len += sublen;
+			sublen = 0;
+		}
+	}
+}
+
+enum { CONWIDTH = 80 };
+
+typedef struct zerofree_data_t {
+	DWORD lastticks;
+	double progressdivizor;
+	long long curfilepos;
+	LARGE_INTEGER filesize;
+} zerofree_data_t;
+
+static void print_progress(zerofree_data_t *progress, int force) {
+	DWORD ticks = GetTickCount();
+
+	if (force || ticks - progress->lastticks > 1000) {
+		FILE *out = stdout;
+		int k;
+		int progr;
+
+		progress->lastticks = ticks;
+
+		putc('\r', out);
+		putc('|', out);
+		if (progress->curfilepos - progress->filesize.QuadPart < 0) {
+			progr = (int)(progress->curfilepos / progress->progressdivizor);
+		} else {
+			progr = CONWIDTH - 3;
+		}
+		for (k = 0; k < progr; k++) {
+			putc('=', out);
+		}
+		for (; k < (CONWIDTH - 3); k++) {
+			putc(' ', out);
+		}
+		putc('|', out);
+		fflush(out);
+	}
+}
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	FILE *out = stdout;
+	typedef char block_t[512];
+	static const LARGE_INTEGER zeropos = { 0 };
+	static const block_t zeroblock = { 0 };
+
+	int rc;
+	DWORD nb;
+	size_t sz;
 
 	LPTSTR filename;
-	LPTSTR rest;
-	TCHAR savec;
 
-	DWORD SectorsPerCluster;
-	DWORD BytesPerSector;
-	DWORD NumberOfFreeClusters;
-	DWORD TotalNumberOfClusters;
+	long long freespace, byteswrote = 0;
 
-	long long freespace;
-	LARGE_INTEGER filesize2;
-	static const LARGE_INTEGER zeropos = { 0 };
-	double human;
+	double humansize;
 
 	HANDLE hFile;
 
-	int rc;
+	block_t buf[8192 / sizeof(block_t)];
 
-	setlocale(LC_ALL, ".ACP");
-	setvbuf(out, NULL, _IOFBF, BUFSIZ);
+	zerofree_data_t data;
+
+	FILE *out = stdout;
+
+
+	setlocale(LC_ALL, ".ACP"); // correct code page for localized system messages
+	setvbuf(out, NULL, _IOFBF, BUFSIZ); // no autoflush stdout
 
 	if (argc != 2) {
-		log(ERR, "bad args");
+		log(ERR, "bad args. usage: progname FILE");
 		return 1;
 	}
 	filename = argv[1];
 
-	rc = obtainPriv(SE_MANAGE_VOLUME_NAME);
+	rc = obtain_priv(SE_MANAGE_VOLUME_NAME);
 	if (rc != 0)
 		return rc;
 
@@ -87,37 +165,40 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
-	rest = _tcsrchr(filename, '\\');
-	if (rest) {
-		savec = rest[0];
-		rest[0] = '\0';
+	// chdir to file's directory
+	sz = dirname_len(filename);
+	if (sz != 0) {
+		filename[sz-1] = '\0';
 		if (!SetCurrentDirectory(filename)) {
 			pWin32Error(ERR, "SetCurrentDirectory('%S') failed: ", filename);
 			return 1;
 		}
-		filename = rest + 1;
-		//rest[0] = savec;
+		filename += sz;
 	}
-	if (!GetDiskFreeSpace(NULL, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
-		pWin32Error(ERR, "GetDiskFreeSpace() failed");
-		return 1;
-	}
-	freespace = (long long)SectorsPerCluster * BytesPerSector * NumberOfFreeClusters;
 
-	log(INFO, "free space: %lld bytes (%.1f%c)\n", freespace, human, humanSize(&(human = (double)freespace)));
+	freespace = cwd_free_space();
 
-	// leave 10 percent or 10Mb untouched
-	filesize2.QuadPart = freespace;
+	log(INFO, "free space: %lld bytes (%.1f%c)", freespace, humansize, human_size(&(humansize = (double)freespace)));
+
+	// leave untouched at most 10Mb, at least 10 percent
+	data.filesize.QuadPart = freespace;
 	freespace = freespace / 10;
 	if (freespace > 10 * 1024 * 1024)
 		freespace = 10 * 1024 * 1024;
-	filesize2.QuadPart = FL512(filesize2.QuadPart - freespace);
 
-	log(INFO, "creating file: %lld bytes\n", filesize2.QuadPart);
-	fflush(out);
+	// round to block size
+	data.filesize.QuadPart = (data.filesize.QuadPart - freespace) / 512 * 512;
 
-	hFile = CreateFile(filename, GENERIC_READ | GENERIC_WRITE
-		, FILE_SHARE_READ
+	if (data.filesize.QuadPart == 0) {
+		log(ERR, "not enough free space");
+		return 1;
+	}
+
+	log(INFO, "creating file: %lld bytes", data.filesize.QuadPart);
+
+	hFile = CreateFile(filename
+		, GENERIC_READ | GENERIC_WRITE
+		, 0 /* others can't read */
 		, NULL, CREATE_ALWAYS
 		, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE
 		, NULL);
@@ -125,12 +206,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		pWin32Error(ERR, "CreateFile('%S') failed", filename);
 		return 1;
 	}
-	static USHORT nocompress = COMPRESSION_FORMAT_NONE;
-	DWORD nb;
-	BOOL b;
-	b = DeviceIoControl(hFile, FSCTL_SET_COMPRESSION, &nocompress, sizeof(nocompress), NULL, 0, &nb, NULL);
 
-	SetFilePointerEx(hFile, filesize2, NULL, FILE_BEGIN);
+	clear_compression_flag(hFile);
+
+	SetFilePointerEx(hFile, data.filesize, NULL, FILE_BEGIN);
 
 	rc = 1;
 
@@ -138,54 +217,26 @@ int _tmain(int argc, _TCHAR* argv[])
 		pWin32Error(ERR, "SetEndOfFile() failed");
 		goto ennd;
 	}
-	if (!SetFileValidData(hFile, filesize2.QuadPart)) {
+	if (!SetFileValidData(hFile, data.filesize.QuadPart)) {
 		pWin32Error(ERR, "SetFileValidData() failed");
 		goto ennd;
 	}
 	SetFilePointerEx(hFile, zeropos, NULL, FILE_BEGIN);
 	log(INFO, "file created");
-	log(INFO, "start reading blocks");
+	log(INFO, "start rewriting non-zero blocks");
 
-	typedef char block_t[512];
-	static const block_t zeroblock = { 0 };
+	data.curfilepos = 0;
+	data.progressdivizor = (double)data.filesize.QuadPart / (CONWIDTH - 3);
 
-	//enum { LONGS_IN_BLOCK = 512 / sizeof(long) };
-	//typedef long block_t[LONGS_IN_BLOCK];
-
-	//enum { BLOCKS_IN_BUF = 8192 / sizeof(block_t) };
-	block_t buf[8192 / sizeof(block_t)];
-
-	//enum { LONGS_IN_BUF = 8192 / sizeof(long) };
-	//long buf[LONGS_IN_BUF];
-	//long buf[BUFCOUNT];
-	DWORD t1 = GetTickCount(), t2;
-	enum { CONWIDTH = 80 };
-	long long curfilepos = 0, byteswrote = 0;
-	double progressdivizor = (double)filesize2.QuadPart / (CONWIDTH - 3);
-
+	print_progress(&data, 1);
 	for (;;) {
 		ReadFile(hFile, buf, sizeof(buf), &nb, NULL);
 
-		t2 = GetTickCount();
-		if (t2 - t1 > 1000 || nb == 0) {
-			int k;
-			t1 = t2;
-			putc('\r', out);
-			putc('|', out);
-			int progress = curfilepos < filesize2.QuadPart ? (int)(curfilepos / progressdivizor) : (CONWIDTH - 3);
-			for (k = 0; k < progress; k++) {
-				putc('=', out);
-			}
-			for (; k < (CONWIDTH - 3); k++) {
-				putc(' ', out);
-			}
-			putc('|', out);
-			fflush(out);
-		}
+		print_progress(&data, nb == 0);
 
 		if (nb == 0)
 			break;
-		curfilepos += nb;
+		data.curfilepos += nb;
 
 		int nblocks = nb / sizeof(block_t);
 		int curbufblock = nblocks;
@@ -210,8 +261,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	putc('\n', out);
 	fflush(out);
 
-	log(INFO, "wrote: %lld bytes (%.1f%c)\n", byteswrote, human, humanSize(&(human = (double)byteswrote)));
-	fflush(out);
+	log(INFO, "wrote: %lld bytes (%.1f%c)", byteswrote, humansize, human_size(&(humansize = (double)byteswrote)));
 
 	rc = 0;
 ennd:
