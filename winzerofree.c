@@ -55,7 +55,8 @@ static void clear_compression_flag(HANDLE hFile) {
 	static USHORT nocompress = COMPRESSION_FORMAT_NONE;
 	DWORD nb;
 	if (!DeviceIoControl(hFile, FSCTL_SET_COMPRESSION, &nocompress, sizeof(nocompress), NULL, 0, &nb, NULL)) {
-		pWin32Error(WARN, "DeviceIoControl(FSCTL_SET_COMPRESSION, 0) failed");
+		if (GetLastError() != ERROR_INVALID_FUNCTION)
+			pWin32Error(WARN, "DeviceIoControl(FSCTL_SET_COMPRESSION, 0) failed");
 	}
 }
 
@@ -130,9 +131,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	DWORD nb;
 	size_t sz;
 
-	LPTSTR filename;
-
-	long long freespace, byteswrote = 0;
+	LPTSTR filename, origfilename;
+	TCHAR extrafile[MAX_PATH];
+	int n_extrafile = 2, needmorefiles;
 
 	double humansize;
 
@@ -158,116 +159,144 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (rc != 0)
 		return rc;
 
-	if (!DeleteFile(filename)) {
-		if (GetLastError() != ERROR_FILE_NOT_FOUND) {
-			pWin32Error(ERR, "DeleteFile() failed");
-			return 1;
-		}
-	}
-
 	// chdir to file's directory
 	sz = dirname_len(filename);
 	if (sz != 0) {
-		filename[sz-1] = '\0';
+		filename[sz - 1] = '\0';
 		if (!SetCurrentDirectory(filename)) {
-			pWin32Error(ERR, "SetCurrentDirectory('%S') failed: ", filename);
+			pWin32Error(ERR, "SetCurrentDirectory('" FMT_S "') failed: ", filename);
 			return 1;
 		}
 		filename += sz;
 	}
 
-	freespace = cwd_free_space();
-
-	log(INFO, "free space: %lld bytes (%.1f%c)", freespace, humansize, human_size(&humansize), (humansize = (double)freespace) );
-
-	// leave untouched at most 10Mb, at least 10 percent
-	data.filesize.QuadPart = freespace;
-	freespace = freespace / 10;
-	if (freespace > 10 * 1024 * 1024)
-		freespace = 10 * 1024 * 1024;
-
-	// round to block size
-	data.filesize.QuadPart = (data.filesize.QuadPart - freespace) / 512 * 512;
-
-	if (data.filesize.QuadPart == 0) {
-		log(ERR, "not enough free space");
-		return 1;
-	}
-
-	log(INFO, "creating file: %lld bytes", data.filesize.QuadPart);
-
-	hFile = CreateFile(filename
-		, GENERIC_READ | GENERIC_WRITE
-		, 0 /* others can't read */
-		, NULL, CREATE_ALWAYS
-		, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE
-		, NULL);
-	if (INVALID_HANDLE_VALUE == hFile) {
-		pWin32Error(ERR, "CreateFile('%S') failed", filename);
-		return 1;
-	}
-
-	clear_compression_flag(hFile);
-
-	SetFilePointerEx(hFile, data.filesize, NULL, FILE_BEGIN);
-
 	rc = 1;
 
-	if (!SetEndOfFile(hFile)) {
-		pWin32Error(ERR, "SetEndOfFile() failed");
-		goto ennd;
-	}
-	if (!SetFileValidData(hFile, data.filesize.QuadPart)) {
-		pWin32Error(ERR, "SetFileValidData() failed");
-		goto ennd;
-	}
-	SetFilePointerEx(hFile, zeropos, NULL, FILE_BEGIN);
-	log(INFO, "file created");
-	log(INFO, "start rewriting non-zero blocks");
-
-	data.curfilepos = 0;
-	data.progressdivizor = (double)data.filesize.QuadPart / (CONWIDTH - 3);
-
-	print_progress(&data, 1);
+	// we create multiple files due to FS restictions
+	origfilename = filename;
 	for (;;) {
-		int nblocks, curbufblock;
-		ReadFile(hFile, buf, sizeof(buf), &nb, NULL);
+		long long freespace, byteswrote = 0;
 
-		print_progress(&data, nb == 0);
-
-		if (nb == 0)
-			break;
-		data.curfilepos += nb;
-
-		nblocks = nb / sizeof(block_t);
-		curbufblock = nblocks;
-		LARGE_INTEGER dist;
-		for (int i = 0; i < nblocks; i++) {
-			if (0 != memcmp(buf[i], zeroblock, sizeof(block_t))) {
-				dist.QuadPart = (i - curbufblock) * (int)sizeof(block_t);
-				if (dist.QuadPart != 0) {
-					SetFilePointerEx(hFile, dist, NULL, FILE_CURRENT);
-				}
-				WriteFile(hFile, zeroblock, sizeof(zeroblock), &nb, NULL);
-				byteswrote += nb;
-				curbufblock = i + 1;
+		if (!DeleteFile(filename)) {
+			if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+				pWin32Error(ERR, "DeleteFile() failed");
+				goto ennd;
 			}
 		}
-		dist.QuadPart = (nblocks - curbufblock) * (int)sizeof(block_t);
-		if (dist.QuadPart != 0) {
-			SetFilePointerEx(hFile, dist, NULL, FILE_CURRENT);
+
+		freespace = cwd_free_space();
+
+		humansize = (double)freespace;
+		log(INFO, "free space: %lld bytes (%.1f%c)", freespace, humansize, human_size(&humansize));
+
+		// leave untouched at most 10Mb, at least 10 percent
+		data.filesize.QuadPart = freespace;
+		freespace = freespace / 10;
+		if (freespace > 10 * 1024 * 1024)
+			freespace = 10 * 1024 * 1024;
+
+		// round to block size
+		data.filesize.QuadPart = (data.filesize.QuadPart - freespace) / 512 * 512;
+
+		if (data.filesize.QuadPart == 0) {
+			log(ERR, "not enough free space");
+			return 1;
 		}
+
+		hFile = CreateFile(filename
+			, GENERIC_READ | GENERIC_WRITE
+			, 0 /* others can't read */ | FILE_SHARE_READ
+			, NULL, CREATE_ALWAYS
+			, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE
+			, NULL);
+		if (INVALID_HANDLE_VALUE == hFile) {
+			pWin32Error(ERR, "CreateFile('" FMT_S "') failed", filename);
+			return 1;
+		}
+
+		clear_compression_flag(hFile);
+
+		// Max file size might be less than free space
+		needmorefiles = 0;
+		for (;;) {
+			SetFilePointerEx(hFile, data.filesize, NULL, FILE_BEGIN);
+
+			if (SetEndOfFile(hFile))
+				break;
+
+			needmorefiles = 1;
+			data.filesize.QuadPart = (data.filesize.QuadPart / 2) / 512 * 512;
+
+			if (data.filesize.QuadPart == 0) {
+				pWin32Error(ERR, "SetEndOfFile() failed");
+				goto ennd;
+			}
+		}
+
+		if (!SetFileValidData(hFile, data.filesize.QuadPart)) {
+			pWin32Error(ERR, "SetFileValidData() failed");
+			goto ennd;
+		}
+		SetFilePointerEx(hFile, zeropos, NULL, FILE_BEGIN);
+
+		humansize = (double)data.filesize.QuadPart;
+		log(INFO, "file created: %lld bytes (%.1f%c): " FMT_S, data.filesize.QuadPart, humansize, human_size(&humansize), filename);
+		log(INFO, "start rewriting non-zero blocks");
+
+		data.curfilepos = 0;
+		data.progressdivizor = (double)data.filesize.QuadPart / (CONWIDTH - 3);
+
+		print_progress(&data, 1);
+		for (;;) {
+			int nblocks, curbufblock;
+			ReadFile(hFile, buf, sizeof(buf), &nb, NULL);
+
+			print_progress(&data, nb == 0);
+
+			if (nb == 0)
+				break;
+			data.curfilepos += nb;
+
+			nblocks = nb / sizeof(block_t);
+			curbufblock = nblocks;
+			LARGE_INTEGER dist;
+			for (int i = 0; i < nblocks; i++) {
+				if (0 != memcmp(buf[i], zeroblock, sizeof(block_t))) {
+					dist.QuadPart = (i - curbufblock) * (int)sizeof(block_t);
+					if (dist.QuadPart != 0) {
+						SetFilePointerEx(hFile, dist, NULL, FILE_CURRENT);
+					}
+					WriteFile(hFile, zeroblock, sizeof(zeroblock), &nb, NULL);
+					byteswrote += nb;
+					curbufblock = i + 1;
+				}
+			}
+			dist.QuadPart = (nblocks - curbufblock) * (int)sizeof(block_t);
+			if (dist.QuadPart != 0) {
+				SetFilePointerEx(hFile, dist, NULL, FILE_CURRENT);
+			}
+		}
+
+		// newline after progress bar
+		putc('\n', out);
+		fflush(out);
+
+		humansize = (double)byteswrote;
+		log(INFO, "wrote: %lld bytes (%.1f%c)", byteswrote, humansize, human_size(&humansize));
+
+		if (!needmorefiles)
+			break;
+		_stprintf_s(extrafile, MAX_PATH
+			, _T("%.*s.%d")
+			, MAX_PATH - 10
+			, origfilename
+			, n_extrafile);
+		filename = extrafile;
+		n_extrafile++;
+		// Intentionally not closing  hFile
 	}
-
-	// newline after progress bar
-	putc('\n', out);
-	fflush(out);
-
-	log(INFO, "wrote: %lld bytes (%.1f%c)", byteswrote, humansize, human_size(&humansize), (humansize = (double)byteswrote));
-
 	rc = 0;
 ennd:
-	CloseHandle(hFile);
 	return rc;
 }
 

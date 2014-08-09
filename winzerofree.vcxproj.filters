@@ -18,10 +18,10 @@
     <ClCompile Include="dbgwrappers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="winzerofree.c">
+    <ClCompile Include="logging.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="logging.c">
+    <ClCompile Include="winzerofree.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -12,6 +12,12 @@ extern "C" {
 #define MYPROG_LOG_WARNING 3
 #define MYPROG_LOG_ERROR 4
 
+#ifdef _UNICODE
+#define FMT_S "%S"
+#else
+#define FMT_S "%s"
+#endif
+
 void myprog_pSysError(int lvl, char const *fmt, ...);
 void myprog_pWinsockError(int lvl, char const *fmt, ...);
 void myprog_pWin32Error(int lvl, char const *fmt, ...);
