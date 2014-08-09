@@ -1,11 +1,11 @@
-// allocnozero.cpp : Defines the entry point for the console application.
-//
-
-#include "stdafx.h"
-
 #include "mylogging.h"
 
+#include <stdio.h>
+#include <tchar.h>
+#include <locale.h>
 #include <string.h>
+
+#include <windows.h>
 
 #include "mylastheader.h"
 
@@ -178,7 +178,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	freespace = cwd_free_space();
 
-	log(INFO, "free space: %lld bytes (%.1f%c)", freespace, humansize, human_size(&(humansize = (double)freespace)));
+	log(INFO, "free space: %lld bytes (%.1f%c)", freespace, humansize, human_size(&humansize), (humansize = (double)freespace) );
 
 	// leave untouched at most 10Mb, at least 10 percent
 	data.filesize.QuadPart = freespace;
@@ -230,6 +230,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	print_progress(&data, 1);
 	for (;;) {
+		int nblocks, curbufblock;
 		ReadFile(hFile, buf, sizeof(buf), &nb, NULL);
 
 		print_progress(&data, nb == 0);
@@ -238,8 +239,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			break;
 		data.curfilepos += nb;
 
-		int nblocks = nb / sizeof(block_t);
-		int curbufblock = nblocks;
+		nblocks = nb / sizeof(block_t);
+		curbufblock = nblocks;
 		LARGE_INTEGER dist;
 		for (int i = 0; i < nblocks; i++) {
 			if (0 != memcmp(buf[i], zeroblock, sizeof(block_t))) {
@@ -258,10 +259,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
+	// newline after progress bar
 	putc('\n', out);
 	fflush(out);
 
-	log(INFO, "wrote: %lld bytes (%.1f%c)", byteswrote, humansize, human_size(&(humansize = (double)byteswrote)));
+	log(INFO, "wrote: %lld bytes (%.1f%c)", byteswrote, humansize, human_size(&humansize), (humansize = (double)byteswrote));
 
 	rc = 0;
 ennd:
