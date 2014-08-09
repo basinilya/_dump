@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClCompile Include="winzerofree.c" />
     <ClCompile Include="dbgwrappers.c" />
-    <ClCompile Include="logging.cpp" />
+    <ClCompile Include="logging.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mylastheader.h" />
