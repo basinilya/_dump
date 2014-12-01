@@ -102,10 +102,40 @@ time_t getmtime(int fd) {
 	return st.st_mtime;
 }
 
+void vhd_validate(struct vhd_footer *footer, _TCHAR *hint)
+{
+	u_long checksum = ntohl(footer->Checksum);
+	u_long calculated = vhd_footer_checksum(footer);
+
+	int badchksum = 0;
+
+	if (checksum != calculated) {
+		_ftprintf(stderr, _T("bad checksum: \n"), hint);
+		exit(1);
+	}
+}
+
+void vhd_read_footer(FILE *f, struct vhd_footer *footer, _TCHAR *hint) {
+	int rc;
+	rc = _fseeki64(f, -(off_t)sizeof(struct vhd_footer), SEEK_END);
+	if (rc != 0) {
+		perror("_fseeki64() failed");
+		exit(1);
+	}
+
+	rc = fread(footer, 1, sizeof(struct vhd_footer), f);
+	if (rc != sizeof(struct vhd_footer)) {
+		fprintf(stderr, "read failed\n");
+		exit(1);
+	}
+
+	vhd_validate(footer, hint);
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	int rc;
-	struct vhd_footer parent_footer;
+	struct vhd_footer parent_footer, child_footer;
 	struct vhd_header child_header;
 
 	setlocale(LC_ALL, ".ACP");
@@ -117,45 +147,28 @@ int _tmain(int argc, _TCHAR* argv[])
 		return 1;
 	}
 
-	FILE *vhdparent = _tfopen(argv[1], _T("r+b"));
+	_TCHAR *sParent = argv[1];
+	_TCHAR *sChild = argv[2];
+
+	FILE *vhdparent = _tfopen(sParent, _T("r+b"));
 	if (!vhdparent) {
-		vhdparent = _tfopen(argv[1], _T("rb"));
+		vhdparent = _tfopen(sParent, _T("rb"));
 		if (!vhdparent) {
-			_tperror(argv[1]);
+			_tperror(sParent);
 			return 1;
 		}
 	}
 
 	int fdParent = _fileno(vhdparent);
 
-	FILE *vhdchild = _tfopen(argv[2], _T("rb"));
+	FILE *vhdchild = _tfopen(sChild, _T("rb"));
 	if (!vhdchild) {
-		_tperror(argv[2]);
+		_tperror(sChild);
 		return 1;
 	}
 
-	rc = _fseeki64(vhdparent, -(off_t)sizeof(struct vhd_footer), SEEK_END);
-	if (rc != 0) {
-		_tperror(NULL);
-	}
-
-	rc = fread(&parent_footer, 1, sizeof(struct vhd_footer), vhdparent);
-	if (rc != sizeof(struct vhd_footer)) {
-		fprintf(stderr, "read failed\n");
-		return 1;
-	}
-
-	u_long checksum = ntohl(parent_footer.Checksum);
-	u_long calculated = vhd_footer_checksum(&parent_footer);
-
-	int badchksum = 0;
-
-	if (checksum != calculated) {
-		fprintf(stderr, "bad checksum in parent vhd\n");
-		badchksum = 1;
-	}
-
-	//Parent_Unique_ID
+	vhd_read_footer(vhdparent, &parent_footer, sParent);
+	vhd_read_footer(vhdchild, &child_footer, sChild);
 
 	rc = _fseeki64(vhdchild, sizeof(struct vhd_footer), SEEK_SET);
 	if (rc != 0) {
@@ -175,10 +188,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	printf("child.Parent_Time_Stamp: %s\n" "parent.Time_Stamp      : %s\n", buf1, buf2);
 	fflush(stdout);
 
-	if (badchksum) {
-		return 1;
-	}
-	
 	int changed = 0;
 
 	if (fix_header && parent_footer.Time_Stamp != child_header.Parent_Time_Stamp) {
