@@ -1,0 +1,145 @@
+
+ffmpeg -i echo2.mp3 
+
+ffmpeg -y -i echo2.mp3 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 -strftime 1 "%Y-%m-%d_%H-%M-%S.mp3"
+
+I have a big mp3 file, which I started recording at 17:24. Trying to split into 2 minute segments:
+
+
+
+ffmpeg -y -i test.mp3 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 -strftime 1 '1/test-%H-%M.mp3'
+
+ffmpeg -y -i echo2.mp3 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 -strftime 1 1/echo-%H-%M.mp3
+
+ffmpeg -y -i echo2.mp3 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 -strftime 1 "1/echo-%{localtime:%H-%M}.mp3"
+
+ffmpeg -i video.mp4 -vf "drawtext=expansion=strftime: \
+    basetime=$(date +%s -d'2013-12-01 12:00:00')000000: \
+    text='%H\\:%S\\:%S'" output.mp4
+
+
+17:24
+
+
+23:34
+
+base=`date -d '19:51' +%s`
+for f in test-??.mp3; do
+     mv $f test-`date -d@$(( (1${f:5:2} - 100)*120 + base)) +%H-%M`.mp3
+done
+
+i=0
+for f in test-??-??.mp3; do
+    f2=00$i
+    mv $f test-${f2: -3}.mp3
+    i=$((i+1))
+done
+
+(
+set -e
+seglen=600
+basestamp=
+lastdir=
+shopt -s nullglob
+for f in test-???.*; do
+    ext=${f##*.}
+    i=${f#test-}; i=${i%.*}; i=$((1${i} - 1${i//[0-9]/0}))
+    if [ -z "$basestamp" ]; then
+        basestamp=$((`stat -c %Y $f` - seglen))
+        basenum=$i
+    fi
+    stamp=$(( (i - basenum)*seglen + basestamp ))
+    dir=`printf '%(%Y%m%d)T' $stamp`
+    [ "$lastdir" = "$dir" ] || mkdir -p "$dir"
+    lastdir=$dir
+    newname=`printf '%s/test-%(%H-%M)T' "$dir" $stamp`.$ext
+    mv --no-clobber "$f" "$newname"
+done
+)
+
+
+wget http://81.19.85.197/echo.mp3 -O - | ffmpeg -y -i pipe:0 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 '1/test-%003d.mp3'
+
+
+
+while true; do
+ffmpeg -y -i "http://81.19.85.197/echo.mp3" -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 'test-%003d.mp3'
+sleep 10
+done
+
+
+PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
+
+
+# Echo
+seglen=600
+shopt -s nullglob
+i=dir0
+for i in dir*; do :; done
+i=${i#dir}
+i=$((1${i} - 1${i//[0-9]/0}))
+# i=-1
+while true; do
+    d=000$i; d=${d: -4}
+    echo "checking whether $d is empty..."
+    for have in $d/*; do
+        i=$((i+1))
+        continue 2
+    done
+    echo "writing to $d"
+    mkdir -p $d
+    #-reset_timestamps 1
+    limit="-t $((RANDOM / 500 + 7200))"
+    limit=
+                                             ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
+# mplayer -noconsolecontrols -ao null -cache 8192 -
+#    wget http://81.19.85.197/echo.mp3 -O - | ffmpeg -y -i pipe:0                         $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
+
+    sleep 10
+done
+
+
+
+lastfile=
+#lastfile=test-09-48.flv
+while true; do
+    for f in *.*; do
+        if [ -z "$lastfile" ]; then
+            lastfile=$f
+            mplayer "$f"
+            break
+        fi
+        if [ "$f" = "$lastfile" ]; then
+            lastfile=
+        fi
+    done
+done
+
+export http_proxy="http://proxy.reksoft.ru:3128"
+
+# Roks
+seglen=600
+shopt -s nullglob
+i=dir0
+for i in dir*; do :; done
+i=${i#dir}
+i=$((1${i} - 1${i//[0-9]/0}))
+# i=-1
+while true; do
+    d=000$i; d=${d: -4}
+    echo "checking whether $d is empty..."
+    for have in $d/*; do
+        i=$((i+1))
+        continue 2
+    done
+    echo "writing to $d"
+    mkdir -p $d
+    limit="-t $((RANDOM / 500 + 7200))"
+    limit=
+
+    url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
+    ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.flv"
+
+    sleep 10
+done
+
