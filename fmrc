@@ -1,0 +1,44 @@
+PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
+[ -z "$_SSH_AGENT_HANDLE" ] || { eval "exec $_SSH_AGENT_HANDLE>&-"; unset _SSH_AGENT_HANDLE SSH_AUTH_SOCK; }
+case $HOSTNAME in BASIN) export http_proxy="http://proxy.reksoft.ru:3128" https_proxy="http://proxy.reksoft.ru:3128";; esac
+
+seglen=600
+limit=
+shopt -s nullglob
+
+
+fn_record_in_empty_dirs() {
+    i=dir0
+    for i in dir*; do :; done
+    i=${i#dir}
+    i=$((1${i} - 1${i//[0-9]/0}))
+    # i=-1
+    while true; do
+        subdir=000$i; subdir=${subdir: -4}
+        echo "checking whether $subdir is empty..."
+        for have in $subdir/*; do
+            i=$((i+1))
+            continue 2
+        done
+        echo "writing to $subdir"
+        mkdir -p $subdir
+
+        "$@"
+    
+        sleep 10
+    done
+}
+
+fn_run_in_new_term() {
+    cmd /c start bash -c '"$@"' x "$@"
+}
+
+#-reset_timestamps 1
+#limit="-t $((RANDOM / 500 + 7200))"
+
+# Echo
+#ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+
+# Roks
+#url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
+#ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
