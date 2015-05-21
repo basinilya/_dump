@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# errors are fatal
+set -e
+set -o pipefail
+function errtrap {     es=$?;     echo "ERROR line $1: Command exited with status $es.">&2; }; trap 'errtrap $LINENO' ERR  
+
+#
+# standard function to flush the usage of the script to the output
+#
+usage()
+{
+cat << EOF
+Description
+
+usage: $0 ???
+
+OPTIONS:
+   [-h]   Help
+
+EOF
+}
+
+badargs() {
+    echo >&2
+    usage >&2
+    exit 1
+}
+
+LF="
+"
+
+THISDIR=`cd "\`dirname \"$0\"\`" && pwd`
+
+. "$THISDIR/fmrc"
+
+unset Z
+
+#
+# standard getopts routine.
+#
+while getopts "z:h" OPTION
+do
+     case $OPTION in
+         z)
+            Z=$OPTARG
+            ;;
+         h)
+            usage
+            exit
+            ;;
+         ?)
+            badargs
+            ;;
+     esac
+done
+
+if [ $# = 0 ]; then
+    echo "bad args" >&2
+    badargs
+fi
