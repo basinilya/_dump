@@ -25,6 +25,7 @@ fm_record_in_empty_dirs() {
         echo "writing to $subdir"
         mkdir -p $subdir
 
+        pwd
         "$@"
     
         sleep 10
@@ -44,17 +45,25 @@ fm_run_me_in_new_term() {
 #limit="-t $((RANDOM / 500 + 7200))"
 
 fm_rec_echo() {
-    ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+    set -- ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+    echo "$@"
+    "$@"
 }
 
 fm_rec_roks() {
     local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
-    ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
+    [ -z "$url" ] && return 1
+    set -- ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
+    echo "$@"
+    "$@"
 }
 
+
 fm_all() {
-    fm_run_me_in_new_term fm_record_in_empty_dirs roks fm_rec_roks &
-    fm_run_me_in_new_term fm_record_in_empty_dirs echo fm_rec_echo &
+    [ $# = 0 ] && set -- echo roks
+    for st in "$@"; do
+        fm_run_me_in_new_term fm_record_in_empty_dirs $st fm_rec_$st &
+    done
 }
 
 # /cygdrive/p/Docs/fm-archive/fm all

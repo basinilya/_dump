@@ -58,45 +58,11 @@ done
 )
 
 
-wget http://81.19.85.197/echo.mp3 -O - | ffmpeg -y -i pipe:0 -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 '1/test-%003d.mp3'
-
-
-
-while true; do
-ffmpeg -y -i "http://81.19.85.197/echo.mp3" -map 0 -c copy -f segment -segment_time 120 -reset_timestamps 1 'test-%003d.mp3'
-sleep 10
-done
-
-
 PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
 
 
-# Echo
-i=dir0
-for i in dir*; do :; done
-i=${i#dir}
-i=$((1${i} - 1${i//[0-9]/0}))
-# i=-1
-while true; do
-    d=000$i; d=${d: -4}
-    echo "checking whether $d is empty..."
-    for have in $d/*; do
-        i=$((i+1))
-        continue 2
-    done
-    echo "writing to $d"
-    mkdir -p $d
-    #-reset_timestamps 1
-    limit="-t $((RANDOM / 500 + 7200))"
-    limit=
-    ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
-    sleep 10
-done
-
-
-
 lastfile=
-#lastfile=test-09-48.flv
+#lastfile=test-18-47.mp3
 while true; do
     for f in *.*; do
         if [ -z "$lastfile" ]; then
@@ -109,30 +75,3 @@ while true; do
         fi
     done
 done
-
-export http_proxy="http://proxy.reksoft.ru:3128"
-
-# Roks
-i=dir0
-for i in dir*; do :; done
-i=${i#dir}
-i=$((1${i} - 1${i//[0-9]/0}))
-# i=-1
-while true; do
-    d=000$i; d=${d: -4}
-    echo "checking whether $d is empty..."
-    for have in $d/*; do
-        i=$((i+1))
-        continue 2
-    done
-    echo "writing to $d"
-    mkdir -p $d
-    limit="-t $((RANDOM / 500 + 7200))"
-    limit=
-
-    url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
-    ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.flv"
-
-    sleep 10
-done
-
