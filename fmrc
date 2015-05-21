@@ -36,7 +36,7 @@ fm_run_in_new_term() {
 }
 
 fm_run_me_in_new_term() {
-    fm_run_in_new_term bash -c '"$@"' x "$THISDIR/$THISSCRIPT" "$@"
+    fm_run_in_new_term bash -c '. "$0"; "$@"' "$THISDIR/fmrc" "$@"
 }
 
 
@@ -53,8 +53,8 @@ fm_rec_roks() {
 }
 
 fm_all() {
-    fm_run_me_in_new_term record_in_empty_dirs roks fm_rec_roks &
-    fm_run_me_in_new_term record_in_empty_dirs echo fm_rec_echo &
+    fm_run_me_in_new_term fm_record_in_empty_dirs roks fm_rec_roks &
+    fm_run_me_in_new_term fm_record_in_empty_dirs echo fm_rec_echo &
 }
 
 # /cygdrive/p/Docs/fm-archive/fm all
