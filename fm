@@ -31,6 +31,7 @@ LF="
 "
 
 THISDIR=`cd "\`dirname \"$0\"\`" && pwd`
+THISSCRIPT=`basename "$0"`
 
 . "$THISDIR/fmrc"
 
@@ -59,3 +60,8 @@ if [ $# = 0 ]; then
     echo "bad args" >&2
     badargs
 fi
+
+eval "cmd=fm_\$$OPTIND"
+shift $OPTIND
+
+"$cmd" "$@"

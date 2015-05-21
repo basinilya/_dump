@@ -7,14 +7,16 @@ limit=
 shopt -s nullglob
 
 
-fn_record_in_empty_dirs() {
+fm_record_in_empty_dirs() {
+    station=${1:?}
+    shift
     i=dir0
     for i in dir*; do :; done
     i=${i#dir}
     i=$((1${i} - 1${i//[0-9]/0}))
     # i=-1
     while true; do
-        subdir=000$i; subdir=${subdir: -4}
+        subdir=000$i; subdir=${subdir: -4}; subdir="$station/$subdir"
         echo "checking whether $subdir is empty..."
         for have in $subdir/*; do
             i=$((i+1))
@@ -29,16 +31,30 @@ fn_record_in_empty_dirs() {
     done
 }
 
-fn_run_in_new_term() {
+fm_run_in_new_term() {
     cmd /c start bash -c '"$@"' x "$@"
 }
+
+fm_run_me_in_new_term() {
+    fm_run_in_new_term bash -c '"$@"' x "$THISDIR/$THISSCRIPT" "$@"
+}
+
 
 #-reset_timestamps 1
 #limit="-t $((RANDOM / 500 + 7200))"
 
-# Echo
-#ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+fm_rec_echo() {
+    ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+}
 
-# Roks
-#url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
-#ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
+fm_rec_roks() {
+    local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
+    ffmpeg -i "$url" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
+}
+
+fm_all() {
+    fm_run_me_in_new_term record_in_empty_dirs roks fm_rec_roks &
+    fm_run_me_in_new_term record_in_empty_dirs echo fm_rec_echo &
+}
+
+# /cygdrive/p/Docs/fm-archive/fm all

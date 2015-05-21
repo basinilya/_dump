@@ -72,8 +72,6 @@ PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
 
 
 # Echo
-seglen=600
-shopt -s nullglob
 i=dir0
 for i in dir*; do :; done
 i=${i#dir}
@@ -91,10 +89,7 @@ while true; do
     #-reset_timestamps 1
     limit="-t $((RANDOM / 500 + 7200))"
     limit=
-                                             ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
-# mplayer -noconsolecontrols -ao null -cache 8192 -
-#    wget http://81.19.85.197/echo.mp3 -O - | ffmpeg -y -i pipe:0                         $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
-
+    ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$d/test-%003d.mp3"
     sleep 10
 done
 
@@ -118,8 +113,6 @@ done
 export http_proxy="http://proxy.reksoft.ru:3128"
 
 # Roks
-seglen=600
-shopt -s nullglob
 i=dir0
 for i in dir*; do :; done
 i=${i#dir}
