@@ -52,7 +52,10 @@ fm_rec_echo() {
 
 fm_rec_roks() {
     local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
-    [ -z "$url" ] && return 1
+    if [ -z "$url" ]; then
+        echo "failed to get stream url"
+        return 1
+    fi
     set -- ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
     echo "$@"
     "$@"
@@ -67,3 +70,23 @@ fm_all() {
 }
 
 # /cygdrive/p/Docs/fm-archive/fm all
+
+fm_ren() {
+    local basestamp basenum lastdir stamp dir newname ext i
+    basestamp=
+    lastdir=
+    for f in test-???.*; do
+        ext=${f##*.}
+        i=${f#test-}; i=${i%.*}; i=$((1${i} - 1${i//[0-9]/0}))
+        if [ -z "$basestamp" ]; then
+            basestamp=$((`stat -c %Y $f` - seglen))
+            basenum=$i
+        fi
+        stamp=$(( (i - basenum)*seglen + basestamp ))
+        dir=`printf '%(%Y%m%d)T' $stamp`
+        [ "$lastdir" = "$dir" ] || mkdir -p "$dir"
+        lastdir=$dir
+        newname=`printf '%s/test-%(%H-%M)T' "$dir" $stamp`.$ext
+        mv --no-clobber "$f" "$newname"
+    done
+}
