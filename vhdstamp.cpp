@@ -32,6 +32,8 @@ struct vhd_footer {
 
 enum { driveFooterSize = sizeof(struct vhd_footer) };
 
+enum { Parent_Unicode_Name_nchars = 512 / sizeof(u_short) };
+
 struct vhd_header {
 	char Cookie[8];
 	char Data_Offset[8];
@@ -43,7 +45,7 @@ struct vhd_header {
 	vhd_unique_id_t Parent_Unique_ID;
 	u_long Parent_Time_Stamp;
 	char Reserved[4];
-	char Parent_Unicode_Name[512];
+	u_short Parent_Unicode_Name[Parent_Unicode_Name_nchars];
 	char Parent_Locator_Entry_1[24];
 	char Parent_Locator_Entry_2[24];
 	char Parent_Locator_Entry_3[24];
@@ -83,22 +85,12 @@ void time_t_asctime(char buf1[100], time_t timestamp)
 	asctime_s(buf1, 100, &tm);
 }
 
-void vhd_asctime(char buf1[100], u_long Time_Stamp)
-{
-	time_t timestamp = vhd_get_time_t(Time_Stamp);
-	time_t_asctime(buf1, timestamp);
-}
-
 time_t getmtime(int fd) {
 	struct stat st;
 	if (0 != fstat(fd, &st)) {
 		perror("fstat() failed");
 		exit(1);
 	}
-	char buf[100];
-	time_t_asctime(buf, st.st_mtime);
-	printf("parent file mtime      : %s\n", buf);
-	fflush(stdout);
 	return st.st_mtime;
 }
 
@@ -132,6 +124,36 @@ void vhd_read_footer(FILE *f, struct vhd_footer *footer, _TCHAR *hint) {
 	vhd_validate(footer, hint);
 }
 
+static const char DIGITS_LOWER[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+static char *encodeHex(const char data[], size_t datalen, char out[]) {
+	for (int i = 0, j = 0; i < datalen; i++) {
+		unsigned char c = (unsigned char)data[i];
+		out[j++] = DIGITS_LOWER[c >> 4];
+		out[j++] = DIGITS_LOWER[0x0F & c];
+		c = 0;
+	}
+	return out;
+}
+
+static void print_vhd_unique_id(const char *prefix, vhd_unique_id_t uid) {
+	char buf1[100];
+	encodeHex(uid, sizeof(vhd_unique_id_t), buf1);
+	printf("%s{%.8s-%.4s-%.4s-%.4s-%.12s}\n", prefix, buf1, buf1 + 8, buf1 + 12, buf1 + 16, buf1 + 20);
+}
+
+static void print_timestamp(const char *prefix, time_t timestamp) {
+	char buf1[100];
+	size_t sz;
+
+	time_t_asctime(buf1, timestamp);
+
+	sz = strlen(buf1) - 1;
+	if (buf1[sz] == '\n') buf1[sz] = '\0';
+
+	printf("%s%s\n", prefix, buf1);
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	int rc;
@@ -140,15 +162,24 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	setlocale(LC_ALL, ".ACP");
 
-	int fix_header = 0;
+	int fix_header = 0, fix_mtime = 0;
 
-	if (!(argc == 3 || argc == 4 && 0 == _tcscmp(_T("--fix-header"), argv[3]) && (fix_header = 1))) {
-		fprintf(stderr, "usage: progname vhdparent vhdchild [--fix-header]\n");
+	if (argc < 3) {
+		fprintf(stderr, "usage: progname vhdparent vhdchild [--fix-header] [--fix-mtime]\n");
 		return 1;
 	}
 
 	_TCHAR *sParent = argv[1];
 	_TCHAR *sChild = argv[2];
+
+	for (int i = 3; i < argc; i++) {
+		if (0 == _tcscmp(argv[i], _T("--fix-header"))) {
+			fix_header = 1;
+		}
+		else if (0 == _tcscmp(argv[i], _T("--fix-mtime"))) {
+			fix_mtime = 1;
+		}
+	}
 
 	FILE *vhdparent = _tfopen(sParent, _T("r+b"));
 	if (!vhdparent) {
@@ -182,10 +213,24 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
 	char buf1[100], buf2[100];
-	vhd_asctime(buf1, child_header.Parent_Time_Stamp);
-	vhd_asctime(buf2, parent_footer.Time_Stamp);
 
-	printf("child.Parent_Time_Stamp: %s\n" "parent.Time_Stamp      : %s\n", buf1, buf2);
+	u_short native_Parent_Unicode_Name[Parent_Unicode_Name_nchars];
+	for (int i = 0; i < Parent_Unicode_Name_nchars; i++) {
+		native_Parent_Unicode_Name[i] = ntohs(child_header.Parent_Unicode_Name[i]);
+	}
+	printf("child.Parent_Unicode_Name: %.*S\n", Parent_Unicode_Name_nchars, native_Parent_Unicode_Name);
+	printf("\n");
+
+	print_vhd_unique_id("child.Parent_Unique_ID : ", child_header.Parent_Unique_ID);
+	print_vhd_unique_id("parent_footer.Unique_Id: ", parent_footer.Unique_Id);
+	printf("\n");
+
+	print_timestamp("child.Parent_Time_Stamp: ", vhd_get_time_t(child_header.Parent_Time_Stamp));
+	print_timestamp("parent.Time_Stamp      : ", vhd_get_time_t(parent_footer.Time_Stamp));
+	time_t parent_mtime = getmtime(fdParent);
+	print_timestamp("parent file mtime      : ", parent_mtime);
+	printf("\n");
+
 	fflush(stdout);
 
 	int changed = 0;
@@ -226,7 +271,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	struct _utimbuf utim;
 	utim.modtime = vhd_get_time_t(child_header.Parent_Time_Stamp);
 
-	if (changed || getmtime(fdParent) > utim.modtime) {
+	if (changed || fix_mtime && parent_mtime > utim.modtime) {
 		time(&utim.actime);
 		printf("resetting parent file modification time\n");
 		fflush(stdout);
@@ -241,4 +286,3 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	return 0;
 }
-
