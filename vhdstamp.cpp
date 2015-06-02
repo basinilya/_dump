@@ -23,7 +23,7 @@ struct vhd_footer {
 	char Original_Size[8];
 	char Current_Size[8];
 	char Disk_Geometry[4];
-	char Disk_Type[4];
+	u_long Disk_Type;
 	u_long Checksum;
 	vhd_unique_id_t Unique_Id;
 	char Saved_State[1];
@@ -71,7 +71,7 @@ u_long vhd_footer_checksum(struct vhd_footer *driveFooter) {
 	return checksum;
 }
 
-#define Y2KSTAMP 946684800
+#define Y2KSTAMP (946684800)
 
 time_t vhd_get_time_t(u_long Time_Stamp) {
 	return ntohl(Time_Stamp) + Y2KSTAMP;
@@ -103,6 +103,29 @@ void vhd_validate(struct vhd_footer *footer, _TCHAR *hint)
 
 	if (checksum != calculated) {
 		_ftprintf(stderr, _T("bad checksum: \n"), hint);
+		exit(1);
+	}
+}
+
+void vhd_check_disk_type(const char *prefix, const struct vhd_footer *footer) {
+	printf("%s", prefix);
+	switch (ntohl(footer->Disk_Type)) {
+	case 2:
+		printf("fixed disk not supported\n");
+		fflush(stdout);
+		exit(1);
+		break;
+	case 3:
+		printf("dynamic disk\n");
+		fflush(stdout);
+		break;
+	case 4:
+		printf("differencing disk\n");
+		fflush(stdout);
+		break;
+	default:
+		printf("unknown disk type\n");
+		fflush(stdout);
 		exit(1);
 	}
 }
@@ -151,7 +174,7 @@ static void print_timestamp(const char *prefix, time_t timestamp) {
 	sz = strlen(buf1) - 1;
 	if (buf1[sz] == '\n') buf1[sz] = '\0';
 
-	printf("%s%s\n", prefix, buf1);
+	printf("%s%s (%lld)\n", prefix, buf1, (long long)timestamp);
 }
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -160,6 +183,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	struct vhd_footer parent_footer, child_footer;
 	struct vhd_header child_header;
 
+	_putenv("TZ="); /* ibo nehuy */
 	setlocale(LC_ALL, ".ACP");
 
 	int fix_header = 0, fix_mtime = 0;
@@ -198,8 +222,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		return 1;
 	}
 
-	vhd_read_footer(vhdparent, &parent_footer, sParent);
 	vhd_read_footer(vhdchild, &child_footer, sChild);
+	vhd_check_disk_type("child  disk type : ", &child_footer);
+
+	vhd_read_footer(vhdparent, &parent_footer, sParent);
+	vhd_check_disk_type("parent disk type : ", &parent_footer);
+	printf("\n");
 
 	rc = _fseeki64(vhdchild, sizeof(struct vhd_footer), SEEK_SET);
 	if (rc != 0) {
@@ -218,13 +246,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	for (int i = 0; i < Parent_Unicode_Name_nchars; i++) {
 		native_Parent_Unicode_Name[i] = ntohs(child_header.Parent_Unicode_Name[i]);
 	}
-	printf("child.Parent_Unicode_Name: %.*S\n", Parent_Unicode_Name_nchars, native_Parent_Unicode_Name);
+	printf("child.Parent Name: %.*S\n", Parent_Unicode_Name_nchars, native_Parent_Unicode_Name);
 	printf("\n");
 
 	print_vhd_unique_id("child.Parent_Unique_ID : ", child_header.Parent_Unique_ID);
-	print_vhd_unique_id("parent_footer.Unique_Id: ", parent_footer.Unique_Id);
+	print_vhd_unique_id("parent.Unique_Id       : ", parent_footer.Unique_Id);
 	printf("\n");
 
+	print_timestamp("child.Time_Stamp       : ", vhd_get_time_t(child_footer.Time_Stamp));
 	print_timestamp("child.Parent_Time_Stamp: ", vhd_get_time_t(child_header.Parent_Time_Stamp));
 	print_timestamp("parent.Time_Stamp      : ", vhd_get_time_t(parent_footer.Time_Stamp));
 	time_t parent_mtime = getmtime(fdParent);
@@ -271,7 +300,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	struct _utimbuf utim;
 	utim.modtime = vhd_get_time_t(child_header.Parent_Time_Stamp);
 
-	if (changed || fix_mtime && parent_mtime > utim.modtime) {
+	if (changed || fix_mtime && parent_mtime != utim.modtime) {
 		time(&utim.actime);
 		printf("resetting parent file modification time\n");
 		fflush(stdout);
