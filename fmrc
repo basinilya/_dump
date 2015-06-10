@@ -90,3 +90,21 @@ fm_ren() {
         mv --no-clobber "$f" "$newname"
     done
 }
+
+fm_playdir() {
+    [ -z "$1" ] || cd "$1"
+    lastfile=
+    #lastfile=test-18-47.mp3
+    while true; do
+        for f in *.*; do
+            if [ -z "$lastfile" ]; then
+                lastfile=$f
+                mplayer "$f"
+                break
+            fi
+            if [ "$f" = "$lastfile" ]; then
+                lastfile=
+            fi
+        done
+    done
+}
