@@ -6,13 +6,13 @@ seglen=600
 limit=
 shopt -s nullglob
 
-
 fm_record_in_empty_dirs() {
+    local station i subdir have
     station=${1:?}
     shift
-    i=dir0
-    for i in dir*; do :; done
-    i=${i#dir}
+    i=0
+    for i in "$station/"????; do :; done
+    i=${i##*/}
     i=$((1${i} - 1${i//[0-9]/0}))
     # i=-1
     while true; do
@@ -95,16 +95,14 @@ fm_playdir() {
     [ -z "$1" ] || cd "$1"
     lastfile=
     #lastfile=test-18-47.mp3
-    while true; do
-        for f in *.*; do
-            if [ -z "$lastfile" ]; then
-                lastfile=$f
-                mplayer "$f"
-                break
-            fi
-            if [ "$f" = "$lastfile" ]; then
-                lastfile=
-            fi
-        done
+    for f in *.*; do
+        if [ -z "$lastfile" ]; then
+            lastfile=$f
+            mplayer "$f" || true
+            break
+        fi
+        if [ "$f" = "$lastfile" ]; then
+            lastfile=
+        fi
     done
 }

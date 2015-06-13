@@ -18,45 +18,6 @@ ffmpeg -i video.mp4 -vf "drawtext=expansion=strftime: \
     text='%H\\:%S\\:%S'" output.mp4
 
 
-17:24
-
-
-23:34
-
-base=`date -d '19:51' +%s`
-for f in test-??.mp3; do
-     mv $f test-`date -d@$(( (1${f:5:2} - 100)*120 + base)) +%H-%M`.mp3
-done
-
-i=0
-for f in test-??-??.mp3; do
-    f2=00$i
-    mv $f test-${f2: -3}.mp3
-    i=$((i+1))
-done
-
-(
-set -e
-seglen=600
-basestamp=
-lastdir=
-shopt -s nullglob
-for f in test-???.*; do
-    ext=${f##*.}
-    i=${f#test-}; i=${i%.*}; i=$((1${i} - 1${i//[0-9]/0}))
-    if [ -z "$basestamp" ]; then
-        basestamp=$((`stat -c %Y $f` - seglen))
-        basenum=$i
-    fi
-    stamp=$(( (i - basenum)*seglen + basestamp ))
-    dir=`printf '%(%Y%m%d)T' $stamp`
-    [ "$lastdir" = "$dir" ] || mkdir -p "$dir"
-    lastdir=$dir
-    newname=`printf '%s/test-%(%H-%M)T' "$dir" $stamp`.$ext
-    mv --no-clobber "$f" "$newname"
-done
-)
-
 
 PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
 
