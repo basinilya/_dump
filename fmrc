@@ -95,14 +95,19 @@ fm_playdir() {
     [ -z "$1" ] || cd "$1"
     lastfile=
     #lastfile=test-18-47.mp3
-    for f in *.*; do
-        if [ -z "$lastfile" ]; then
-            lastfile=$f
-            mplayer "$f" || true
-            break
-        fi
-        if [ "$f" = "$lastfile" ]; then
-            lastfile=
-        fi
+
+    # repeat if new files added
+    while true; do
+        for f in *.*; do
+            if [ -z "$lastfile" ]; then
+                lastfile=$f
+                mplayer "$f" || true
+                continue 2
+            fi
+            if [ "$f" = "$lastfile" ]; then
+                lastfile=
+            fi
+        done
+        break
     done
 }
