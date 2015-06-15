@@ -33,21 +33,75 @@ fm_record_in_empty_dirs() {
 }
 
 fm_run_in_new_term() {
-    cmd /c start bash -c '"$@"' x "$@"
+    cmd /c start "" "$@"
+    #cmd /c start bash -c '"$@"' x "$@"
 }
 
 fm_run_me_in_new_term() {
     fm_run_in_new_term bash -c '. "$0"; "$@"' "$THISDIR/fmrc" "$@"
 }
 
+fm_ffmpeg_watchdog() {
+    local ffmpeg_pid=${1:?}
+    local watchdir=${2:?}
+    local newstate prevstate=
+
+    cd "$watchdir"
+    while true; do
+        newstate=`du -ksx .`
+        #newstate="y"
+        if [ x"$prevstate" = x"$newstate" ]; then
+            echo
+            echo "ffmpeg seems hung"
+            echo
+            fm_killffmpeg "$ffmpeg_pid"
+            break
+        fi
+        prevstate=$newstate
+        sleep 120
+    done
+}
+
+fm_ffmpeg() {
+    local ffmpeg_pid ffmpeg_watchdog_pid
+    echo ffmpeg "$@"
+    ffmpeg "$@" &
+    ffmpeg_pid=$!
+    fm_ffmpeg_watchdog "$ffmpeg_pid" "$subdir" &
+    ffmpeg_watchdog_pid=$!
+
+    echo
+    echo "ffmpeg_pid: $ffmpeg_pid , ffmpeg_watchdog_pid: $ffmpeg_watchdog_pid , BASHPID: $BASHPID"
+    echo
+
+    wait $ffmpeg_pid
+    kill -KILL $ffmpeg_watchdog_pid 2>/dev/null
+}
+
+fm_killffmpeg() {
+    local ffmpeg_pid ffmpeg_winpid a b ffmpeg_child_winpid
+
+    ffmpeg_pid=${1:?}
+
+    if read ffmpeg_winpid <"/proc/$ffmpeg_pid/winpid" 2>/dev/null; then
+        a=$(wmic process where parentprocessid=$ffmpeg_winpid get processid)
+        b=( ${a//$'\r'/} )
+        ffmpeg_child_winpid=${b[1]}
+
+        echo "killing spawned ffmpeg winpid: $ffmpeg_child_winpid"
+        taskkill /F /pid $ffmpeg_child_winpid
+        echo "killing parent ffmpeg pid: $ffmpeg_pid (winpid: $ffmpeg_winpid)"
+        kill -KILL $ffmpeg_pid
+    else
+        kill -TERM $ffmpeg_pid
+    fi
+}
 
 #-reset_timestamps 1
 #limit="-t $((RANDOM / 500 + 7200))"
 
 fm_rec_echo() {
-    set -- ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
-    echo "$@"
-    "$@"
+    fm_ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
 }
 
 fm_rec_roks() {
@@ -56,9 +110,7 @@ fm_rec_roks() {
         echo "failed to get stream url"
         return 1
     fi
-    set -- ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
-    echo "$@"
-    "$@"
+    fm_ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
 }
 
 
