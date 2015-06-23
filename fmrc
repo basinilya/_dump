@@ -1,4 +1,5 @@
 PATH=`echo "$PATH" | sed 's,/cygdrive/u/[^:]*:,,g'`
+unset TZ
 [ -z "$_SSH_AGENT_HANDLE" ] || { eval "exec $_SSH_AGENT_HANDLE>&-"; unset _SSH_AGENT_HANDLE SSH_AUTH_SOCK; }
 case $HOSTNAME in BASIN) export http_proxy="http://proxy.reksoft.ru:3128" https_proxy="http://proxy.reksoft.ru:3128";; esac
 
@@ -10,18 +11,11 @@ fm_record_in_empty_dirs() {
     local station i subdir have
     station=${1:?}
     shift
-    i=0
-    for i in "$station/"????; do :; done
-    i=${i##*/}
-    i=$((1${i} - 1${i//[0-9]/0}))
-    # i=-1
+
+    subdir="$station"
+    mkdir -p "${subdir:?}/`date +%Y%m%d`" "${subdir:?}/`date --date=tomorrow +%Y%m%d`"
+
     while true; do
-        subdir=000$i; subdir=${subdir: -4}; subdir="$station/$subdir"
-        echo "checking whether $subdir is empty..."
-        for have in $subdir/*; do
-            i=$((i+1))
-            continue 2
-        done
         echo "writing to $subdir"
         mkdir -p $subdir
 
@@ -48,6 +42,7 @@ fm_ffmpeg_watchdog() {
 
     cd "$watchdir"
     while true; do
+        mkdir -p "`date --date=tomorrow +%Y%m%d`"
         newstate=`du -ksx .`
         #newstate="y"
         if [ x"$prevstate" = x"$newstate" ]; then
@@ -101,7 +96,7 @@ fm_killffmpeg() {
 #limit="-t $((RANDOM / 500 + 7200))"
 
 fm_rec_echo() {
-    fm_ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.mp3"
+    fm_ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.mp3"
 }
 
 fm_rec_roks() {
@@ -110,7 +105,7 @@ fm_rec_roks() {
         echo "failed to get stream url"
         return 1
     fi
-    fm_ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen "$subdir/test-%003d.flv"
+    fm_ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.flv"
 }
 
 

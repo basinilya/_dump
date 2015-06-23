@@ -1,3 +1,6 @@
+ffmpeg -y -i test-000.mp3 -map 0 -c copy -f segment -segment_time 1200 -strftime 1 "%Y-%m-%d_%H-%M-%S.mp3"
+ffmpeg -y -i test-000.mp3 -map 0 -c copy -f segment -segment_time 1200 -strftime 1 "%Y%m%d/test-%H-%M.mp3"
+
 
 ffmpeg -i echo2.mp3 
 
