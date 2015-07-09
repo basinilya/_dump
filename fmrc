@@ -141,6 +141,7 @@ fm_ren() {
 fm_playdir() {
     [ -z "$1" ] || cd "$1"
     lastfile=
+    [ -z "$2" ] || for lastfile in $2; do : ; done
     #lastfile=test-18-47.mp3
 
     # repeat if new files added
