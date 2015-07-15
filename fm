@@ -27,11 +27,7 @@ badargs() {
     exit 1
 }
 
-LF="
-"
-
 THISDIR=`cd "\`dirname \"$0\"\`" && pwd`
-THISSCRIPT=`basename "$0"`
 
 . "$THISDIR/fmrc"
 

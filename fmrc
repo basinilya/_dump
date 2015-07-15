@@ -140,22 +140,37 @@ fm_ren() {
 
 fm_playdir() {
     [ -z "$1" ] || cd "$1"
-    lastfile=
-    [ -z "$2" ] || for lastfile in $2; do : ; done
+    local lastfile=
+    local startfile=
+    [ -z "$2" ] || for startfile in $2; do : ; done
     #lastfile=test-18-47.mp3
 
     # repeat if new files added
     while true; do
         for f in *.*; do
-            if [ -z "$lastfile" ]; then
+            if [ -z "$lastfile" -o x"$f" = x"$startfile" ]; then
+                startfile=
                 lastfile=$f
                 mplayer "$f" || true
                 continue 2
             fi
-            if [ "$f" = "$lastfile" ]; then
+            if [ x"$f" = x"$lastfile" ]; then
                 lastfile=
             fi
         done
         break
     done
+}
+
+fm_resetup() {
+    set -e
+    set -o pipefail
+    function errtrap {     es=$?;     echo "ERROR line $1: Command exited with status $es.">&2; }; trap 'errtrap $LINENO' ERR
+    
+    THISDIR=`cd "\`dirname \"${BASH_SOURCE[0]}\"\`" && pwd`
+}
+
+fm_run_me() {
+    fm_resetup
+    "$@"
 }
