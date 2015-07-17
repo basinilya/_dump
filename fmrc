@@ -140,10 +140,9 @@ fm_ren() {
 
 fm_playdir() {
     [ -z "$1" ] || cd "$1"
-    local lastfile=
     local startfile=
     [ -z "$2" ] || for startfile in $2; do : ; done
-    #lastfile=test-18-47.mp3
+    local lastfile=$startfile
 
     # repeat if new files added
     while true; do
