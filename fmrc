@@ -69,7 +69,7 @@ fm_ffmpeg() {
     echo "ffmpeg_pid: $ffmpeg_pid , ffmpeg_watchdog_pid: $ffmpeg_watchdog_pid , BASHPID: $BASHPID"
     echo
 
-    wait $ffmpeg_pid
+    wait $ffmpeg_pid || rc=$?
     kill -KILL $ffmpeg_watchdog_pid 2>/dev/null
 }
 
