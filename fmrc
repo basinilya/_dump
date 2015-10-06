@@ -32,7 +32,12 @@ fm_run_in_new_term() {
 }
 
 fm_run_me_in_new_term() {
-    fm_run_in_new_term bash -c '. "$0"; "$@"' "$THISDIR/fmrc" "$@"
+    printf '%q\n' "starting" "$@"
+    if [ -e /proc/self/winpid ]; then
+        fm_run_in_new_term bash -c '. "$0"; "$@"' "$THISDIR/fmrc" "$@"
+    else
+        "$@"
+    fi
 }
 
 fm_ffmpeg_watchdog() {
@@ -96,7 +101,7 @@ fm_killffmpeg() {
 #limit="-t $((RANDOM / 500 + 7200))"
 
 fm_rec_echo() {
-    fm_ffmpeg -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.mp3"
+    fm_ffmpeg -loglevel warning -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.mp3"
 }
 
 fm_rec_roks() {
@@ -105,15 +110,21 @@ fm_rec_roks() {
         echo "failed to get stream url"
         return 1
     fi
-    fm_ffmpeg -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.flv"
+    fm_ffmpeg -loglevel warning -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M.flv"
 }
 
 
 fm_all() {
+    local wait=
+    if [ x"--wait" = x"$1" ]; then
+       wait=wait
+       shift
+    fi
     [ $# = 0 ] && set -- echo roks
     for st in "$@"; do
         fm_run_me_in_new_term fm_record_in_empty_dirs $st fm_rec_$st &
     done
+    $wait
 }
 
 # /cygdrive/p/Docs/fm-archive/fm all
