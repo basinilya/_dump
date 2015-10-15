@@ -59,7 +59,7 @@ fm_ffmpeg_watchdog() {
             break
         fi
         prevstate=$newstate
-        sleep 120
+        sleep 300
     done
 }
 
