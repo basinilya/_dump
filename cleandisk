@@ -1,0 +1,81 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+dir=
+minfree=
+dryrun=
+mtimearg=
+
+while [ $# != 0 ]; do
+    case $1 in
+    --dry-run)
+    dryrun=x
+    shift
+    ;;
+    --mtime)
+    mtimearg="-mtime ${2:?}"
+    shift 2
+    ;;
+    --dir)
+    dir=${2:?}
+    shift 2
+    ;;
+    --minfree)
+    minfree=${2:?}
+    shift 2
+    ;;
+    *)
+    >&2 echo bad args: $1
+    exit 1
+    ;;
+    esac
+done
+
+{
+read s
+read Filesystem Size  Used Avail Use Mounted
+} <<<"$(LC_ALL=C df -Ph -BK "${dir:?}")"
+
+fn_fromhuman() {
+    local res
+    eval "res=\$${1:?}"
+    case $res in
+    *[0-9])  : ;;
+    *[0-9]K) res=$(( ${res%?} * 1024));;
+    *) >&2 echo bad size: $res;;
+    esac
+    eval "$1=\$res"
+}
+
+fn_fromhuman Used
+fn_fromhuman Size
+fn_fromhuman Avail
+
+freeup=$(( minfree - Avail ))
+
+fmt='%-10s= %12d\n'
+
+printf '%-10s= %s\n' "dir" "$dir"
+printf "$fmt" "Size" "$Size"
+printf "$fmt" "Used" "$Used"
+printf "$fmt" "minfree" "$minfree"
+
+if [ $freeup -gt 0 ]; then
+    printf "$fmt" "freeup" "$freeup"
+    #TODO: declare -A links_by_inode
+    cd "$dir"
+    exec 4< <(find . -mount -path ./lost+found -prune -o ! -path "./lost+found*" ! -path "." $mtimearg -printf '%b %i %n %y %T@ %p\0' | LC_ALL=C sort -z -k5,5 -k6r )
+    while read -d '' -r sz inode nlinks type mtime p <&4; do
+        sz=$((sz*512))
+        echo "deleting $p (mtime=$mtime)"
+        rmcmd=rmdir
+        [ $type = d ] || rmcmd=rm
+        [ "$dryrun" ] && rmcmd=true
+        if $rmcmd "$p"; then
+            freeup=$((freeup - sz))
+            [ $freeup -gt 0 ] || break
+        fi
+    done
+fi
