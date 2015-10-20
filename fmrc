@@ -78,7 +78,7 @@ fm_ffmpeg() {
 
     rc=0
     wait $ffmpeg_pid || rc=$?
-    kill -KILL $ffmpeg_watchdog_pid 2>/dev/null
+    kill -KILL $ffmpeg_watchdog_pid 2>/dev/null || true
 }
 
 fm_killffmpeg() {
@@ -86,7 +86,7 @@ fm_killffmpeg() {
 
     ffmpeg_pid=${1:?}
 
-    if read ffmpeg_winpid <"/proc/$ffmpeg_pid/winpid" 2>/dev/null; then
+    if { read ffmpeg_winpid <"/proc/$ffmpeg_pid/winpid"; } 2>/dev/null; then
         a=$(wmic process where parentprocessid=$ffmpeg_winpid get processid)
         b=( ${a//$'\r'/} )
         ffmpeg_child_winpid=${b[1]}
