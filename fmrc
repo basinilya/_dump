@@ -15,11 +15,10 @@ fm_record_in_empty_dirs() {
     shift
 
     subdir="$station"
-    mkdir -p "${subdir:?}/`date +%Y%m%d`" "${subdir:?}/`date --date=tomorrow +%Y%m%d`"
 
     while true; do
         echo "writing to $subdir"
-        mkdir -p $subdir
+	mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m%d`" "${subdir:?}/`date +%Y%m%d`"
 
         "$@"
 	[ x"$rc" = x"0" ] || sleep 10

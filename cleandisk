@@ -34,9 +34,9 @@ while [ $# != 0 ]; do
 done
 
 {
-read s
+read s &&
 read Filesystem Size  Used Avail Use Mounted
-} <<<"$(LC_ALL=C df -Ph -BK "${dir:?}")"
+} <<<"$(LC_ALL=C df -Ph -BK "${dir:?}")" || { >&2 echo "read df output failed"; exit 1; }
 
 fn_fromhuman() {
     local res
@@ -44,7 +44,7 @@ fn_fromhuman() {
     case $res in
     *[0-9])  : ;;
     *[0-9]K) res=$(( ${res%?} * 1024));;
-    *) >&2 echo bad size: $res;;
+    *) >&2 echo bad size: $res; return 1;;
     esac
     eval "$1=\$res"
 }
