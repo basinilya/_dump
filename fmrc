@@ -96,8 +96,12 @@ fm_killffmpeg() {
         echo "killing parent ffmpeg pid: $ffmpeg_pid (winpid: $ffmpeg_winpid)"
         kill -KILL $ffmpeg_pid || true
     else
-        echo "killing process $ffmpeg_pid"
-        kill -TERM $ffmpeg_pid || true
+        for sig in TERM TERM KILL; do
+            [ -d "/proc/$ffmpeg_pid" ] || break
+            echo "killing process $ffmpeg_pid"
+            kill -$sig $ffmpeg_pid || break
+            sleep 10
+        done
     fi
 }
 
