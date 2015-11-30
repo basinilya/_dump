@@ -46,7 +46,7 @@ fm_ffmpeg_watchdog() {
 
     cd "$watchdir"
     while true; do
-        "$THISDIR/cleandisk" --dir . --minfree "$minfree" >/dev/null
+        "$THISDIR/cleandisk" --dir .. --lockdir --minfree "$minfree" >/dev/null
         mkdir -p "`date --date=tomorrow +%Y%m%d`"
         newstate=`du -ksx .`
         #newstate="y"
