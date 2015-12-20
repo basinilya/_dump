@@ -6,6 +6,7 @@ WorkingDirectory=/var/cache/fm
 Type=simple
 User=il
 ExecStart=/home/il/fm/fm all --wait
+IgnoreSIGPIPE=false
 StandardOutput=journal
 StandardError=inherit
 
