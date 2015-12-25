@@ -18,10 +18,10 @@ fm_record_in_empty_dirs() {
 
     while true; do
         echo "writing to $subdir"
-	mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m%d`" "${subdir:?}/`date +%Y%m%d`"
+        mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m%d`" "${subdir:?}/`date +%Y%m%d`"
 
         "$@"
-	[ x"$rc" = x"0" ] || sleep 10
+        [ x"$rc" = x"0" ] || sleep 10
     done
 }
 
@@ -109,7 +109,10 @@ fm_killffmpeg() {
 #limit="-t $((RANDOM / 500 + 7200))"
 
 fm_rec_echo() {
-    fm_ffmpeg -loglevel warning -y -re -i "http://81.19.85.197/echo.mp3" $limit -map 0 -c copy -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
+    local convargs
+    #convargs='-c copy'
+    convargs='-q:a 8'
+    fm_ffmpeg -loglevel warning -y -i "http://81.19.85.197/echo.mp3" $limit -map 0 $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
 }
 
 fm_rec_roks() {

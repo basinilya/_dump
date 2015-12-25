@@ -1,0 +1,14 @@
+[Unit]
+Description=fm service
+
+[Service]
+WorkingDirectory=/var/cache/fm
+Type=simple
+User=il
+ExecStart=/home/il/fm/fm record_in_empty_dirs roks fm_rec_roks
+IgnoreSIGPIPE=false
+StandardOutput=journal
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target
