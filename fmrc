@@ -111,8 +111,8 @@ fm_killffmpeg() {
 fm_rec_echo() {
     local convargs
     #convargs='-c copy'
-    convargs='-q:a 8'
-    fm_ffmpeg -loglevel warning -y -i "http://81.19.85.197/echo.mp3" $limit -map 0 $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
+    convargs='-q:a 9'
+    fm_ffmpeg -loglevel warning -y -i "http://81.19.85.197/echo.mp3" $limit -af volume=10dB $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
 }
 
 fm_rec_roks() {
