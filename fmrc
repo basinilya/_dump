@@ -116,13 +116,17 @@ fm_rec_echo() {
 }
 
 fm_rec_roks() {
+    local convargs
+    #convargs='-c copy'
+    convargs='-q:a 9'
     local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
     if [ -z "$url" ]; then
         echo "failed to get stream url"
 	rc=1
         return
     fi
-    fm_ffmpeg -loglevel warning -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.flv"
+    #fm_ffmpeg -loglevel warning -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.flv"
+    fm_ffmpeg -loglevel warning -i "${url:?}" $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
 }
 
 
