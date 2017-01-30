@@ -1,0 +1,8 @@
+See
+c:\progs\Humanizer\src\Humanizer.Tests.Shared\NumberToWordsTests.cs
+c:\progs\Humanizer\src\Humanizer.Tests.Shared\TimeSpanHumanizeTests.cs
+    TimeSpanWithMinTimeUnit
+    
+    
+c:\progs\Humanizer\src\Humanizer\Properties\Resources.resx
+    TimeSpanHumanize_MultipleHours

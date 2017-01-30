@@ -30,3 +30,11 @@ thousand
 million
 billion
 and
+
+
+second
+seconds
+minute
+minutes
+hour
+hours
