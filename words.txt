@@ -1,28 +1,32 @@
 one
+two
+three
+four
+five
+six
+seven
+eight
+nine
 ten
 eleven
+twelve
+thirteen
+fourteen
+fifteen
+sixteen
+seventeen
+eighteen
+nineteen
 twenty
-one hundred and twenty-two
-three thousand five hundred and one
-one hundred
-one thousand
-one hundred thousand
-one million
-ten million
-one hundred million
-one billion
-one hundred and eleven
-one thousand one hundred and eleven
-one hundred and eleven thousand one hundred and eleven
-one million one hundred and eleven thousand one hundred and eleven
-eleven million one hundred and eleven thousand one hundred and eleven
-one hundred and eleven million one hundred and eleven thousand one hundred and eleven
-one billion one hundred and eleven million one hundred and eleven thousand one hundred and eleven
-one hundred and twenty-three
-one thousand two hundred and thirty-four
-twelve thousand three hundred and forty-five
-one hundred and twenty-three thousand four hundred and fifty-six
-one million two hundred and thirty-four thousand five hundred and sixty-seven
-twelve million three hundred and forty-five thousand six hundred and seventy-eight
-one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine
-one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety
+thirty
+forty
+fifty
+sixty
+seventy
+eighty
+ninety
+hundred
+thousand
+million
+billion
+and
