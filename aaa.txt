@@ -6,3 +6,5 @@ c:\progs\Humanizer\src\Humanizer.Tests.Shared\TimeSpanHumanizeTests.cs
     
 c:\progs\Humanizer\src\Humanizer\Properties\Resources.resx
     TimeSpanHumanize_MultipleHours
+    
+http://ttsreader.com/
