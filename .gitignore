@@ -2,5 +2,6 @@
 *.swp
 *.stackdump
 core*
+.gdb_history
 *.exe
 testprog

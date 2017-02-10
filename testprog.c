@@ -52,8 +52,8 @@ static char * _thousands_helper(int neg, char *s, int lev) {
 	return s;
 }
 
-/* itoa */
-static char *towords(int n, char *s) {
+/* like itoa, but to words */
+static int itowords(int n, char *s) {
 	char *s2;
 	if (n >= 0) {
 		n = -n;
@@ -61,18 +61,58 @@ static char *towords(int n, char *s) {
 	} else {
 		s2 = s + sprintf(s, "%s", "minus ");
 	}
-	strcpy(_thousands_helper(n, s2, 0), "");
-	return s;
+	s2 = _thousands_helper(n, s2, 0);
+	*s2 = '\0';
+	return s2 - s;
+}
+
+static void humanizets(char *s, int hours, int minutes, int seconds) {
+	char *s2 = s;
+	if (hours != 0) {
+		s2 += itowords(hours, s2);
+		s2 += sprintf(s2, "%s", hours == 1 ? " hour" : " hours");
+	}
+	if (minutes != 0) {
+		if (s2 != s) {
+			s2 += sprintf(s2, "%s", ", ");
+		}
+		s2 += itowords(minutes, s2);
+		s2 += sprintf(s2, "%s", minutes == 1 ? " minute" : " minutes");
+	}
+	if (seconds != 0) {
+		if (s2 != s) {
+			s2 += sprintf(s2, "%s", ", ");
+		}
+		s2 += itowords(seconds, s2);
+		s2 += sprintf(s2, "%s", seconds == 1 ? " second" : " seconds");
+	}
+	if (s2 == s) {
+		s2 += sprintf(s2, "%s", "zero seconds");
+	}
 }
 
 static int failed = 0;
 
 static void test(int i, const char *s) {
 	char buf[500];
-	towords(i, buf);
+	itowords(i, buf);
 	if (0 != strcmp(s, buf)) {
 		failed = 1;
 		fprintf(stderr, "failed test for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", i, s, buf);
+	}
+}
+
+static void test2(int millis, const char *s) {
+	char buf[500];
+	int seconds = millis / 1000;
+	int minutes = seconds / 60;
+	int hours = minutes / 60;
+	minutes = minutes % 60;
+	seconds = seconds % 60;
+	humanizets(buf, hours, minutes, seconds);
+	if (0 != strcmp(s, buf)) {
+		failed = 1;
+		fprintf(stderr, "failed test for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
 	}
 }
 
@@ -107,5 +147,13 @@ int main(int argc, char *argv[]) {
 	test(123456789, "one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine");
 	test(1234567890, "one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety");
 	test(1234000890, "one billion two hundred and thirty-four million eight hundred and ninety");
+
+	test2(100, "zero seconds");
+	test2(2500, "two seconds");
+	test2(122500, "two minutes, two seconds");
+	test2(3722500, "one hour, two minutes, two seconds");
+	test2(113722500, "thirty-one hours, thirty-five minutes, twenty-two seconds");
+	test2(3600000, "one hour");
+
 	return failed;
 }
