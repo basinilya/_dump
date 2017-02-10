@@ -37,7 +37,6 @@ static char * _hundred_helper(int n, char *s) {
 }
 
 static char * _thousands_helper(int neg, char *s, int lev) {
-	//char c;
 	int mod = neg % 1000; /* divide neg by 1000 and keep the modulo */
 	neg = neg / 1000;
 	if (neg != 0) {
@@ -53,22 +52,17 @@ static char * _thousands_helper(int neg, char *s, int lev) {
 	return s;
 }
 
-/* itoa with thousands separated by spaces */
-static char *thousands(int n, char *s) {
+/* itoa */
+static char *towords(int n, char *s) {
 	char *s2;
 	if (n >= 0) {
 		n = -n;
 		s2 = s;
 	} else {
-		*s = '-';
-		s2 = s + 1;
+		s2 = s + sprintf(s, "%s", "minus ");
 	}
 	strcpy(_thousands_helper(n, s2, 0), "");
 	return s;
-}
-
-static void towords(int i, char *buf) {
-	thousands(i, buf);
 }
 
 static int failed = 0;
@@ -83,6 +77,7 @@ static void test(int i, const char *s) {
 }
 
 int main(int argc, char *argv[]) {
+	test(-1, "minus one");
 	test(1, "one");
 	test(10, "ten");
 	test(11, "eleven");
