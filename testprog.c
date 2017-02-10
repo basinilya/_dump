@@ -1,5 +1,14 @@
+#include "mylogging.h"
+
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/soundcard.h>
+#include <stdlib.h> /* for exit(3) */
+#include <stdint.h>
+
+#include "mylastheader.h"
 
 static char *thopows[] = {
 	""," thousand"," million"," billion"
@@ -93,12 +102,12 @@ static void humanizets(char *s, int hours, int minutes, int seconds) {
 
 static int failed = 0;
 
-static void test(int i, const char *s) {
+static void test1(int i, const char *s) {
 	char buf[500];
 	itowords(i, buf);
 	if (0 != strcmp(s, buf)) {
 		failed = 1;
-		fprintf(stderr, "failed test for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", i, s, buf);
+		fprintf(stderr, "failed test1 for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", i, s, buf);
 	}
 }
 
@@ -112,41 +121,41 @@ static void test2(int millis, const char *s) {
 	humanizets(buf, hours, minutes, seconds);
 	if (0 != strcmp(s, buf)) {
 		failed = 1;
-		fprintf(stderr, "failed test for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
+		fprintf(stderr, "failed test1 for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
 	}
 }
 
-int main(int argc, char *argv[]) {
-	test(-1, "minus one");
-	test(1, "one");
-	test(10, "ten");
-	test(11, "eleven");
-	test(20, "twenty");
-	test(122, "one hundred and twenty-two");
-	test(3501, "three thousand five hundred and one");
-	test(100, "one hundred");
-	test(1000, "one thousand");
-	test(100000, "one hundred thousand");
-	test(1000000, "one million");
-	test(10000000, "ten million");
-	test(100000000, "one hundred million");
-	test(1000000000, "one billion");
-	test(111, "one hundred and eleven");
-	test(1111, "one thousand one hundred and eleven");
-	test(111111, "one hundred and eleven thousand one hundred and eleven");
-	test(1111111, "one million one hundred and eleven thousand one hundred and eleven");
-	test(11111111, "eleven million one hundred and eleven thousand one hundred and eleven");
-	test(111111111, "one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
-	test(1111111111, "one billion one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
-	test(123, "one hundred and twenty-three");
-	test(1234, "one thousand two hundred and thirty-four");
-	test(12345, "twelve thousand three hundred and forty-five");
-	test(123456, "one hundred and twenty-three thousand four hundred and fifty-six");
-	test(1234567, "one million two hundred and thirty-four thousand five hundred and sixty-seven");
-	test(12345678, "twelve million three hundred and forty-five thousand six hundred and seventy-eight");
-	test(123456789, "one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine");
-	test(1234567890, "one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety");
-	test(1234000890, "one billion two hundred and thirty-four million eight hundred and ninety");
+static void testall() {
+	test1(-1, "minus one");
+	test1(1, "one");
+	test1(10, "ten");
+	test1(11, "eleven");
+	test1(20, "twenty");
+	test1(122, "one hundred and twenty-two");
+	test1(3501, "three thousand five hundred and one");
+	test1(100, "one hundred");
+	test1(1000, "one thousand");
+	test1(100000, "one hundred thousand");
+	test1(1000000, "one million");
+	test1(10000000, "ten million");
+	test1(100000000, "one hundred million");
+	test1(1000000000, "one billion");
+	test1(111, "one hundred and eleven");
+	test1(1111, "one thousand one hundred and eleven");
+	test1(111111, "one hundred and eleven thousand one hundred and eleven");
+	test1(1111111, "one million one hundred and eleven thousand one hundred and eleven");
+	test1(11111111, "eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(111111111, "one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(1111111111, "one billion one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(123, "one hundred and twenty-three");
+	test1(1234, "one thousand two hundred and thirty-four");
+	test1(12345, "twelve thousand three hundred and forty-five");
+	test1(123456, "one hundred and twenty-three thousand four hundred and fifty-six");
+	test1(1234567, "one million two hundred and thirty-four thousand five hundred and sixty-seven");
+	test1(12345678, "twelve million three hundred and forty-five thousand six hundred and seventy-eight");
+	test1(123456789, "one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine");
+	test1(1234567890, "one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety");
+	test1(1234000890, "one billion two hundred and thirty-four million eight hundred and ninety");
 
 	test2(100, "zero seconds");
 	test2(2500, "two seconds");
@@ -154,6 +163,73 @@ int main(int argc, char *argv[]) {
 	test2(3722500, "one hour, two minutes, two seconds");
 	test2(113722500, "thirty-one hours, thirty-five minutes, twenty-two seconds");
 	test2(3600000, "one hour");
+	test2(3720000, "one hour, two minutes");
 
-	return failed;
+	if (failed)
+		exit(failed);
+}
+
+static void play(long long pos) {
+	// #define SOUND_PCM_WRITE_BITS		SNDCTL_DSP_SETFMT
+	// #define SOUND_PCM_WRITE_RATE		SNDCTL_DSP_SPEED
+	// #define SOUND_PCM_WRITE_CHANNELS	SNDCTL_DSP_CHANNELS
+}
+
+static void fillrand(unsigned char *buf, size_t sz) {
+	int i = 0 , j = 0;
+	intptr_t limit = 0;
+	intptr_t x = 0;
+
+	for (;sz != 0;) {
+		sz--;
+
+		if (limit < 255) {
+			limit *= (unsigned int)RAND_MAX + 1;
+			limit += RAND_MAX;
+			x *= ((unsigned int)RAND_MAX) + 1;
+			x += rand();
+			i++;
+		}
+
+		buf[sz] = x % 256;
+		x /= 256;
+		limit /= 256;
+	}
+}
+
+static unsigned char sambuf[16/8*22050/10]; /* 100ms */
+
+int main(int argc, char *argv[]) {
+	testall();
+	{
+		int handle;
+		int channels = 1;
+		int bits = 16;
+		int rate = 22050;
+		static const char filename[] = "/dev/dsp";
+		handle = open(filename, O_RDONLY);
+		if (-1 == handle) {
+			pSysError(ERR, "open('" FMT_S "') failed", filename);
+			return 1;
+		}
+
+		if ( ioctl(handle,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
+		{
+			pSysError(ERR, "ioctl bits");
+		}
+		if ( ioctl(handle, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
+		{
+			pSysError(ERR, "ioctl channels");
+		}
+
+		if (ioctl(handle, SOUND_PCM_WRITE_RATE,&rate) == -1 )
+		{
+			pSysError(ERR, "ioctl sample rate");
+		}
+		fillrand(sambuf, sizeof(sambuf));
+
+		printf("%d\n" , RAND_MAX);
+		//for (sambuf
+	}
+	return 0;
 }

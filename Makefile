@@ -1,5 +1,5 @@
 TARGET = testprog
-OFILES = testprog.o
+OFILES = testprog.o logging.o
 
 $(TARGET): $(OFILES)
 
