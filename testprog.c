@@ -197,7 +197,7 @@ static void fillrand(unsigned char *buf, size_t sz) {
 	}
 }
 
-static unsigned char sambuf[16/8*22050/10]; /* 100ms */
+static unsigned char sambuf[16/8*22050/1]; /* 100ms */
 
 int main(int argc, char *argv[]) {
 	testall();
@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
 		int bits = 16;
 		int rate = 22050;
 		static const char filename[] = "/dev/dsp";
-		handle = open(filename, O_RDONLY);
+		handle = open(filename, O_WRONLY);
 		if (-1 == handle) {
 			pSysError(ERR, "open('" FMT_S "') failed", filename);
 			return 1;
@@ -216,20 +216,25 @@ int main(int argc, char *argv[]) {
 		if ( ioctl(handle,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
 		{
 			pSysError(ERR, "ioctl bits");
+			return 1;
 		}
 		if ( ioctl(handle, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
 		{
 			pSysError(ERR, "ioctl channels");
+			return 1;
 		}
 
 		if (ioctl(handle, SOUND_PCM_WRITE_RATE,&rate) == -1 )
 		{
 			pSysError(ERR, "ioctl sample rate");
+			return 1;
 		}
 		fillrand(sambuf, sizeof(sambuf));
 
-		printf("%d\n" , RAND_MAX);
-		//for (sambuf
+		if (-1 == write(handle, sambuf, sizeof(sambuf))) {
+			pSysError(ERR, "write() failed");
+			return 1;
+		}
 	}
 	return 0;
 }
