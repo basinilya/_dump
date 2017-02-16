@@ -125,6 +125,91 @@ static void test2(int millis, const char *s) {
 	}
 }
 
+static void play(long long pos) {
+	// #define SOUND_PCM_WRITE_BITS		SNDCTL_DSP_SETFMT
+	// #define SOUND_PCM_WRITE_RATE		SNDCTL_DSP_SPEED
+	// #define SOUND_PCM_WRITE_CHANNELS	SNDCTL_DSP_CHANNELS
+}
+
+/* Extracts pseudo-random bits from the value returned by rand().
+   It starts by putting the least significant octet to the buffer, shifts right and repeats.
+   When less than 8 random bits ramain, they're saved for future use and rand() called again.
+   Most significant bits in the new value are not random and they're replaced with the saved bits.
+   On 32-bit systems the compound value doesn't fit in uintptr_t and some of the saved bits are discarded.
+   Lastly, the buffer is filled backwards.
+ */
+static void fillrand(unsigned char *buf, size_t sz) {
+	unsigned int r; /* for unsigned promotion */
+	uintptr_t rbits = 0;
+	uintptr_t rbmask = 0;
+
+	for (;sz != 0;) {
+		sz--;
+
+		if (rbmask < 255) {
+			r = rand();
+			rbits *= ((unsigned int)RAND_MAX) + 1;
+			rbits += r;
+			/* TODO: this prevents bit displacement, but how fast is it?
+			rbits += r * (rbmask+1);
+			*/
+
+			rbmask *= (unsigned int)RAND_MAX + 1;
+			rbmask += RAND_MAX;
+		}
+
+		buf[sz] = rbits % 256;
+		rbits /= 256;
+		rbmask /= 256;
+	}
+}
+
+static void testfillrand_31_LE(unsigned char *buf, size_t sz) {
+	unsigned char c;
+	size_t pos;
+	/* straightforward. For simplicity writes beyond buffer a little */
+	int i,j;
+
+	i = rand();
+
+	*(int*)&buf[0] = i;
+
+	j = rand();
+
+	*(int*)&buf[3] = j;
+
+	for(pos = 0;pos < sz; pos++) {
+		sz--;
+		c = buf[pos];
+		buf[pos] = buf[sz];
+		buf[sz] = c;
+	}
+
+	return;
+	
+	
+	intptr_t limit = 0;
+	intptr_t x = 0;
+
+	for (;sz != 0;) {
+		sz--;
+
+		if (limit < 255) {
+			limit *= (unsigned int)RAND_MAX + 1;
+			limit += RAND_MAX;
+			x *= ((unsigned int)RAND_MAX) + 1;
+			x += rand();
+		}
+
+		buf[sz] = x % 256;
+		x /= 256;
+		limit /= 256;
+	}
+}
+
+
+static unsigned char sambuf[16/8*22050/10]; /* 100ms */
+
 static void testall() {
 	test1(-1, "minus one");
 	test1(1, "one");
@@ -165,42 +250,30 @@ static void testall() {
 	test2(3600000, "one hour");
 	test2(3720000, "one hour, two minutes");
 
+	{
+		int i;
+		enum { testsz = 7, testseed = 42 };
+		static unsigned char testbuf1[testsz];
+		static unsigned char testbuf2[testsz+10];
+		srand(testseed);
+		fillrand(testbuf1, testsz);
+		for (i = 0; i < testsz; i++) printf("%02x ", testbuf1[i]);
+		printf("\n");
+
+		srand(testseed);
+		testfillrand_31_LE(testbuf2, testsz);
+		for (i = 0; i < testsz; i++) printf("%02x ", testbuf2[i]);
+		printf("\n");
+	}
+
 	if (failed)
 		exit(failed);
 }
 
-static void play(long long pos) {
-	// #define SOUND_PCM_WRITE_BITS		SNDCTL_DSP_SETFMT
-	// #define SOUND_PCM_WRITE_RATE		SNDCTL_DSP_SPEED
-	// #define SOUND_PCM_WRITE_CHANNELS	SNDCTL_DSP_CHANNELS
-}
-
-static void fillrand(unsigned char *buf, size_t sz) {
-	int i = 0 , j = 0;
-	intptr_t limit = 0;
-	intptr_t x = 0;
-
-	for (;sz != 0;) {
-		sz--;
-
-		if (limit < 255) {
-			limit *= (unsigned int)RAND_MAX + 1;
-			limit += RAND_MAX;
-			x *= ((unsigned int)RAND_MAX) + 1;
-			x += rand();
-			i++;
-		}
-
-		buf[sz] = x % 256;
-		x /= 256;
-		limit /= 256;
-	}
-}
-
-static unsigned char sambuf[16/8*22050/1]; /* 100ms */
 
 int main(int argc, char *argv[]) {
 	testall();
+	exit(0);
 	{
 		int handle;
 		int channels = 1;
@@ -229,11 +302,13 @@ int main(int argc, char *argv[]) {
 			pSysError(ERR, "ioctl sample rate");
 			return 1;
 		}
-		fillrand(sambuf, sizeof(sambuf));
+		for (;;) {
+			fillrand(sambuf, sizeof(sambuf));
 
-		if (-1 == write(handle, sambuf, sizeof(sambuf))) {
-			pSysError(ERR, "write() failed");
-			return 1;
+			if (-1 == write(handle, sambuf, sizeof(sambuf))) {
+				pSysError(ERR, "write() failed");
+				return 1;
+			}
 		}
 	}
 	return 0;
