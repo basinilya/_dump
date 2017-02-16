@@ -1,4 +1,10 @@
 /*
+Fill buffer with random data using rand()
+
+void fillrand(unsigned char *buf, size_t sz);
+void wfillrand(unsigned short *buf, size_t nelems);
+
+
 Fastest functions according to test results:
 
 i686:
@@ -96,4 +102,3 @@ void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (FILLRAND_UCHAR *buf, size_t sz)
 #undef FILLRAND_FUNCPREF
 #undef FILLRAND_UCHAR
 #undef FILLRAND_UCHAR_MAX
-
