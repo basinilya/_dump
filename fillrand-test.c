@@ -108,15 +108,38 @@
 #include "fillrand.inc.h"
 
 
+void dumbfillrand(unsigned char *buf, size_t sz) {
+	unsigned int r; /* for unsigned promotion */
+
+	unsigned int rbmask = 0;
+
+	for (;sz != 0;) {
+		sz--;
+
+		if (rbmask < 255) {
+			r = rand();
+			rbmask = RAND_MAX;
+		}
+
+		buf[sz] = r % 256;
+		r /= 256;
+		rbmask /= 256;
+	}
+}
+
 
 static int nrepeats;
+
 static unsigned char testbuf[20*1024*1024];
+
+static size_t nelems = sizeof(testbuf);
+
 typedef void (*fillrand_t)(unsigned char *, size_t);
 
 static int test(fillrand_t func) {
 	int i, j, ret = 0;
 	for (i = 0; i < nrepeats; i++) {
-		func(testbuf, sizeof(testbuf));
+		func(testbuf, nelems);
 		for (j = 0; j < sizeof(testbuf); j++) ret += testbuf[j];
 	}
 	return ret;
@@ -130,7 +153,8 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	if (0 == strcmp(argv[2],"fillrand32_31_disp"))                       func = fillrand32_31_disp;
+	if (0 == strcmp(argv[2],"dumbfillrand"))                       func = dumbfillrand;
+	else if (0 == strcmp(argv[2],"fillrand32_31_disp"))                       func = fillrand32_31_disp;
 	else if (0 == strcmp(argv[2],"fillrand32_31_nodisp"))                     func = fillrand32_31_nodisp;
 	else if (0 == strcmp(argv[2],"fillrand32_15_disp"))                       func = fillrand32_15_disp;
 	else if (0 == strcmp(argv[2],"fillrand32_15_nodisp"))                     func = fillrand32_15_nodisp;
@@ -139,8 +163,20 @@ int main(int argc, char *argv[]) {
 	else if (0 == strcmp(argv[2],"fillrand64_15_disp"))                       func = fillrand64_15_disp;
 	else if (0 == strcmp(argv[2],"fillrand64_15_nodisp"))                     func = fillrand64_15_nodisp;
 	else {
-		fprintf(stderr, "unknown func %s\n", argv[2]);
-		return 1;
+		nelems /= 2;
+
+		     if (0 == strcmp(argv[2],"wfillrand32_31_disp"))                       func = (fillrand_t)wfillrand32_31_disp;
+		else if (0 == strcmp(argv[2],"wfillrand32_31_nodisp"))                     func = (fillrand_t)wfillrand32_31_nodisp;
+		else if (0 == strcmp(argv[2],"wfillrand32_15_disp"))                       func = (fillrand_t)wfillrand32_15_disp;
+		else if (0 == strcmp(argv[2],"wfillrand32_15_nodisp"))                     func = (fillrand_t)wfillrand32_15_nodisp;
+		else if (0 == strcmp(argv[2],"wfillrand64_31_disp"))                       func = (fillrand_t)wfillrand64_31_disp;
+		else if (0 == strcmp(argv[2],"wfillrand64_31_nodisp"))                     func = (fillrand_t)wfillrand64_31_nodisp;
+		else if (0 == strcmp(argv[2],"wfillrand64_15_disp"))                       func = (fillrand_t)wfillrand64_15_disp;
+		else if (0 == strcmp(argv[2],"wfillrand64_15_nodisp"))                     func = (fillrand_t)wfillrand64_15_nodisp;
+		else {
+			fprintf(stderr, "unknown func %s\n", argv[2]);
+			return 1;
+		}
 	}
 	nrepeats = atoi(argv[1]);
 
