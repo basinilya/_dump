@@ -1,6 +1,6 @@
 #!/bin/sh
 (
-gcc -O2 -o fillrand-test fillrand-test.c
+${CC:?} -o fillrand-test fillrand-test.c
 x() {
     echo "$@"
     time ./fillrand-test 50 "$@"
