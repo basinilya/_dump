@@ -221,6 +221,26 @@ struct wavhdr {
 #define SAMPLE_RATE 22050
 #define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
 
+//! Byte swap unsigned short
+static uint16_t swap_uint16( uint16_t val ) 
+{
+    return (val << 8) | (val >> 8 );
+}
+
+//! Byte swap unsigned int
+static uint32_t swap_uint32( uint32_t val )
+{
+    val = ((val << 8) & 0xFF00FF00 ) | ((val >> 8) & 0xFF00FF ); 
+    return (val << 16) | (val >> 16);
+}
+
+#define myhtoles(x) swap_uint16(htons(x))
+#define myletohs(x) ntohs(swap_uint16(x))
+
+#define myhtolel(x) swap_uint32(htonl(x))
+#define myletohl(x) ntohl(swap_uint32(x))
+
+
 static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
@@ -247,28 +267,30 @@ int main(int argc, char *argv[]) {
 			"\n" "wavhdr.riffhdr.Format:\t%.4s"
 			"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
 			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
-			"\n"
+			"\n" "_"
 			"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
 			"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
 			"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
+			"\n" "_"
+			"\n"
 			, CC4(wavhdr.riffhdr.ChunkID)
 			, CC4(wavhdr.riffhdr.Format)
 			, CC4(wavhdr.wavhdr_fmt.Subchunk1ID)
 			, CC4(wavhdr.u.wavhdr_data_pcm.Subchunk2ID)
-			, wavhdr.wavhdr_fmt.NumChannels
-			, wavhdr.wavhdr_fmt.SampleRate
-			, wavhdr.wavhdr_fmt.BitsPerSample
+			, myletohs(wavhdr.wavhdr_fmt.NumChannels)
+			, myletohl(wavhdr.wavhdr_fmt.SampleRate)
+			, myletohs(wavhdr.wavhdr_fmt.BitsPerSample)
 			);
 		if (
 			wavhdr.riffhdr.ChunkID != htonl(CC4_RIFF)
 			|| wavhdr.riffhdr.Format != htonl(CC4_WAVE)
 			|| wavhdr.wavhdr_fmt.Subchunk1ID != htonl(CC4_FMT_)
 			|| wavhdr.u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)
-			|| wavhdr.wavhdr_fmt.Subchunk1Size != 16
-			|| wavhdr.wavhdr_fmt.AudioFormat != 1
-			|| wavhdr.wavhdr_fmt.NumChannels != 1
-			|| wavhdr.wavhdr_fmt.SampleRate != SAMPLE_RATE
-			|| wavhdr.wavhdr_fmt.BitsPerSample != 16
+			|| wavhdr.wavhdr_fmt.Subchunk1Size != myhtolel(16)
+			|| wavhdr.wavhdr_fmt.AudioFormat != myhtoles(1)
+			|| wavhdr.wavhdr_fmt.NumChannels != myhtoles(1)
+			|| wavhdr.wavhdr_fmt.SampleRate != myhtolel(SAMPLE_RATE)
+			|| wavhdr.wavhdr_fmt.BitsPerSample != myhtoles(16)
 			      
 			)
 		{
