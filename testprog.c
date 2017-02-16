@@ -133,12 +133,6 @@ static void play(long long pos) {
 
 #include "fillrand.inc.h"
 
-#define SAMPLE_SIZE (16/8)
-#define SAMPLE_RATE 22050
-#define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
-
-static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
-
 static void testall() {
 	test1(-1, "minus one");
 	test1(1, "one");
@@ -183,10 +177,106 @@ static void testall() {
 		exit(failed);
 }
 
+#include <arpa/inet.h>
+
+struct riffhdr {
+	uint32_t ChunkID;
+	uint32_t ChunkSize;
+	uint32_t Format;
+};
+
+struct wavhdr_fmt {
+	uint32_t Subchunk1ID;
+	uint32_t Subchunk1Size;
+	uint16_t AudioFormat;
+	uint16_t NumChannels;
+	uint32_t SampleRate;
+	uint32_t ByteRate;
+	uint16_t BlockAlign;
+	uint16_t BitsPerSample;
+};
+
+struct wavhdr_data {
+	uint32_t Subchunk2ID;
+	uint32_t Subchunk2Size;
+};
+
+struct wavhdr {
+	struct riffhdr riffhdr;
+	struct wavhdr_fmt wavhdr_fmt;
+	union {
+		struct wavhdr_data wavhdr_data_pcm;
+	} u;
+};
+
+#include <errno.h>
+
+#define CC4_RIFF 0x52494646
+#define CC4_WAVE 0x57415645
+#define CC4_FMT_ 0x666d7420
+#define CC4_DATA 0x64617461
+#define CC4(n) ((const char *)&n)
+
+#define SAMPLE_SIZE (16/8)
+#define SAMPLE_RATE 22050
+#define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
+
+static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
 	testall();
-	//exit(0);
+	{
+		static const char wavfile[] = "samples/billion.wav";
+		FILE *f;
+		struct wavhdr wavhdr;
+		f = fopen(wavfile, "rb");
+		if (!f) {
+			pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
+			return 1;
+		}
+		if (sizeof(wavhdr) != fread(&wavhdr, 1,  sizeof(wavhdr), f)) {
+			if (feof(f)) {
+				log(ERR, "fread() failed: End Of File");
+			} else {
+				pSysError(ERR, "fread() failed");
+			}
+			return 1;
+		}
+		printf(
+			     "wavhdr.riffhdr.ChunkID:\t%.4s"
+			"\n" "wavhdr.riffhdr.Format:\t%.4s"
+			"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
+			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
+			"\n"
+			"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
+			"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
+			"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
+			, CC4(wavhdr.riffhdr.ChunkID)
+			, CC4(wavhdr.riffhdr.Format)
+			, CC4(wavhdr.wavhdr_fmt.Subchunk1ID)
+			, CC4(wavhdr.u.wavhdr_data_pcm.Subchunk2ID)
+			, wavhdr.wavhdr_fmt.NumChannels
+			, wavhdr.wavhdr_fmt.SampleRate
+			, wavhdr.wavhdr_fmt.BitsPerSample
+			);
+		if (
+			wavhdr.riffhdr.ChunkID != htonl(CC4_RIFF)
+			|| wavhdr.riffhdr.Format != htonl(CC4_WAVE)
+			|| wavhdr.wavhdr_fmt.Subchunk1ID != htonl(CC4_FMT_)
+			|| wavhdr.u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)
+			|| wavhdr.wavhdr_fmt.Subchunk1Size != 16
+			|| wavhdr.wavhdr_fmt.AudioFormat != 1
+			|| wavhdr.wavhdr_fmt.NumChannels != 1
+			|| wavhdr.wavhdr_fmt.SampleRate != SAMPLE_RATE
+			|| wavhdr.wavhdr_fmt.BitsPerSample != 16
+			      
+			)
+		{
+			log(ERR, "bad wav header");
+			return 1;
+		}
+	}
+	exit(0);
 	{
 		int handle;
 		int channels = 1;
@@ -216,7 +306,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		for (;;) {
-			wfillrand(sambuf, sizeof(sambuf)/sizeof(sambuf[0]));
+			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 
 			if (-1 == write(handle, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");
