@@ -244,10 +244,11 @@ static uint32_t swap_uint32( uint32_t val )
 static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
+	FILE *f;
+
 	testall();
 	{
 		static const char wavfile[] = "samples/billion.wav";
-		FILE *f;
 		struct wavhdr wavhdr;
 		f = fopen(wavfile, "rb");
 		if (!f) {
@@ -298,7 +299,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	}
-	exit(0);
+	//exit(0);
 	{
 		int handle;
 		int channels = 1;
@@ -328,7 +329,9 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		for (;;) {
-			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
+			size_t nb;
+			nb = fread(&sambuf, 1,  sizeof(sambuf), f);
+			//wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 
 			if (-1 == write(handle, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");
