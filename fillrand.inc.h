@@ -40,7 +40,6 @@ void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (FILLRAND_UCHAR *buf, size_t sz)
 	FILLRAND_UINTMAX_T rbmask = 0;
 
 	for (;sz != 0;) {
-		sz--;
 
 		if (rbmask < FILLRAND_UCHAR_MAX) {
 			r = rand();
@@ -54,10 +53,17 @@ void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (FILLRAND_UCHAR *buf, size_t sz)
 			rbmask *= (unsigned int)FILLRAND_RAND_MAX + 1;
 			rbmask += FILLRAND_RAND_MAX;
 		}
+#if FILLRAND_RAND_MAX <= FILLRAND_UCHAR_MAX
+		else /* first rand() did not provide enough bits for buf[sz] */
+#endif
+		{
+			sz--;
 
-		buf[sz] = rbits % (FILLRAND_UCHAR_MAX+1);
-		rbits /= (FILLRAND_UCHAR_MAX+1);
-		rbmask /= (FILLRAND_UCHAR_MAX+1);
+			buf[sz] = rbits % (FILLRAND_UCHAR_MAX+1);
+			rbits /= (FILLRAND_UCHAR_MAX+1);
+			rbmask /= (FILLRAND_UCHAR_MAX+1);
+		}
+
 	}
 }
 
