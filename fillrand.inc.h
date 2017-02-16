@@ -1,3 +1,29 @@
+/*
+Fastest functions according to test results:
+
+i686:
+	fillrand32_31_disp (uint32_t, big RAND_MAX, displacement, uchar array)
+	wfillrand32_31_disp (ditto, but ushort array)
+
+x86_64:
+	fillrand64_31_disp (ditto, but uint64_t)
+	wfillrand64_31_disp
+*/
+
+
+/* some defaults */
+#ifndef FILLRAND
+#define FILLRAND fillrand
+#endif
+#ifndef FILLRAND_RAND_MAX
+#define FILLRAND_RAND_MAX RAND_MAX
+#endif
+#ifndef FILLRAND_UINTMAX_T
+#define FILLRAND_UINTMAX_T uintptr_t
+#endif
+
+
+/* include self once for wide version */
 #if FILLRAND_UCHAR_MAX != 65535
 
 # undef CONCAT_AB_
@@ -26,8 +52,8 @@
 
 
 /* Extracts pseudo-random bits from the value returned by rand().
-   It starts by putting the least significant octet to the buffer, shifts right and repeats.
-   When less than 8 random bits ramain, they're saved for future use and rand() called again.
+   It starts by putting the least significant bits to the buffer element, shifts right and repeats.
+   When not enough random bits ramain, they're saved for future use and rand() called again.
    Most significant bits in the new value are not random and they're replaced with the saved bits.
    On 32-bit systems the compound value doesn't fit in uintptr_t and some of the saved bits are discarded.
    Lastly, the buffer is filled backwards.
