@@ -114,8 +114,7 @@ static void test1(int i, const char *s) {
 	}
 }
 
-static void millis2span(long long millis, int *phours, int *pminutes, int *pseconds) {
-	long long seconds = millis / 1000;
+static void seconds2span(long long seconds, int *phours, int *pminutes, int *pseconds) {
 	long long minutes = seconds / 60;
 	*phours = (int)(minutes / 60);
 	*pminutes = (int)(minutes % 60);
@@ -161,41 +160,41 @@ static uint32_t swap_uint32( uint32_t val )
 
 
 static void wavhdr_validate(const struct wavhdr *pwavhdr) {
-	uint32_t hSubChunk2Size = myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size);
+	uint32_t hSubchunk2Size = myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size);
 	uint16_t hNumChannels = myletohs(pwavhdr->wavhdr_fmt.NumChannels);
 	uint16_t hBitsPerSample = myletohs(pwavhdr->wavhdr_fmt.BitsPerSample);
 	uint32_t hSampleRate = myletohl(pwavhdr->wavhdr_fmt.SampleRate);
 
-/*
-	printf(
-		     "wavhdr.riffhdr.ChunkID:\t%.4s"
-		"\n" "wavhdr.riffhdr.ChunkSize:\t%u (0x%08X)"
-		"\n" "wavhdr.riffhdr.Format:\t%.4s"
-		"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
-		"\n" "_"
-		"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
-		"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
-		"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
-		"\n" "_"
-		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
-		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2Size:\t%u (0x%08X)"
-		"\n" "_"
-		"\n"
-		, CC4(pwavhdr->riffhdr.ChunkID)
-		, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
-		, CC4(pwavhdr->riffhdr.Format)
-		, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
-		, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
-		, myletohl(pwavhdr->wavhdr_fmt.SampleRate)
-		, myletohs(pwavhdr->wavhdr_fmt.BitsPerSample)
-		, CC4(pwavhdr->u.wavhdr_data_pcm.Subchunk2ID)
-		, myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size), myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size)
-		);
-*/
+	if (0) {
+		printf(
+				 "wavhdr.riffhdr.ChunkID:\t%.4s"
+			"\n" "wavhdr.riffhdr.ChunkSize:\t%u (0x%08X)"
+			"\n" "wavhdr.riffhdr.Format:\t%.4s"
+			"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
+			"\n" "_"
+			"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
+			"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
+			"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
+			"\n" "_"
+			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
+			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2Size:\t%u (0x%08X)"
+			"\n" "_"
+			"\n"
+			, CC4(pwavhdr->riffhdr.ChunkID)
+			, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
+			, CC4(pwavhdr->riffhdr.Format)
+			, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
+			, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
+			, myletohl(pwavhdr->wavhdr_fmt.SampleRate)
+			, myletohs(pwavhdr->wavhdr_fmt.BitsPerSample)
+			, CC4(pwavhdr->u.wavhdr_data_pcm.Subchunk2ID)
+			, myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size), myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size)
+			);
+	}
 
 	if (
 		pwavhdr->riffhdr.ChunkID != htonl(CC4_RIFF)
-		|| pwavhdr->riffhdr.ChunkSize != myhtolel(36+hSubChunk2Size)
+		|| pwavhdr->riffhdr.ChunkSize != myhtolel(36+hSubchunk2Size)
 		|| pwavhdr->riffhdr.Format != htonl(CC4_WAVE)
 
 
@@ -253,7 +252,7 @@ static const union {
 static void test2(int millis, const char *s) {
 	char buf[500];
 	int hours, minutes, seconds;
-	millis2span(millis, &hours, &minutes, &seconds);
+	seconds2span(millis / 1000, &hours, &minutes, &seconds);
 	humanizets(buf, hours, minutes, seconds);
 	if (0 != strcmp(s, buf)) {
 		failed = 1;
@@ -347,30 +346,99 @@ static int init_oss() {
 
 static int ossfd;
 
+static void samples_entry_init(struct samples_entry *found) {
+	FILE *f;
+	char wavfile[40];
+	sprintf(wavfile, "samples/%s.wav", found->word);
+	found->f = f = fopen(wavfile, "rb");
+	if (!f) {
+		pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
+		exit(1);
+	}
+	if (sizeof(struct wavhdr) != fread(&found->wavhdr, 1,  sizeof(struct wavhdr), f)) {
+		if (feof(f)) {
+			log(ERR, "fread() failed: End Of File");
+		} else {
+			pSysError(ERR, "fread() failed");
+		}
+		exit(1);
+	}
+	wavhdr_validate(&found->wavhdr);
+}
 
 
-
-static void virtwav_read(void *buf, uint32_t ofs, size_t count) {
-	// assume ofs can be an odd number
+static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
+	unsigned char *buf = (unsigned char *)_buf;
+	size_t structremain;
+	// assume virtofs can be an odd number
 	// count can include wav header, many silence parts and many sayings
-	//long long millis = ofs;
-	if (ofs < sizeof(struct wavhdr)) {
-		size_t structremain = sizeof(struct wavhdr) - ofs;
+	if (virtofs < sizeof(struct wavhdr)) {
+		structremain = sizeof(struct wavhdr) - virtofs;
 		if (structremain > count)
 			structremain = count;
-		memcpy(buf, ((char*)&virtwav_header.x) + ofs, structremain);
+		memcpy(buf, ((char*)&virtwav_header.x) + virtofs, structremain);
 
 		count -= structremain;
-		ofs += structremain;
+		if (count == 0)
+			return;
+		virtofs += structremain;
+		buf += structremain;
 	}
-	//
+	virtofs -= sizeof(struct wavhdr); /* now raw offset */
+	{
+		// round to nearest saying
+#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*20)
+		uint32_t saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
+		char words[500];
+		int hours, minutes, seconds;
+		char *token;
+		char *save_ptr_tok;
+		static const char delim[] = " -,";
+		int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
+		struct samples_entry *found;
+
+		seconds2span(saying_start_ofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
+		humanizets(words, hours, minutes, seconds);
+		token = strtok_r(words, delim, &save_ptr_tok);
+		while(token != NULL) {
+			uint32_t hSubchunk2Size;
+			found = (struct samples_entry*)bsearch(token, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
+			if (!found) {
+				log(ERR, "not found sample: %s", token);
+				exit(1);
+			}
+			if (!found->f) {
+				samples_entry_init(found);
+			}
+			hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
+			printf("%s %u %u %u\n", token, saying_start_ofs + hSubchunk2Size, virtofs, count);
+
+			if (virtofs - saying_start_ofs < hSubchunk2Size) {
+				/* not skip */
+				fseek(found->f, sizeof(struct wavhdr) + virtofs - saying_start_ofs, SEEK_SET);
+				structremain = saying_start_ofs + hSubchunk2Size - virtofs;
+				if (structremain > count)
+					structremain = count;
+				fread(buf, 1, structremain, found->f);
+
+				count -= structremain;
+				if (count == 0)
+					return;
+				virtofs += structremain;
+				buf += structremain;
+			}
+			saying_start_ofs += hSubchunk2Size;
+			//
+			token = strtok_r(NULL, delim, &save_ptr_tok);
+		}
+
+		//uint32_t millis = saying_start_ofs / 
+	}
 }
 
 static void play(long long pos) {
 	char buf[500];
 	/*
-	int hours, minutes, seconds;
-	millis2span(millis, &hours, &minutes, &seconds);
 	humanizets(buf, hours, minutes, seconds);
 
 	saytimespan_samples
@@ -384,30 +452,13 @@ int main(int argc, char *argv[]) {
 	FILE *f;
 
 	testall();
-	{
-		static const char wavfile[] = "samples/billion.wav";
-		struct wavhdr wavhdr;
-		f = fopen(wavfile, "rb");
-		if (!f) {
-			pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
-			return 1;
-		}
-		if (sizeof(wavhdr) != fread(&wavhdr, 1,  sizeof(wavhdr), f)) {
-			if (feof(f)) {
-				log(ERR, "fread() failed: End Of File");
-			} else {
-				pSysError(ERR, "fread() failed");
-			}
-			return 1;
-		}
-		wavhdr_validate(&wavhdr);
-	}
 	//exit(0);
 	{
 		ossfd = init_oss();
 		if (-1 == ossfd) {
 			return 1;
 		}
+		virtwav_read(&sambuf, sizeof(struct wavhdr) + SAMPLE_SIZE*SAMPLE_RATE*20, sizeof(sambuf));
 		play(0);
 		for (;0;) {
 			size_t nb;
