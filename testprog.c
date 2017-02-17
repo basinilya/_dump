@@ -314,7 +314,7 @@ static int init_oss() {
 	int ossfd;
 	int channels = 1;
 	int bits = 16;
-	int rate = SAMPLE_RATE;
+	int rate = SAMPLE_RATE * 2;
 	static const char filename[] = "/dev/dsp";
 	ossfd = open(filename, O_WRONLY);
 	if (-1 == ossfd) {
@@ -451,6 +451,12 @@ static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
 			count -= n;
 		}
 
+		log(INFO, "virtwav_read: count: %d, n: %d", count, n);
+		if ((int)count < 0) {
+			log(ERR, "program error");
+			exit(1);
+		}
+
 		// round up to next
 		saying_start_ofs = ((( (virtofs) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
 
@@ -462,6 +468,9 @@ static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
 		if (n != 0) {
 			log(INFO, "virtwav_read: writing %d bytes of silence at %p", n, buf);
 			memset(buf, 0, n);
+			virtofs += n;
+			buf += n;
+			count -= n;
 		}
 	}
 }
@@ -491,16 +500,16 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		virtwav_read(&sambuf, sizeof(struct wavhdr) + SAMPLE_SIZE*SAMPLE_RATE*20, sizeof(sambuf));
+
+		if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
+			pSysError(ERR, "write() failed");
+			return 1;
+		}
+
 		play(0);
 		for (;0;) {
-			size_t nb;
-			nb = fread(&sambuf, 1,  sizeof(sambuf), f);
 			//wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 
-			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
-				pSysError(ERR, "write() failed");
-				return 1;
-			}
 		}
 	}
 	return 0;
