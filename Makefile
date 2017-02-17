@@ -3,6 +3,8 @@ OFILES = testprog.o logging.o samples.o
 
 $(TARGET): $(OFILES)
 
+$(OFILES): saytimespan.h
+
 samples.c:
 	./gensamples.c.sh
 

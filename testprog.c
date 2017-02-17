@@ -249,6 +249,11 @@ static int init_oss() {
 static int ossfd;
 
 
+static void virtwav_read(void *buf, off_t ofs, size_t count) {
+	// assume ofs can be an odd number
+	// count can include wav header, many silence parts and many sayings
+	long long millis = ofs;
+}
 
 static void play(long long pos) {
 	char buf[500];
@@ -261,10 +266,101 @@ static void play(long long pos) {
 	*/
 }
 
+#define ST_HTONL(hostlong) { ((hostlong) >> 24) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 8) & 0xFF,(hostlong) & 0xFF }
+#define ST_HTOLEL(hostlong) { (hostlong) & 0xFF,((hostlong) >> 8) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 24) & 0xFF }
+#define ST_HTOLES(hostshort) { (hostshort) & 0xFF, ((hostshort) >> 8) & 0xFF }
+
+static const union {
+	struct ch_wavhdr ch;
+	struct wavhdr x;
+} virtwav_header = {
+	.ch = {
+		.riffhdr = {
+			.ChunkID = ST_HTONL(CC4_RIFF),
+			.ChunkSize = ST_HTOLEL(0x7FFFFFFE),
+			.Format = ST_HTONL(CC4_WAVE)
+		},
+		.wavhdr_fmt = {
+			.Subchunk1ID= ST_HTONL(CC4_FMT_),
+			.Subchunk1Size= ST_HTOLEL(16),
+			.AudioFormat= ST_HTOLES(1),
+			.NumChannels= ST_HTOLES(1),
+			.SampleRate= ST_HTOLEL(SAMPLE_RATE),
+			.ByteRate= ST_HTOLEL(SAMPLE_RATE * 1 * 16/8),
+			.BlockAlign= ST_HTOLES(1 * 16/8),
+			.BitsPerSample= ST_HTOLES(16)
+		},
+		.u = {
+			.wavhdr_data_pcm = {
+				.Subchunk2ID = ST_HTONL(CC4_DATA),
+				.Subchunk2Size = ST_HTOLEL(0x7FFFFFFE - 36),
+			}
+		}
+	}
+};
+
+static void wavhdr_validate(const struct wavhdr *pwavhdr) {
+	uint32_t hSubChunk2Size = myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size);
+	uint16_t hNumChannels = myletohs(pwavhdr->wavhdr_fmt.NumChannels);
+	uint16_t hBitsPerSample = myletohs(pwavhdr->wavhdr_fmt.BitsPerSample);
+	uint32_t hSampleRate = myletohl(pwavhdr->wavhdr_fmt.SampleRate);
+
+/*
+	printf(
+		     "wavhdr.riffhdr.ChunkID:\t%.4s"
+		"\n" "wavhdr.riffhdr.ChunkSize:\t%u (0x%08X)"
+		"\n" "wavhdr.riffhdr.Format:\t%.4s"
+		"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
+		"\n" "_"
+		"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
+		"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
+		"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
+		"\n" "_"
+		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
+		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2Size:\t%u (0x%08X)"
+		"\n" "_"
+		"\n"
+		, CC4(pwavhdr->riffhdr.ChunkID)
+		, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
+		, CC4(pwavhdr->riffhdr.Format)
+		, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
+		, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
+		, myletohl(pwavhdr->wavhdr_fmt.SampleRate)
+		, myletohs(pwavhdr->wavhdr_fmt.BitsPerSample)
+		, CC4(pwavhdr->u.wavhdr_data_pcm.Subchunk2ID)
+		, myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size), myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size)
+		);
+*/
+
+	if (
+		pwavhdr->riffhdr.ChunkID != htonl(CC4_RIFF)
+		|| pwavhdr->riffhdr.ChunkSize != myhtolel(36+hSubChunk2Size)
+		|| pwavhdr->riffhdr.Format != htonl(CC4_WAVE)
+
+
+		|| pwavhdr->wavhdr_fmt.Subchunk1ID != htonl(CC4_FMT_)
+		|| pwavhdr->wavhdr_fmt.Subchunk1Size != myhtolel(16)
+		|| pwavhdr->wavhdr_fmt.AudioFormat != myhtoles(1)
+		|| pwavhdr->wavhdr_fmt.NumChannels != myhtoles(1)
+		|| pwavhdr->wavhdr_fmt.SampleRate != myhtolel(SAMPLE_RATE)
+		|| pwavhdr->wavhdr_fmt.ByteRate != myhtolel(hSampleRate * hNumChannels * hBitsPerSample/8)
+		|| pwavhdr->wavhdr_fmt.BlockAlign != myhtolel(hNumChannels * hBitsPerSample/8)
+		|| pwavhdr->wavhdr_fmt.BitsPerSample != myhtoles(16)
+
+		|| pwavhdr->u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)
+/*
+*/     
+		)
+	{
+		log(ERR, "bad wav header");
+		exit(1);
+	}
+}
 
 int main(int argc, char *argv[]) {
 	FILE *f;
 
+	wavhdr_validate(&virtwav_header.x);
 	testall();
 	{
 		static const char wavfile[] = "samples/billion.wav";
@@ -282,41 +378,7 @@ int main(int argc, char *argv[]) {
 			}
 			return 1;
 		}
-		printf(
-			     "wavhdr.riffhdr.ChunkID:\t%.4s"
-			"\n" "wavhdr.riffhdr.Format:\t%.4s"
-			"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
-			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
-			"\n" "_"
-			"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
-			"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
-			"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
-			"\n" "_"
-			"\n"
-			, CC4(wavhdr.riffhdr.ChunkID)
-			, CC4(wavhdr.riffhdr.Format)
-			, CC4(wavhdr.wavhdr_fmt.Subchunk1ID)
-			, CC4(wavhdr.u.wavhdr_data_pcm.Subchunk2ID)
-			, myletohs(wavhdr.wavhdr_fmt.NumChannels)
-			, myletohl(wavhdr.wavhdr_fmt.SampleRate)
-			, myletohs(wavhdr.wavhdr_fmt.BitsPerSample)
-			);
-		if (
-			wavhdr.riffhdr.ChunkID != htonl(CC4_RIFF)
-			|| wavhdr.riffhdr.Format != htonl(CC4_WAVE)
-			|| wavhdr.wavhdr_fmt.Subchunk1ID != htonl(CC4_FMT_)
-			|| wavhdr.u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)
-			|| wavhdr.wavhdr_fmt.Subchunk1Size != myhtolel(16)
-			|| wavhdr.wavhdr_fmt.AudioFormat != myhtoles(1)
-			|| wavhdr.wavhdr_fmt.NumChannels != myhtoles(1)
-			|| wavhdr.wavhdr_fmt.SampleRate != myhtolel(SAMPLE_RATE)
-			|| wavhdr.wavhdr_fmt.BitsPerSample != myhtoles(16)
-			      
-			)
-		{
-			log(ERR, "bad wav header");
-			return 1;
-		}
+		wavhdr_validate(&wavhdr);
 	}
 	//exit(0);
 	{
@@ -325,7 +387,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		play(0);
-		for (;;) {
+		for (;0;) {
 			size_t nb;
 			nb = fread(&sambuf, 1,  sizeof(sambuf), f);
 			//wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
