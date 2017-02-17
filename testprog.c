@@ -10,6 +10,8 @@
 #include <stdlib.h> /* for exit(3) */
 #include <arpa/inet.h> /* for htonl() */
 #include <stdint.h>
+#include <stropts.h> /* for ioctl() */
+#include <unistd.h> /* for write() */
 
 #include "mylastheader.h"
 
@@ -363,6 +365,26 @@ static void samples_entry_init(struct samples_entry *found) {
 	wavhdr_validate(&found->wavhdr);
 }
 
+/* Read sample clip into pos.
+   bufofs can be negative. Then part of the clip is skipped.
+   Returns new bufofs. If clip too big, returns 
+*/
+
+/*
+  assume that clip is small enough to fit into ssize_t
+  
+  1) _pos beg end_: skip, read; return pos+clipsz or end
+  2) _beg end pos_: same as (1)
+  3) _beg pos end_: no skip, read; return pos+clipsz or end
+
+  4) _pos end beg_: same as (3)
+  5) _end pos beg_: same as (1)
+  6) _end beg pos_: same as (3)
+*/
+static char *_fillword(char *pos, char *wrmem_beg, char * wrmem_end, const char *word) {
+	//
+}
+
 static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufofs, char *words) {
 	ssize_t structremain;
 	char *token;
@@ -436,7 +458,7 @@ static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
 	}
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
-#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*20)
+#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*10)
 		// round down to nearest saying
 		saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
 
@@ -490,7 +512,7 @@ static void play(long long pos) {
 
 
 
-#define BUFSAMPLES (SAMPLE_RATE * 60)
+#define BUFSAMPLES (SAMPLE_RATE * 20)
 static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
@@ -503,7 +525,7 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
-		virtwav_read(&sambuf, sizeof(struct wavhdr) + SAMPLE_SIZE*SAMPLE_RATE*20, sizeof(sambuf));
+		virtwav_read(&sambuf, 0, sizeof(sambuf));
 
 		if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 			pSysError(ERR, "write() failed");
