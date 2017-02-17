@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/soundcard.h>
 #include <stdlib.h> /* for exit(3) */
+#include <arpa/inet.h> /* for htonl() */
 #include <stdint.h>
 
 #include "mylastheader.h"
@@ -121,67 +122,10 @@ static void millis2span(long long millis, int *phours, int *pminutes, int *pseco
 	*pseconds = (int)(seconds % 60);
 }
 
-static void test2(int millis, const char *s) {
-	char buf[500];
-	int hours, minutes, seconds;
-	millis2span(millis, &hours, &minutes, &seconds);
-	humanizets(buf, hours, minutes, seconds);
-	if (0 != strcmp(s, buf)) {
-		failed = 1;
-		fprintf(stderr, "failed test1 for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
-	}
-}
 
-#include "fillrand.inc.h"
-
-static void testall() {
-	test1(-1, "minus one");
-	test1(1, "one");
-	test1(10, "ten");
-	test1(11, "eleven");
-	test1(20, "twenty");
-	test1(122, "one hundred and twenty-two");
-	test1(3501, "three thousand five hundred and one");
-	test1(100, "one hundred");
-	test1(1000, "one thousand");
-	test1(100000, "one hundred thousand");
-	test1(1000000, "one million");
-	test1(10000000, "ten million");
-	test1(100000000, "one hundred million");
-	test1(1000000000, "one billion");
-	test1(111, "one hundred and eleven");
-	test1(1111, "one thousand one hundred and eleven");
-	test1(111111, "one hundred and eleven thousand one hundred and eleven");
-	test1(1111111, "one million one hundred and eleven thousand one hundred and eleven");
-	test1(11111111, "eleven million one hundred and eleven thousand one hundred and eleven");
-	test1(111111111, "one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
-	test1(1111111111, "one billion one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
-	test1(123, "one hundred and twenty-three");
-	test1(1234, "one thousand two hundred and thirty-four");
-	test1(12345, "twelve thousand three hundred and forty-five");
-	test1(123456, "one hundred and twenty-three thousand four hundred and fifty-six");
-	test1(1234567, "one million two hundred and thirty-four thousand five hundred and sixty-seven");
-	test1(12345678, "twelve million three hundred and forty-five thousand six hundred and seventy-eight");
-	test1(123456789, "one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine");
-	test1(1234567890, "one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety");
-	test1(1234000890, "one billion two hundred and thirty-four million eight hundred and ninety");
-
-	test2(100, "zero seconds");
-	test2(2500, "two seconds");
-	test2(122500, "two minutes, two seconds");
-	test2(3722500, "one hour, two minutes, two seconds");
-	test2(113722500, "thirty-one hours, thirty-five minutes, twenty-two seconds");
-	test2(3600000, "one hour");
-	test2(3720000, "one hour, two minutes");
-
-	if (failed)
-		exit(failed);
-}
-
-#include <arpa/inet.h>
-
-
-#include <errno.h>
+#define ST_HTONL(hostlong) { ((hostlong) >> 24) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 8) & 0xFF,(hostlong) & 0xFF }
+#define ST_HTOLEL(hostlong) { (hostlong) & 0xFF,((hostlong) >> 8) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 24) & 0xFF }
+#define ST_HTOLES(hostshort) { (hostshort) & 0xFF, ((hostshort) >> 8) & 0xFF }
 
 #define CC4_RIFF 0x52494646
 #define CC4_WAVE 0x57415645
@@ -192,6 +136,9 @@ static void testall() {
 #define SAMPLE_SIZE (16/8)
 #define SAMPLE_RATE 22050
 #define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
+
+#include <errno.h>
+
 
 /* ! Byte swap unsigned short */
 static uint16_t swap_uint16( uint16_t val ) 
@@ -212,92 +159,6 @@ static uint32_t swap_uint32( uint32_t val )
 #define myhtolel(x) swap_uint32(htonl(x))
 #define myletohl(x) ntohl(swap_uint32(x))
 
-
-static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
-
-static int init_oss() {
-	int ossfd;
-	int channels = 1;
-	int bits = 16;
-	int rate = SAMPLE_RATE;
-	static const char filename[] = "/dev/dsp";
-	ossfd = open(filename, O_WRONLY);
-	if (-1 == ossfd) {
-		pSysError(ERR, "open('" FMT_S "') failed", filename);
-		return -1;
-	}
-
-	if ( ioctl(ossfd,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
-	{
-		pSysError(ERR, "ioctl bits");
-		return -1;
-	}
-	if ( ioctl(ossfd, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
-	{
-		pSysError(ERR, "ioctl channels");
-		return -1;
-	}
-
-	if (ioctl(ossfd, SOUND_PCM_WRITE_RATE,&rate) == -1 )
-	{
-		pSysError(ERR, "ioctl sample rate");
-		return -1;
-	}
-	return ossfd;
-}
-
-static int ossfd;
-
-
-static void virtwav_read(void *buf, off_t ofs, size_t count) {
-	// assume ofs can be an odd number
-	// count can include wav header, many silence parts and many sayings
-	long long millis = ofs;
-}
-
-static void play(long long pos) {
-	char buf[500];
-	/*
-	int hours, minutes, seconds;
-	millis2span(millis, &hours, &minutes, &seconds);
-	humanizets(buf, hours, minutes, seconds);
-
-	saytimespan_samples
-	*/
-}
-
-#define ST_HTONL(hostlong) { ((hostlong) >> 24) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 8) & 0xFF,(hostlong) & 0xFF }
-#define ST_HTOLEL(hostlong) { (hostlong) & 0xFF,((hostlong) >> 8) & 0xFF,((hostlong) >> 16) & 0xFF,((hostlong) >> 24) & 0xFF }
-#define ST_HTOLES(hostshort) { (hostshort) & 0xFF, ((hostshort) >> 8) & 0xFF }
-
-static const union {
-	struct ch_wavhdr ch;
-	struct wavhdr x;
-} virtwav_header = {
-	.ch = {
-		.riffhdr = {
-			.ChunkID = ST_HTONL(CC4_RIFF),
-			.ChunkSize = ST_HTOLEL(0x7FFFFFFE),
-			.Format = ST_HTONL(CC4_WAVE)
-		},
-		.wavhdr_fmt = {
-			.Subchunk1ID= ST_HTONL(CC4_FMT_),
-			.Subchunk1Size= ST_HTOLEL(16),
-			.AudioFormat= ST_HTOLES(1),
-			.NumChannels= ST_HTOLES(1),
-			.SampleRate= ST_HTOLEL(SAMPLE_RATE),
-			.ByteRate= ST_HTOLEL(SAMPLE_RATE * 1 * 16/8),
-			.BlockAlign= ST_HTOLES(1 * 16/8),
-			.BitsPerSample= ST_HTOLES(16)
-		},
-		.u = {
-			.wavhdr_data_pcm = {
-				.Subchunk2ID = ST_HTONL(CC4_DATA),
-				.Subchunk2Size = ST_HTOLEL(0x7FFFFFFE - 36),
-			}
-		}
-	}
-};
 
 static void wavhdr_validate(const struct wavhdr *pwavhdr) {
 	uint32_t hSubChunk2Size = myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size);
@@ -357,10 +218,171 @@ static void wavhdr_validate(const struct wavhdr *pwavhdr) {
 	}
 }
 
+
+static const union {
+	struct ch_wavhdr ch;
+	struct wavhdr x;
+} virtwav_header = {
+	.ch = {
+		.riffhdr = {
+			.ChunkID = ST_HTONL(CC4_RIFF),
+			.ChunkSize = ST_HTOLEL(0x7FFFFFFE),
+			.Format = ST_HTONL(CC4_WAVE)
+		},
+		.wavhdr_fmt = {
+			.Subchunk1ID= ST_HTONL(CC4_FMT_),
+			.Subchunk1Size= ST_HTOLEL(16),
+			.AudioFormat= ST_HTOLES(1),
+			.NumChannels= ST_HTOLES(1),
+			.SampleRate= ST_HTOLEL(SAMPLE_RATE),
+			.ByteRate= ST_HTOLEL(SAMPLE_RATE * 1 * 16/8),
+			.BlockAlign= ST_HTOLES(1 * 16/8),
+			.BitsPerSample= ST_HTOLES(16)
+		},
+		.u = {
+			.wavhdr_data_pcm = {
+				.Subchunk2ID = ST_HTONL(CC4_DATA),
+				.Subchunk2Size = ST_HTOLEL(0x7FFFFFFE - 36),
+			}
+		}
+	}
+};
+
+
+
+static void test2(int millis, const char *s) {
+	char buf[500];
+	int hours, minutes, seconds;
+	millis2span(millis, &hours, &minutes, &seconds);
+	humanizets(buf, hours, minutes, seconds);
+	if (0 != strcmp(s, buf)) {
+		failed = 1;
+		fprintf(stderr, "failed test1 for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
+	}
+}
+
+#include "fillrand.inc.h"
+
+static void testall() {
+	test1(-1, "minus one");
+	test1(1, "one");
+	test1(10, "ten");
+	test1(11, "eleven");
+	test1(20, "twenty");
+	test1(122, "one hundred and twenty-two");
+	test1(3501, "three thousand five hundred and one");
+	test1(100, "one hundred");
+	test1(1000, "one thousand");
+	test1(100000, "one hundred thousand");
+	test1(1000000, "one million");
+	test1(10000000, "ten million");
+	test1(100000000, "one hundred million");
+	test1(1000000000, "one billion");
+	test1(111, "one hundred and eleven");
+	test1(1111, "one thousand one hundred and eleven");
+	test1(111111, "one hundred and eleven thousand one hundred and eleven");
+	test1(1111111, "one million one hundred and eleven thousand one hundred and eleven");
+	test1(11111111, "eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(111111111, "one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(1111111111, "one billion one hundred and eleven million one hundred and eleven thousand one hundred and eleven");
+	test1(123, "one hundred and twenty-three");
+	test1(1234, "one thousand two hundred and thirty-four");
+	test1(12345, "twelve thousand three hundred and forty-five");
+	test1(123456, "one hundred and twenty-three thousand four hundred and fifty-six");
+	test1(1234567, "one million two hundred and thirty-four thousand five hundred and sixty-seven");
+	test1(12345678, "twelve million three hundred and forty-five thousand six hundred and seventy-eight");
+	test1(123456789, "one hundred and twenty-three million four hundred and fifty-six thousand seven hundred and eighty-nine");
+	test1(1234567890, "one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety");
+	test1(1234000890, "one billion two hundred and thirty-four million eight hundred and ninety");
+
+	test2(100, "zero seconds");
+	test2(2500, "two seconds");
+	test2(122500, "two minutes, two seconds");
+	test2(3722500, "one hour, two minutes, two seconds");
+	test2(113722500, "thirty-one hours, thirty-five minutes, twenty-two seconds");
+	test2(3600000, "one hour");
+	test2(3720000, "one hour, two minutes");
+
+	wavhdr_validate(&virtwav_header.x);
+
+	if (failed)
+		exit(failed);
+}
+
+
+
+
+static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
+
+static int init_oss() {
+	int ossfd;
+	int channels = 1;
+	int bits = 16;
+	int rate = SAMPLE_RATE;
+	static const char filename[] = "/dev/dsp";
+	ossfd = open(filename, O_WRONLY);
+	if (-1 == ossfd) {
+		pSysError(ERR, "open('" FMT_S "') failed", filename);
+		return -1;
+	}
+
+	if ( ioctl(ossfd,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
+	{
+		pSysError(ERR, "ioctl bits");
+		return -1;
+	}
+	if ( ioctl(ossfd, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
+	{
+		pSysError(ERR, "ioctl channels");
+		return -1;
+	}
+
+	if (ioctl(ossfd, SOUND_PCM_WRITE_RATE,&rate) == -1 )
+	{
+		pSysError(ERR, "ioctl sample rate");
+		return -1;
+	}
+	return ossfd;
+}
+
+static int ossfd;
+
+
+
+
+static void virtwav_read(void *buf, uint32_t ofs, size_t count) {
+	// assume ofs can be an odd number
+	// count can include wav header, many silence parts and many sayings
+	//long long millis = ofs;
+	if (ofs < sizeof(struct wavhdr)) {
+		size_t structremain = sizeof(struct wavhdr) - ofs;
+		if (structremain > count)
+			structremain = count;
+		memcpy(buf, ((char*)&virtwav_header.x) + ofs, structremain);
+
+		count -= structremain;
+		ofs += structremain;
+	}
+	//
+}
+
+static void play(long long pos) {
+	char buf[500];
+	/*
+	int hours, minutes, seconds;
+	millis2span(millis, &hours, &minutes, &seconds);
+	humanizets(buf, hours, minutes, seconds);
+
+	saytimespan_samples
+	*/
+}
+
+
+
+
 int main(int argc, char *argv[]) {
 	FILE *f;
 
-	wavhdr_validate(&virtwav_header.x);
 	testall();
 	{
 		static const char wavfile[] = "samples/billion.wav";
