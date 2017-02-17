@@ -134,7 +134,6 @@ static void seconds2span(long long seconds, int *phours, int *pminutes, int *pse
 
 #define SAMPLE_SIZE (16/8)
 #define SAMPLE_RATE 22050
-#define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
 
 #include <errno.h>
 
@@ -311,8 +310,6 @@ static void testall() {
 
 
 
-static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
-
 static int init_oss() {
 	int ossfd;
 	int channels = 1;
@@ -366,73 +363,106 @@ static void samples_entry_init(struct samples_entry *found) {
 	wavhdr_validate(&found->wavhdr);
 }
 
+static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufofs, char *words) {
+	ssize_t structremain;
+	char *token;
+	char *save_ptr_tok;
+	static const char delim[] = " -,";
+	struct samples_entry *found;
+	int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
+
+	log(INFO, "fillwords(buf=%p, bufsz=%u, bufofs=%d, words='%s')", buf, bufsz, bufofs, words);
+
+	token = strtok_r(words, delim, &save_ptr_tok);
+	while(token != NULL) {
+		uint32_t hSubchunk2Size;
+		found = (struct samples_entry*)bsearch(token, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
+		if (!found) {
+			log(ERR, "sample not found: %s", token);
+			exit(1);
+		}
+		if (!found->f) {
+			samples_entry_init(found);
+		}
+		hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
+
+		structremain = hSubchunk2Size + bufofs;
+		if (structremain > 0) {
+			/* not skip */
+			fseek(found->f, sizeof(struct wavhdr) - bufofs, SEEK_SET);
+			
+			if (structremain > bufsz)
+				structremain = bufsz;
+			log(INFO, "fillwords: copying %d bytes of wav data from offset %d to %p '%s'", structremain, -bufofs, buf, token);
+			fread(buf, 1, structremain, found->f);
+
+			bufsz -= structremain;
+			buf += structremain;
+		}
+		bufofs += structremain;
+		if (bufsz == 0)
+			break;
+		//
+		token = strtok_r(NULL, delim, &save_ptr_tok);
+	}
+	return bufofs;
+}
 
 static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
 	unsigned char *buf = (unsigned char *)_buf;
-	size_t structremain;
+	uint32_t saying_start_ofs;
+	ssize_t n;
+
+	log(INFO, "virtwav_read(buf=%p, virtofs=%u, count=%u)", _buf, virtofs, count);
+
 	// assume virtofs can be an odd number
 	// count can include wav header, many silence parts and many sayings
 	if (virtofs < sizeof(struct wavhdr)) {
-		structremain = sizeof(struct wavhdr) - virtofs;
-		if (structremain > count)
-			structremain = count;
-		memcpy(buf, ((char*)&virtwav_header.x) + virtofs, structremain);
+		log(INFO, "virtwav_read: writing wav header");
+		n = sizeof(struct wavhdr) - virtofs;
+		if (n > count)
+			n = count;
+		memcpy(buf, ((char*)&virtwav_header.x) + virtofs, n);
 
-		count -= structremain;
+		count -= n;
 		if (count == 0)
 			return;
-		virtofs += structremain;
-		buf += structremain;
+		virtofs += n;
+		buf += n;
 	}
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
-	{
-		// round to nearest saying
+
 #define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*20)
-		uint32_t saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
+		// round down to nearest saying
+		saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
+
+	
+	while (count != 0) {
 		char words[500];
 		int hours, minutes, seconds;
-		char *token;
-		char *save_ptr_tok;
-		static const char delim[] = " -,";
-		int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
-		struct samples_entry *found;
 
 		seconds2span(saying_start_ofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
 		humanizets(words, hours, minutes, seconds);
-		token = strtok_r(words, delim, &save_ptr_tok);
-		while(token != NULL) {
-			uint32_t hSubchunk2Size;
-			found = (struct samples_entry*)bsearch(token, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
-			if (!found) {
-				log(ERR, "not found sample: %s", token);
-				exit(1);
-			}
-			if (!found->f) {
-				samples_entry_init(found);
-			}
-			hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
-			printf("%s %u %u %u\n", token, saying_start_ofs + hSubchunk2Size, virtofs, count);
 
-			if (virtofs - saying_start_ofs < hSubchunk2Size) {
-				/* not skip */
-				fseek(found->f, sizeof(struct wavhdr) + virtofs - saying_start_ofs, SEEK_SET);
-				structremain = saying_start_ofs + hSubchunk2Size - virtofs;
-				if (structremain > count)
-					structremain = count;
-				fread(buf, 1, structremain, found->f);
-
-				count -= structremain;
-				if (count == 0)
-					return;
-				virtofs += structremain;
-				buf += structremain;
-			}
-			saying_start_ofs += hSubchunk2Size;
-			//
-			token = strtok_r(NULL, delim, &save_ptr_tok);
+		n = _virtwav_fillwords(buf, count, saying_start_ofs - virtofs, words);
+		if (n > 0) {
+			virtofs += n;
+			buf += n;
+			count -= n;
 		}
 
-		//uint32_t millis = saying_start_ofs / 
+		// round up to next
+		saying_start_ofs = ((( (virtofs) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
+
+		// fill space before next saying with silence
+		n = saying_start_ofs - virtofs;
+		if (n > count)
+			n = count;
+
+		if (n != 0) {
+			log(INFO, "virtwav_read: writing %d bytes of silence at %p", n, buf);
+			memset(buf, 0, n);
+		}
 	}
 }
 
@@ -447,6 +477,8 @@ static void play(long long pos) {
 
 
 
+#define BUFSAMPLES (SAMPLE_RATE * 60)
+static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
 	FILE *f;
