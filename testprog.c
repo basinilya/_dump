@@ -369,6 +369,7 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 	char *save_ptr_tok;
 	static const char delim[] = " -,";
 	struct samples_entry *found;
+	long fileofs = sizeof(struct wavhdr) - bufofs;
 	int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
 
 	log(INFO, "fillwords(buf=%p, bufsz=%u, bufofs=%d, words='%s')", buf, bufsz, bufofs, words);
@@ -376,6 +377,7 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 	token = strtok_r(words, delim, &save_ptr_tok);
 	while(token != NULL) {
 		uint32_t hSubchunk2Size;
+		log(INFO, "fillwords:     buf=%p, bufsz=%u, bufofs=%d, token='%s'", buf, bufsz, bufofs, token);
 		found = (struct samples_entry*)bsearch(token, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
 		if (!found) {
 			log(ERR, "sample not found: %s", token);
@@ -389,11 +391,12 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 		structremain = hSubchunk2Size + bufofs;
 		if (structremain > 0) {
 			/* not skip */
-			fseek(found->f, sizeof(struct wavhdr) - bufofs, SEEK_SET);
+			log(INFO, "fillwords:     fseek %d '%s'", fileofs, token);
+			fseek(found->f, fileofs, SEEK_SET);
 			
 			if (structremain > bufsz)
 				structremain = bufsz;
-			log(INFO, "fillwords: copying %d bytes of wav data from offset %d to %p '%s'", structremain, -bufofs, buf, token);
+			log(INFO, "fillwords:     copying %d bytes of wav data from offset %d to %p '%s'", structremain, -bufofs, buf, token);
 			fread(buf, 1, structremain, found->f);
 
 			bufsz -= structremain;
@@ -403,6 +406,7 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 		if (bufsz == 0)
 			break;
 		//
+		fileofs = sizeof(struct wavhdr);
 		token = strtok_r(NULL, delim, &save_ptr_tok);
 	}
 	return bufofs;
