@@ -1,3 +1,5 @@
+#include "saytimespan.h"
+
 #include "mylogging.h"
 
 #include <stdio.h>
@@ -111,24 +113,23 @@ static void test1(int i, const char *s) {
 	}
 }
 
+static void millis2span(long long millis, int *phours, int *pminutes, int *pseconds) {
+	long long seconds = millis / 1000;
+	long long minutes = seconds / 60;
+	*phours = (int)(minutes / 60);
+	*pminutes = (int)(minutes % 60);
+	*pseconds = (int)(seconds % 60);
+}
+
 static void test2(int millis, const char *s) {
 	char buf[500];
-	int seconds = millis / 1000;
-	int minutes = seconds / 60;
-	int hours = minutes / 60;
-	minutes = minutes % 60;
-	seconds = seconds % 60;
+	int hours, minutes, seconds;
+	millis2span(millis, &hours, &minutes, &seconds);
 	humanizets(buf, hours, minutes, seconds);
 	if (0 != strcmp(s, buf)) {
 		failed = 1;
 		fprintf(stderr, "failed test1 for %d. Expected:\n\t%s\nactual:\n\t%.500s\n\n", millis, s, buf);
 	}
-}
-
-static void play(long long pos) {
-	// #define SOUND_PCM_WRITE_BITS		SNDCTL_DSP_SETFMT
-	// #define SOUND_PCM_WRITE_RATE		SNDCTL_DSP_SPEED
-	// #define SOUND_PCM_WRITE_CHANNELS	SNDCTL_DSP_CHANNELS
 }
 
 #include "fillrand.inc.h"
@@ -179,35 +180,6 @@ static void testall() {
 
 #include <arpa/inet.h>
 
-struct riffhdr {
-	uint32_t ChunkID;
-	uint32_t ChunkSize;
-	uint32_t Format;
-};
-
-struct wavhdr_fmt {
-	uint32_t Subchunk1ID;
-	uint32_t Subchunk1Size;
-	uint16_t AudioFormat;
-	uint16_t NumChannels;
-	uint32_t SampleRate;
-	uint32_t ByteRate;
-	uint16_t BlockAlign;
-	uint16_t BitsPerSample;
-};
-
-struct wavhdr_data {
-	uint32_t Subchunk2ID;
-	uint32_t Subchunk2Size;
-};
-
-struct wavhdr {
-	struct riffhdr riffhdr;
-	struct wavhdr_fmt wavhdr_fmt;
-	union {
-		struct wavhdr_data wavhdr_data_pcm;
-	} u;
-};
 
 #include <errno.h>
 
@@ -221,13 +193,13 @@ struct wavhdr {
 #define SAMPLE_RATE 22050
 #define BUFSAMPLES (SAMPLE_RATE / 10)/* 100ms */
 
-//! Byte swap unsigned short
+/* ! Byte swap unsigned short */
 static uint16_t swap_uint16( uint16_t val ) 
 {
     return (val << 8) | (val >> 8 );
 }
 
-//! Byte swap unsigned int
+/* ! Byte swap unsigned int */
 static uint32_t swap_uint32( uint32_t val )
 {
     val = ((val << 8) & 0xFF00FF00 ) | ((val >> 8) & 0xFF00FF ); 
@@ -242,6 +214,53 @@ static uint32_t swap_uint32( uint32_t val )
 
 
 static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
+
+static int init_oss() {
+	int ossfd;
+	int channels = 1;
+	int bits = 16;
+	int rate = SAMPLE_RATE;
+	static const char filename[] = "/dev/dsp";
+	ossfd = open(filename, O_WRONLY);
+	if (-1 == ossfd) {
+		pSysError(ERR, "open('" FMT_S "') failed", filename);
+		return -1;
+	}
+
+	if ( ioctl(ossfd,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
+	{
+		pSysError(ERR, "ioctl bits");
+		return -1;
+	}
+	if ( ioctl(ossfd, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
+	{
+		pSysError(ERR, "ioctl channels");
+		return -1;
+	}
+
+	if (ioctl(ossfd, SOUND_PCM_WRITE_RATE,&rate) == -1 )
+	{
+		pSysError(ERR, "ioctl sample rate");
+		return -1;
+	}
+	return ossfd;
+}
+
+static int ossfd;
+
+
+
+static void play(long long pos) {
+	char buf[500];
+	/*
+	int hours, minutes, seconds;
+	millis2span(millis, &hours, &minutes, &seconds);
+	humanizets(buf, hours, minutes, seconds);
+
+	saytimespan_samples
+	*/
+}
+
 
 int main(int argc, char *argv[]) {
 	FILE *f;
@@ -301,39 +320,17 @@ int main(int argc, char *argv[]) {
 	}
 	//exit(0);
 	{
-		int handle;
-		int channels = 1;
-		int bits = 16;
-		int rate = SAMPLE_RATE;
-		static const char filename[] = "/dev/dsp";
-		handle = open(filename, O_WRONLY);
-		if (-1 == handle) {
-			pSysError(ERR, "open('" FMT_S "') failed", filename);
+		ossfd = init_oss();
+		if (-1 == ossfd) {
 			return 1;
 		}
-
-		if ( ioctl(handle,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
-		{
-			pSysError(ERR, "ioctl bits");
-			return 1;
-		}
-		if ( ioctl(handle, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
-		{
-			pSysError(ERR, "ioctl channels");
-			return 1;
-		}
-
-		if (ioctl(handle, SOUND_PCM_WRITE_RATE,&rate) == -1 )
-		{
-			pSysError(ERR, "ioctl sample rate");
-			return 1;
-		}
+		play(0);
 		for (;;) {
 			size_t nb;
 			nb = fread(&sambuf, 1,  sizeof(sambuf), f);
 			//wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 
-			if (-1 == write(handle, sambuf, sizeof(sambuf))) {
+			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");
 				return 1;
 			}
