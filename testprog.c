@@ -135,8 +135,6 @@ static void seconds2span(long long seconds, int *phours, int *pminutes, int *pse
 #define CC4_DATA 0x64617461
 #define CC4(n) ((const char *)&n)
 
-#define SAMPLE_SIZE (16/8)
-#define SAMPLE_RATE 22050
 
 #include <errno.h>
 
@@ -310,46 +308,10 @@ static void testall() {
 		exit(failed);
 }
 
-
-
-
-static int init_oss() {
-	int ossfd;
-	int channels = 1;
-	int bits = 16;
-	int rate = SAMPLE_RATE * 2;
-	static const char filename[] = "/dev/dsp";
-	ossfd = open(filename, O_WRONLY);
-	if (-1 == ossfd) {
-		pSysError(ERR, "open('" FMT_S "') failed", filename);
-		return -1;
-	}
-
-	if ( ioctl(ossfd,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
-	{
-		pSysError(ERR, "ioctl bits");
-		return -1;
-	}
-	if ( ioctl(ossfd, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
-	{
-		pSysError(ERR, "ioctl channels");
-		return -1;
-	}
-
-	if (ioctl(ossfd, SOUND_PCM_WRITE_RATE,&rate) == -1 )
-	{
-		pSysError(ERR, "ioctl sample rate");
-		return -1;
-	}
-	return ossfd;
-}
-
-static int ossfd;
-
 static void samples_entry_init(struct samples_entry *found) {
 	FILE *f;
-	char wavfile[40];
-	sprintf(wavfile, "samples/%s.wav", found->word);
+	char wavfile[sizeof(SAYTIMESPAN_SAMPLES)+20];
+	sprintf(wavfile, SAYTIMESPAN_SAMPLES "/%s.wav", found->word);
 	found->f = f = fopen(wavfile, "rb");
 	if (!f) {
 		pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
@@ -437,7 +399,7 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
 
 	// assume virtofs can be an odd number
-	// bufsz can include wav header, many silence parts and many sayings
+	// bufsz can include wav header, many silence parts and many phrases
 	if (virtofs < sizeof(struct wavhdr)) {
 		ssize_t n;
 		log(DBG, "virtwav_read: writing wav header");
@@ -454,9 +416,8 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	}
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
-#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*20)
-	// round down to nearest saying
-	bufofs = virtofs % BYTES_IN_SAYING;
+	// round down to nearest phrase
+	bufofs = virtofs % BYTES_IN_PHRASE;
 	bufofs = -bufofs;
 	virtofs += bufofs;
 	
@@ -466,14 +427,14 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 		int hours, minutes, seconds;
 		ssize_t ofs_gap_beg, silencesz;
 
-		seconds2span(virtofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
+		seconds2span(virtofs / (SAYTIMESPAN_SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
 		humanizets(words, hours, minutes, seconds);
 
 		ofs_gap_beg = _fillwords(buf, bufsz, bufofs, words);
 
 		tmpvirtofs = virtofs + (ofs_gap_beg - bufofs);
 		// round up to next
-		virtofs = ((( (tmpvirtofs) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
+		virtofs = ((( (tmpvirtofs) + (BYTES_IN_PHRASE) - 1) / (BYTES_IN_PHRASE)) * (BYTES_IN_PHRASE));
 
 		bufofs = ofs_gap_beg + (virtofs - tmpvirtofs);
 
@@ -493,9 +454,41 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	}
 }
 
+static int init_oss() {
+	int ossfd;
+	int channels = 1;
+	int bits = 16;
+	int rate = SAMPLE_RATE;
+	static const char filename[] = "/dev/dsp";
+	ossfd = open(filename, O_WRONLY);
+	if (-1 == ossfd) {
+		pSysError(ERR, "open('" FMT_S "') failed", filename);
+		return -1;
+	}
+
+	if ( ioctl(ossfd,  SOUND_PCM_WRITE_BITS, &bits) == -1 )
+	{
+		pSysError(ERR, "ioctl bits");
+		return -1;
+	}
+	if ( ioctl(ossfd, SOUND_PCM_WRITE_CHANNELS,&channels) == -1 )
+	{
+		pSysError(ERR, "ioctl channels");
+		return -1;
+	}
+
+	if (ioctl(ossfd, SOUND_PCM_WRITE_RATE,&rate) == -1 )
+	{
+		pSysError(ERR, "ioctl sample rate");
+		return -1;
+	}
+	return ossfd;
+}
+
+static int ossfd;
 
 #define BUFSAMPLES (SAMPLE_RATE * 20)
-static unsigned short sambuf[SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
+static unsigned short sambuf[SAYTIMESPAN_SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
 	FILE *f;
@@ -544,9 +537,9 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		if (0) {
+		if (1) {
 			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
-			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+2);
+			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+(SAYTIMESPAN_SAMPLE_SIZE*SAMPLE_RATE * (60*60*11 + 60*35 + 38)));
 
 			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");

@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define SAYTIMESPAN_SAMPLES "./samples"
+
+#define SAYTIMESPAN_SAMPLE_SIZE (16/8)
+#define SAMPLE_RATE 22050
+#define BYTES_IN_PHRASE (SAYTIMESPAN_SAMPLE_SIZE*SAMPLE_RATE*20)
+
 
 struct ch_riffhdr {
 	unsigned char ChunkID [4];
