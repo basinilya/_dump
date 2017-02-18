@@ -432,14 +432,14 @@ static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words)
 
 static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	char *buf = (unsigned char *)_buf;
-	uint32_t saying_start_ofs;
-	ssize_t n;
+	ssize_t bufofs;
 
 	log(INFO, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
 
 	// assume virtofs can be an odd number
 	// bufsz can include wav header, many silence parts and many sayings
 	if (virtofs < sizeof(struct wavhdr)) {
+		ssize_t n;
 		log(INFO, "virtwav_read: writing wav header");
 		n = sizeof(struct wavhdr) - virtofs;
 		if (n > bufsz)
@@ -455,57 +455,42 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
 #define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*5)
-		// round down to nearest saying
-		saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
-
-	
-	while (bufsz != 0) {
-		char words[500];
-		int hours, minutes, seconds;
-
-		seconds2span(saying_start_ofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
-		humanizets(words, hours, minutes, seconds);
-
-		n = _fillwords(buf, bufsz, (int32_t)(saying_start_ofs - virtofs), words);
-		if (n > 0) {
-			virtofs += n;
-			buf += n;
-			bufsz -= n;
-		}
-
-		log(INFO, "virtwav_read: bufsz: %d, n: %d", bufsz, n);
-		if (bufsz < 0) {
-			log(ERR, "program error");
+	// round down to nearest saying
+	{
+		uint32_t saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
+		bufofs = (int32_t)(saying_start_ofs - virtofs);
+		if (bufofs > 10000000) {
+			log(ERR, "Program error");
 			exit(1);
 		}
+		virtofs = saying_start_ofs;
+	}
+	
+	while (bufofs != bufsz) {
+		char words[500];
+		int hours, minutes, seconds;
+		ssize_t ofs_saying_end, ofs_saying_next, ofs_silence_beg, silencesz;
 
+		seconds2span(virtofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
+		humanizets(words, hours, minutes, seconds);
+
+		ofs_saying_end = _fillwords(buf, bufsz, bufofs, words);
 		// round up to next
-		saying_start_ofs = ((( (virtofs) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
+		ofs_saying_next = ((( (ofs_saying_end) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
 
-		// fill space before next saying with silence
-		n = saying_start_ofs - virtofs;
-		if (n > bufsz)
-			n = bufsz;
-
-		if (n != 0) {
-			log(INFO, "virtwav_read: writing %d bytes of silence at %p", n, buf);
-			memset(buf, 0, n);
-			virtofs += n;
-			buf += n;
-			bufsz -= n;
+		bufofs = ofs_saying_next < bufsz ? ofs_saying_next : bufsz;
+		if (bufofs > 0) {
+			// write silence
+			ofs_silence_beg = ofs_saying_end > 0 ? ofs_saying_end : 0;
+			silencesz = bufofs - ofs_silence_beg;
+			if (silencesz < 0)
+				silencesz = 0;
+			log(INFO, "virtwav_read: writing %" PRIdPTR " bytes of silence at offset %" PRIdPTR "", silencesz, ofs_silence_beg);
+			memset(buf + ofs_silence_beg, 0, silencesz);
 		}
+		virtofs += bufofs - ofs_saying_end;
 	}
 }
-
-static void play(long long pos) {
-	char buf[500];
-	/*
-	humanizets(buf, hours, minutes, seconds);
-
-	saytimespan_samples
-	*/
-}
-
 
 
 #define BUFSAMPLES (SAMPLE_RATE * 20)
@@ -521,6 +506,7 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
+		wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 		virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+2);
 
 		if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
@@ -528,9 +514,8 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-		play(0);
 		for (;0;) {
-			//wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
+			//
 
 		}
 	}
