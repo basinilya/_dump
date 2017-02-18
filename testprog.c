@@ -507,12 +507,47 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
-		wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
-		virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+2);
+		for(int i = 0; i < 2; i++) {
+			for (int testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
+				char testbuf[testbufsz];
+				char testname[40];
+				FILE *testf;
+				int pos = 0;
+				int wrbytes;
+				sprintf(testname, "test%d-%d.wav", i, testbufsz);
+				testf = fopen(testname, "wb");
+				
+				for(;pos != -1;) {
+					fillrand(testbuf, testbufsz);
+					virtwav_read(testbuf, testbufsz, pos);
+					fseek(testf, pos, SEEK_SET);
 
-		if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
-			pSysError(ERR, "write() failed");
-			return 1;
+					wrbytes = testbufsz - i;
+					if (wrbytes <= 0)
+						wrbytes = 1;
+
+					pos += wrbytes;
+
+					if (pos > 1024*1024) {
+						wrbytes -= (pos - (1024*1024));
+						pos = -1;
+					}
+
+					fwrite(testbuf, 1, wrbytes, testf);
+
+				}
+				
+				fclose(testf);
+			}
+		}
+		if (0) {
+			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
+			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+2);
+
+			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
+				pSysError(ERR, "write() failed");
+				return 1;
+			}
 		}
 
 		for (;0;) {
