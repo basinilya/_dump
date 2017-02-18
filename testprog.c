@@ -365,24 +365,48 @@ static void samples_entry_init(struct samples_entry *found) {
 	wavhdr_validate(&found->wavhdr);
 }
 
-/* Read sample clip into pos.
-   bufofs can be negative. Then part of the clip is skipped.
-   Returns new bufofs. If clip too big, returns 
-*/
+static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *word) {
+	int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
+	struct samples_entry *found;
 
-/*
-  assume that clip is small enough to fit into ssize_t
-  
-  1) _pos beg end_: skip, read; return pos+clipsz or end
-  2) _beg end pos_: same as (1)
-  3) _beg pos end_: no skip, read; return pos+clipsz or end
+	ssize_t newbufofs, toread, ofs_read_beg;
+	long toskip;
 
-  4) _pos end beg_: same as (3)
-  5) _end pos beg_: same as (1)
-  6) _end beg pos_: same as (3)
-*/
-static char *_fillword(char *pos, char *wrmem_beg, char * wrmem_end, const char *word) {
-	//
+	size_t hSubchunk2Size;
+
+	found = (struct samples_entry*)bsearch(word, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
+	if (!found) {
+		log(ERR, "sample not found: %s", word);
+		exit(1);
+	}
+	if (!found->f) {
+		samples_entry_init(found);
+	}
+	hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
+
+	newbufofs = bufofs + hSubchunk2Size;
+	if (newbufofs > 0) { /* have something to read */
+		if (newbufofs > bufsz)
+			newbufofs = bufsz;
+
+		ofs_read_beg = bufofs > 0 ? bufofs : 0;
+		toread = newbufofs - ofs_read_beg;
+		if (toread < 0)
+			toread = 0;
+
+		toskip = -bufofs;
+		if (toskip < 0)
+			toskip = 0;
+		toskip += sizeof(struct wavhdr);
+
+		log(INFO, "fillword:     fseek %d '%s'", toskip, word);
+		fseek(found->f, toskip, SEEK_SET);
+
+		log(INFO, "fillword:     fread %d bytes to ofs %d '%s'", toread, ofs_read_beg, word);
+		fread(buf + ofs_read_beg, 1, toread, found->f);
+	}
+
+	return newbufofs;
 }
 
 static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufofs, char *words) {
@@ -390,45 +414,14 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 	char *token;
 	char *save_ptr_tok;
 	static const char delim[] = " -,";
-	struct samples_entry *found;
-	long fileofs = sizeof(struct wavhdr) - bufofs;
-	int (*compar)(const void *, const void *) = (int (*)(const void *, const void *))strcmp;
 
 	log(INFO, "fillwords(buf=%p, bufsz=%u, bufofs=%d, words='%s')", buf, bufsz, bufofs, words);
 
 	token = strtok_r(words, delim, &save_ptr_tok);
 	while(token != NULL) {
-		uint32_t hSubchunk2Size;
-		log(INFO, "fillwords:     buf=%p, bufsz=%u, bufofs=%d, token='%s'", buf, bufsz, bufofs, token);
-		found = (struct samples_entry*)bsearch(token, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
-		if (!found) {
-			log(ERR, "sample not found: %s", token);
-			exit(1);
-		}
-		if (!found->f) {
-			samples_entry_init(found);
-		}
-		hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
-
-		structremain = hSubchunk2Size + bufofs;
-		if (structremain > 0) {
-			/* not skip */
-			log(INFO, "fillwords:     fseek %d '%s'", fileofs, token);
-			fseek(found->f, fileofs, SEEK_SET);
-			
-			if (structremain > bufsz)
-				structremain = bufsz;
-			log(INFO, "fillwords:     copying %d bytes of wav data from offset %d to %p '%s'", structremain, -bufofs, buf, token);
-			fread(buf, 1, structremain, found->f);
-
-			bufsz -= structremain;
-			buf += structremain;
-		}
-		bufofs += structremain;
-		if (bufsz == 0)
+		bufofs = _fillword(buf, bufsz, bufofs, token);
+		if (bufofs == bufsz)
 			break;
-		//
-		fileofs = sizeof(struct wavhdr);
 		token = strtok_r(NULL, delim, &save_ptr_tok);
 	}
 	return bufofs;
