@@ -1,5 +1,5 @@
 TARGET = testprog
-OFILES = testprog.o logging.o samples.o
+OFILES = testprog.o logging.o samples.o saytimespan.o
 
 $(TARGET): $(OFILES)
 

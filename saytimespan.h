@@ -82,5 +82,18 @@ struct samples_entry {
 extern struct samples_entry saytimespan_samples[];
 extern size_t saytimespan_samples_count;
 
+int itowords(int n, char *s);
+void seconds2span(long long seconds, int *phours, int *pminutes, int *pseconds);
+void humanizets(char *s, int hours, int minutes, int seconds);
+void wavhdr_validate(const struct wavhdr *pwavhdr);
+
+union _u_wavhdr {
+	struct ch_wavhdr ch;
+	struct wavhdr x;
+};
+
+extern const union _u_wavhdr virtwav_header;
+
+void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs);
 
 #endif /* _SAYTIMESPAN_H */
