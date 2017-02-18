@@ -202,7 +202,7 @@ static void wavhdr_validate(const struct wavhdr *pwavhdr) {
 		|| pwavhdr->wavhdr_fmt.Subchunk1Size != myhtolel(16)
 		|| pwavhdr->wavhdr_fmt.AudioFormat != myhtoles(1)
 		|| pwavhdr->wavhdr_fmt.NumChannels != myhtoles(1)
-		|| pwavhdr->wavhdr_fmt.SampleRate != myhtolel(SAMPLE_RATE)
+		|| pwavhdr->wavhdr_fmt.SampleRate != myhtolel(SAYTIMESPAN_SAMPLE_RATE)
 		|| pwavhdr->wavhdr_fmt.ByteRate != myhtolel(hSampleRate * hNumChannels * hBitsPerSample/8)
 		|| pwavhdr->wavhdr_fmt.BlockAlign != myhtolel(hNumChannels * hBitsPerSample/8)
 		|| pwavhdr->wavhdr_fmt.BitsPerSample != myhtoles(16)
@@ -233,8 +233,8 @@ static const union {
 			.Subchunk1Size= ST_HTOLEL(16),
 			.AudioFormat= ST_HTOLES(1),
 			.NumChannels= ST_HTOLES(1),
-			.SampleRate= ST_HTOLEL(SAMPLE_RATE),
-			.ByteRate= ST_HTOLEL(SAMPLE_RATE * 1 * 16/8),
+			.SampleRate= ST_HTOLEL(SAYTIMESPAN_SAMPLE_RATE),
+			.ByteRate= ST_HTOLEL(SAYTIMESPAN_SAMPLE_RATE * 1 * 16/8),
 			.BlockAlign= ST_HTOLES(1 * 16/8),
 			.BitsPerSample= ST_HTOLES(16)
 		},
@@ -417,7 +417,7 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
 	// round down to nearest phrase
-	bufofs = virtofs % BYTES_IN_PHRASE;
+	bufofs = virtofs % SAYTIMESPAN_BYTES_IN_PHRASE;
 	bufofs = -bufofs;
 	virtofs += bufofs;
 	
@@ -427,14 +427,14 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 		int hours, minutes, seconds;
 		ssize_t ofs_gap_beg, silencesz;
 
-		seconds2span(virtofs / (SAYTIMESPAN_SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
+		seconds2span(virtofs / (SAYTIMESPAN_SAMPLE_SIZE*SAYTIMESPAN_SAMPLE_RATE), &hours, &minutes, &seconds);
 		humanizets(words, hours, minutes, seconds);
 
 		ofs_gap_beg = _fillwords(buf, bufsz, bufofs, words);
 
 		tmpvirtofs = virtofs + (ofs_gap_beg - bufofs);
 		// round up to next
-		virtofs = ((( (tmpvirtofs) + (BYTES_IN_PHRASE) - 1) / (BYTES_IN_PHRASE)) * (BYTES_IN_PHRASE));
+		virtofs = ((( (tmpvirtofs) + (SAYTIMESPAN_BYTES_IN_PHRASE) - 1) / (SAYTIMESPAN_BYTES_IN_PHRASE)) * (SAYTIMESPAN_BYTES_IN_PHRASE));
 
 		bufofs = ofs_gap_beg + (virtofs - tmpvirtofs);
 
@@ -458,7 +458,7 @@ static int init_oss() {
 	int ossfd;
 	int channels = 1;
 	int bits = 16;
-	int rate = SAMPLE_RATE;
+	int rate = SAYTIMESPAN_SAMPLE_RATE;
 	static const char filename[] = "/dev/dsp";
 	ossfd = open(filename, O_WRONLY);
 	if (-1 == ossfd) {
@@ -487,7 +487,7 @@ static int init_oss() {
 
 static int ossfd;
 
-#define BUFSAMPLES (SAMPLE_RATE * 20)
+#define BUFSAMPLES (SAYTIMESPAN_SAMPLE_RATE * 20)
 static unsigned short sambuf[SAYTIMESPAN_SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
@@ -539,7 +539,7 @@ int main(int argc, char *argv[]) {
 		}
 		if (1) {
 			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
-			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+(SAYTIMESPAN_SAMPLE_SIZE*SAMPLE_RATE * (60*60*11 + 60*35 + 38)));
+			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+(SAYTIMESPAN_SAMPLE_SIZE*SAYTIMESPAN_SAMPLE_RATE * (60*60*11 + 60*35 + 38)));
 
 			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");
