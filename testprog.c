@@ -375,7 +375,7 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 
 	size_t hSubchunk2Size;
 
-	log(INFO, "fillword     (buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", word='%s')", buf, bufsz, bufofs, word);
+	log(DBG, "fillword     (buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", word='%s')", buf, bufsz, bufofs, word);
 
 	found = (struct samples_entry*)bsearch(word, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
 	if (!found) {
@@ -402,10 +402,10 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 			toskip = 0;
 		toskip += sizeof(struct wavhdr);
 
-		log(INFO, "fillword:     fseek %ld '%s'", toskip, word);
+		log(DBG, "fillword:     fseek %ld '%s'", toskip, word);
 		fseek(found->f, toskip, SEEK_SET);
 
-		log(INFO, "fillword:     fread %" PRIdPTR " bytes to ofs %" PRIdPTR " '%s'", toread, ofs_read_beg, word);
+		log(DBG, "fillword:     fread %" PRIdPTR " bytes to ofs %" PRIdPTR " '%s'", toread, ofs_read_beg, word);
 		fread(buf + ofs_read_beg, 1, toread, found->f);
 	}
 
@@ -418,7 +418,7 @@ static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words)
 	char *save_ptr_tok;
 	static const char delim[] = " -,";
 
-	log(INFO, "fillwords(buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", words='%s')", buf, bufsz, bufofs, words);
+	log(DBG, "fillwords(buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", words='%s')", buf, bufsz, bufofs, words);
 
 	token = strtok_r(words, delim, &save_ptr_tok);
 	while(token != NULL) {
@@ -434,13 +434,13 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	char *buf = (unsigned char *)_buf;
 	ssize_t bufofs;
 
-	log(INFO, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
+	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
 
 	// assume virtofs can be an odd number
 	// bufsz can include wav header, many silence parts and many sayings
 	if (virtofs < sizeof(struct wavhdr)) {
 		ssize_t n;
-		log(INFO, "virtwav_read: writing wav header");
+		log(DBG, "virtwav_read: writing wav header");
 		n = sizeof(struct wavhdr) - virtofs;
 		if (n > bufsz)
 			n = bufsz;
@@ -454,7 +454,7 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 	}
 	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
-#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*5)
+#define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*20)
 	// round down to nearest saying
 	bufofs = virtofs % BYTES_IN_SAYING;
 	bufofs = -bufofs;
@@ -487,7 +487,7 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 			silencesz = bufofs - ofs_gap_beg;
 			if (silencesz < 0)
 				silencesz = 0;
-			log(INFO, "virtwav_read: writing %" PRIdPTR " bytes of silence at offset %" PRIdPTR "", silencesz, ofs_gap_beg);
+			log(DBG, "virtwav_read: writing %" PRIdPTR " bytes of silence at offset %" PRIdPTR "", silencesz, ofs_gap_beg);
 			memset(buf + ofs_gap_beg, 0, silencesz);
 		}
 	}
@@ -507,37 +507,41 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
-		for(int i = 0; i < 2; i++) {
-			for (int testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
-				char testbuf[testbufsz];
-				char testname[40];
-				FILE *testf;
-				int pos = 0;
-				int wrbytes;
-				sprintf(testname, "test%d-%d.wav", i, testbufsz);
-				testf = fopen(testname, "wb");
+		if (0) {
+			for(int i = 0; i < 2; i++) {
+				for (int testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
+					char testbuf[testbufsz];
+					char testname[40];
+					FILE *testf;
+					int pos = 0;
+					int wrbytes;
+					sprintf(testname, "test%d-%d.wav", i, testbufsz);
+					printf("begin %s\n", testname);
+					testf = fopen(testname, "wb");
 				
-				for(;pos != -1;) {
-					fillrand(testbuf, testbufsz);
-					virtwav_read(testbuf, testbufsz, pos);
-					fseek(testf, pos, SEEK_SET);
+					for(;pos != -1;) {
+						fillrand(testbuf, testbufsz);
+						virtwav_read(testbuf, testbufsz, pos);
+						fseek(testf, pos, SEEK_SET);
 
-					wrbytes = testbufsz - i;
-					if (wrbytes <= 0)
-						wrbytes = 1;
+						wrbytes = testbufsz - i;
+						if (wrbytes <= 0)
+							wrbytes = 1;
 
-					pos += wrbytes;
+						pos += wrbytes;
 
-					if (pos > 1024*1024) {
-						wrbytes -= (pos - (1024*1024));
-						pos = -1;
+						if (pos > 1024*1024) {
+							wrbytes -= (pos - (1024*1024));
+							pos = -1;
+						}
+
+						fwrite(testbuf, 1, wrbytes, testf);
+
 					}
-
-					fwrite(testbuf, 1, wrbytes, testf);
-
-				}
 				
-				fclose(testf);
+					fclose(testf);
+					printf("end %s\n", testname);
+				}
 			}
 		}
 		if (0) {
