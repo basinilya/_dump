@@ -456,29 +456,33 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 
 #define BYTES_IN_SAYING (SAMPLE_SIZE*SAMPLE_RATE*5)
 	// round down to nearest saying
-	{
-		uint32_t saying_start_ofs = virtofs - virtofs % BYTES_IN_SAYING;
-		bufofs = (int32_t)(saying_start_ofs - virtofs);
-		if (bufofs > 10000000) {
-			log(ERR, "Program error");
-			exit(1);
-		}
-		virtofs = saying_start_ofs;
+	bufofs = -(int32_t)(virtofs % BYTES_IN_SAYING);
+	if (bufofs > 0) {
+		log(ERR, "Program error");
+		exit(1);
 	}
+	virtofs += bufofs;
 	
 	while (bufofs != bufsz) {
+		uint32_t xxx;
 		char words[500];
 		int hours, minutes, seconds;
-		ssize_t ofs_saying_end, ofs_saying_next, ofs_silence_beg, silencesz;
+		ssize_t ofs_saying_end, ofs_silence_beg, silencesz;
 
 		seconds2span(virtofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
 		humanizets(words, hours, minutes, seconds);
 
 		ofs_saying_end = _fillwords(buf, bufsz, bufofs, words);
-		// round up to next
-		ofs_saying_next = ((( (ofs_saying_end) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
 
-		bufofs = ofs_saying_next < bufsz ? ofs_saying_next : bufsz;
+		xxx = virtofs + (ofs_saying_end - bufofs);
+		// round up to next
+		virtofs = ((( (xxx) + (BYTES_IN_SAYING) - 1) / (BYTES_IN_SAYING)) * (BYTES_IN_SAYING));
+
+		bufofs = ofs_saying_end + (virtofs - xxx);
+
+		if (bufofs > bufsz)
+			bufofs = bufsz;
+
 		if (bufofs > 0) {
 			// write silence
 			ofs_silence_beg = ofs_saying_end > 0 ? ofs_saying_end : 0;
@@ -488,7 +492,6 @@ static void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs) {
 			log(INFO, "virtwav_read: writing %" PRIdPTR " bytes of silence at offset %" PRIdPTR "", silencesz, ofs_silence_beg);
 			memset(buf + ofs_silence_beg, 0, silencesz);
 		}
-		virtofs += bufofs - ofs_saying_end;
 	}
 }
 
