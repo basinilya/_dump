@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stropts.h> /* for ioctl() */
 #include <unistd.h> /* for write() */
+#include <inttypes.h>
 
 #include "mylastheader.h"
 
@@ -374,6 +375,8 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 
 	size_t hSubchunk2Size;
 
+	log(INFO, "fillword     (buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", word='%s')", buf, bufsz, bufofs, word);
+
 	found = (struct samples_entry*)bsearch(word, saytimespan_samples, saytimespan_samples_count, sizeof(struct samples_entry), compar);
 	if (!found) {
 		log(ERR, "sample not found: %s", word);
@@ -399,23 +402,23 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 			toskip = 0;
 		toskip += sizeof(struct wavhdr);
 
-		log(INFO, "fillword:     fseek %d '%s'", toskip, word);
+		log(INFO, "fillword:     fseek %ld '%s'", toskip, word);
 		fseek(found->f, toskip, SEEK_SET);
 
-		log(INFO, "fillword:     fread %d bytes to ofs %d '%s'", toread, ofs_read_beg, word);
+		log(INFO, "fillword:     fread %" PRIdPTR " bytes to ofs %" PRIdPTR " '%s'", toread, ofs_read_beg, word);
 		fread(buf + ofs_read_beg, 1, toread, found->f);
 	}
 
 	return newbufofs;
 }
 
-static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufofs, char *words) {
+static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words) {
 	ssize_t structremain;
 	char *token;
 	char *save_ptr_tok;
 	static const char delim[] = " -,";
 
-	log(INFO, "fillwords(buf=%p, bufsz=%u, bufofs=%d, words='%s')", buf, bufsz, bufofs, words);
+	log(INFO, "fillwords(buf=%p, bufsz=%" PRIdPTR ", bufofs=%" PRIdPTR ", words='%s')", buf, bufsz, bufofs, words);
 
 	token = strtok_r(words, delim, &save_ptr_tok);
 	while(token != NULL) {
@@ -428,7 +431,7 @@ static ssize_t _virtwav_fillwords(unsigned char *buf, size_t bufsz, ssize_t bufo
 }
 
 static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
-	unsigned char *buf = (unsigned char *)_buf;
+	char *buf = (unsigned char *)_buf;
 	uint32_t saying_start_ofs;
 	ssize_t n;
 
@@ -463,7 +466,7 @@ static void virtwav_read(void *_buf, uint32_t virtofs, size_t count) {
 		seconds2span(saying_start_ofs / (SAMPLE_SIZE*SAMPLE_RATE), &hours, &minutes, &seconds);
 		humanizets(words, hours, minutes, seconds);
 
-		n = _virtwav_fillwords(buf, count, saying_start_ofs - virtofs, words);
+		n = _fillwords(buf, count, (int32_t)(saying_start_ofs - virtofs), words);
 		if (n > 0) {
 			virtofs += n;
 			buf += n;
@@ -518,7 +521,7 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
-		virtwav_read(&sambuf, 0, sizeof(sambuf));
+		virtwav_read(&sambuf, sizeof(struct wavhdr)+2, sizeof(sambuf));
 
 		if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 			pSysError(ERR, "write() failed");
