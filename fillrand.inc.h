@@ -64,8 +64,9 @@ x86_64:
    On 32-bit systems the compound value doesn't fit in uintptr_t and some of the saved bits are discarded.
    Lastly, the buffer is filled backwards.
  */
-void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (FILLRAND_UCHAR *buf, size_t sz)
+void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (void *_buf, size_t sz)
 {
+	FILLRAND_UCHAR *buf = (FILLRAND_UCHAR *)_buf;
 	unsigned int r; /* for unsigned promotion */
 
 	FILLRAND_UINTMAX_T rbits = 0;
