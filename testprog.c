@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <fcntl.h>
+#include <fcntl.h> /* for O_WRONLY */
 #include <sys/soundcard.h>
 #include <stdlib.h> /* for exit(3) */
 #include <arpa/inet.h> /* for htonl() */
