@@ -10,8 +10,6 @@
 #include <stdlib.h> /* for exit(3) */
 #include <arpa/inet.h> /* for htonl() */
 #include <stdint.h>
-#include <stropts.h> /* for ioctl() */
-#include <unistd.h> /* for write() */
 #include <inttypes.h>
 #include <errno.h>
 

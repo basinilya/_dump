@@ -10,7 +10,7 @@
 #include <stdlib.h> /* for exit(3) */
 #include <arpa/inet.h> /* for htonl() */
 #include <stdint.h>
-#include <stropts.h> /* for ioctl() */
+#include <sys/ioctl.h> /* for ioctl() */
 #include <unistd.h> /* for write() */
 #include <inttypes.h>
 #include <errno.h>
@@ -134,8 +134,9 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		if (0) {
-			for(int i = 0; i < 2; i++) {
-				for (int testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
+			int i, testbufsz;
+			for(i = 0; i < 2; i++) {
+				for (testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
 					char testbuf[testbufsz];
 					char testname[40];
 					FILE *testf;
