@@ -298,7 +298,6 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 }
 
 static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words) {
-	ssize_t structremain;
 	char *token;
 	char *save_ptr_tok;
 	static const char delim[] = " -,";
@@ -317,7 +316,7 @@ static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words)
 
 void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
 {
-	char *buf = (unsigned char *)_buf;
+	char *buf = (char *)_buf;
 	ssize_t bufofs;
 
 	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);

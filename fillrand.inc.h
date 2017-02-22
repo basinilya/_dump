@@ -27,6 +27,9 @@ x86_64:
 #ifndef FILLRAND_UINTMAX_T
 #define FILLRAND_UINTMAX_T uintptr_t
 #endif
+#ifndef FILLRAND_STEP
+#define FILLRAND_STEP -1
+#endif
 
 
 /* include self once for wide version */
@@ -39,40 +42,46 @@ x86_64:
 # define CONCAT_AB(a, b) CONCAT_AB_(a, b)
 
 # define FILLRAND_FUNCPREF w
-# define FILLRAND_UCHAR unsigned short
+# define char short
+# define FILLRAND_ARGTYPE unsigned short
 # define FILLRAND_UCHAR_MAX 65535
 # include "fillrand.inc.h"
 
 # undef FILLRAND_FUNCPREF
-# undef FILLRAND_UCHAR
+# undef char
+# undef FILLRAND_ARGTYPE
 # undef FILLRAND_UCHAR_MAX
 
 # define FILLRAND_FUNCPREF
-# define FILLRAND_UCHAR unsigned char
+# define FILLRAND_ARGTYPE void
 # define FILLRAND_UCHAR_MAX 255
 
 #endif
-
-
-
-
 
 /* Extracts pseudo-random bits from the value returned by rand().
    It starts by putting the least significant bits to the buffer element, shifts right and repeats.
    When not enough random bits ramain, they're saved for future use and rand() called again.
    Most significant bits in the new value are not random and they're replaced with the saved bits.
    On 32-bit systems the compound value doesn't fit in uintptr_t and some of the saved bits are discarded.
-   Lastly, the buffer is filled backwards.
+   Lastly, the buffer is filled backwards by default.
  */
-void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (void *_buf, size_t sz)
+void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (FILLRAND_ARGTYPE *_buf, size_t nelems)
 {
-	FILLRAND_UCHAR *buf = (FILLRAND_UCHAR *)_buf;
+	unsigned char *buf = (unsigned char *)_buf;
+	#if FILLRAND_STEP == 1
+	size_t i = -1;
+	size_t endi = nelems - 1;
+	#else
+	size_t i = nelems;
+	size_t endi = 0;
+	#endif
+
 	unsigned int r; /* for unsigned promotion */
 
 	FILLRAND_UINTMAX_T rbits = 0;
 	FILLRAND_UINTMAX_T rbmask = 0;
 
-	for (;sz != 0;) {
+	for (;i != endi;) {
 
 		if (rbmask < FILLRAND_UCHAR_MAX) {
 			r = rand();
@@ -87,12 +96,12 @@ void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (void *_buf, size_t sz)
 			rbmask += FILLRAND_RAND_MAX;
 		}
 #if FILLRAND_RAND_MAX <= FILLRAND_UCHAR_MAX
-		else /* first rand() did not provide enough bits for buf[sz] */
+		else /* first rand() did not provide enough bits for buf[i] */
 #endif
 		{
-			sz--;
+			i += FILLRAND_STEP;
 
-			buf[sz] = rbits % (FILLRAND_UCHAR_MAX+1);
+			buf[i] = rbits % (FILLRAND_UCHAR_MAX+1);
 			rbits /= (FILLRAND_UCHAR_MAX+1);
 			rbmask /= (FILLRAND_UCHAR_MAX+1);
 		}
@@ -101,5 +110,5 @@ void CONCAT_AB(FILLRAND_FUNCPREF, FILLRAND) (void *_buf, size_t sz)
 }
 
 #undef FILLRAND_FUNCPREF
-#undef FILLRAND_UCHAR
+#undef FILLRAND_ARGTYPE
 #undef FILLRAND_UCHAR_MAX
