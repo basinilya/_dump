@@ -16,7 +16,7 @@
 
 static void _myprog_log(int level, char const *emsg)
 {
-	if (level == MYPROG_LOG_DEBUG) return;
+	if (level < MYPROG_LOG_LEVEL) return;
 	fputs(emsg, stdout);
 	fflush(stdout);
 }
