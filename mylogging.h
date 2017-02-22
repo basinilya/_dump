@@ -12,8 +12,6 @@ extern "C" {
 #define MYPROG_LOG_WARNING 3
 #define MYPROG_LOG_ERROR 4
 
-#define MYPROG_LOG_LEVEL MYPROG_LOG_MESSAGE
-
 #define FMT_S "%s"
 
 void myprog_pSysError(int lvl, char const *fmt, ...);

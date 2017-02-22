@@ -94,6 +94,7 @@ union _u_wavhdr {
 
 extern const union _u_wavhdr virtwav_header;
 
+void virtpcm_read(void *_buf, ssize_t bufsz, uint64_t virtofs);
 void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs);
 
 #endif /* _SAYTIMESPAN_H */

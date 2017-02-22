@@ -14,6 +14,7 @@
 #include <unistd.h> /* for write() */
 #include <inttypes.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "mylastheader.h"
 
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
 		}
 		if (1) {
 			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
-			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+(SAYTIMESPAN_SAMPLE_SIZE*SAYTIMESPAN_SAMPLE_RATE * (60*60*11 + 60*35 + 38)));
+			virtpcm_read(&sambuf, sizeof(sambuf), SAYTIMESPAN_SAMPLE_SIZE*SAYTIMESPAN_SAMPLE_RATE * (60ULL*60*INT_MAX + 60*35 + 40));
 
 			if (-1 == write(ossfd, sambuf, sizeof(sambuf))) {
 				pSysError(ERR, "write() failed");

@@ -314,10 +314,12 @@ static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words)
 	return bufofs;
 }
 
-void virtpcm_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
+void virtpcm_read(void *_buf, ssize_t bufsz, uint64_t virtofs)
 {
 	char *buf = (char *)_buf;
 	ssize_t bufofs;
+
+	log(DBG, "virtpcm_read(buf=%p, bufsz=%" PRIdPTR ", virtofs=%" PRIu64 ")", _buf, bufsz, virtofs);
 
 	// round down to nearest phrase
 	bufofs = virtofs % SAYTIMESPAN_BYTES_IN_PHRASE;
@@ -325,7 +327,7 @@ void virtpcm_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
 	virtofs += bufofs;
 	
 	while (bufofs != bufsz) {
-		uint32_t tmpvirtofs;
+		uint64_t tmpvirtofs;
 		char words[500];
 		int hours, minutes, seconds;
 		ssize_t ofs_gap_beg, silencesz;
@@ -361,7 +363,7 @@ void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
 {
 	char *buf = (char *)_buf;
 
-	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
+	log(DBG, "virtwav_read(buf=%p, bufsz=%" PRIdPTR ", virtofs=%" PRIu32 ")", _buf, bufsz, virtofs);
 
 	// assume virtofs can be an odd number
 	// bufsz can include wav header, many silence parts and many phrases

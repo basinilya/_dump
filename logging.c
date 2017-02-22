@@ -14,6 +14,8 @@
 
 #include "mylastheader.h"
 
+#define MYPROG_LOG_LEVEL MYPROG_LOG_DEBUG
+
 static void _myprog_log(int level, char const *emsg)
 {
 	if (level < MYPROG_LOG_LEVEL) return;
