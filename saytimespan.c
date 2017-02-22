@@ -314,30 +314,10 @@ static ssize_t _fillwords(char *buf, ssize_t bufsz, ssize_t bufofs, char *words)
 	return bufofs;
 }
 
-void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
+void virtpcm_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
 {
 	char *buf = (char *)_buf;
 	ssize_t bufofs;
-
-	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
-
-	// assume virtofs can be an odd number
-	// bufsz can include wav header, many silence parts and many phrases
-	if (virtofs < sizeof(struct wavhdr)) {
-		ssize_t n;
-		log(DBG, "virtwav_read: writing wav header");
-		n = sizeof(struct wavhdr) - virtofs;
-		if (n > bufsz)
-			n = bufsz;
-		memcpy(buf, ((char*)&virtwav_header.x) + virtofs, n);
-
-		bufsz -= n;
-		if (bufsz == 0)
-			return;
-		virtofs += n;
-		buf += n;
-	}
-	virtofs -= sizeof(struct wavhdr); /* now raw offset */
 
 	// round down to nearest phrase
 	bufofs = virtofs % SAYTIMESPAN_BYTES_IN_PHRASE;
@@ -376,4 +356,31 @@ void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
 		}
 	}
 }
+
+void virtwav_read(void *_buf, ssize_t bufsz, uint32_t virtofs)
+{
+	char *buf = (char *)_buf;
+
+	log(DBG, "virtwav_read(buf=%p, virtofs=%u, bufsz=%u)", _buf, virtofs, bufsz);
+
+	// assume virtofs can be an odd number
+	// bufsz can include wav header, many silence parts and many phrases
+	if (virtofs < sizeof(struct wavhdr)) {
+		ssize_t n;
+		log(DBG, "virtwav_read: writing wav header");
+		n = sizeof(struct wavhdr) - virtofs;
+		if (n > bufsz)
+			n = bufsz;
+		memcpy(buf, ((char*)&virtwav_header.x) + virtofs, n);
+
+		bufsz -= n;
+		if (bufsz == 0)
+			return;
+		virtofs += n;
+		buf += n;
+	}
+	virtofs -= sizeof(struct wavhdr); /* now raw offset */
+	virtpcm_read(buf, bufsz, virtofs);
+}
+
 

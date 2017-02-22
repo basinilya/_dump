@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 		if (-1 == ossfd) {
 			return 1;
 		}
-		if (1) {
+		if (0) {
 			int i, testbufsz;
 			for(i = 0; i < 2; i++) {
 				for (testbufsz = 1024*1024; testbufsz > 0; testbufsz = (testbufsz/2-1) ) {
@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		if (0) {
+		if (1) {
 			wfillrand(sambuf, sizeof(sambuf)/sizeof(short));
 			virtwav_read(&sambuf, sizeof(sambuf), sizeof(struct wavhdr)+(SAYTIMESPAN_SAMPLE_SIZE*SAYTIMESPAN_SAMPLE_RATE * (60*60*11 + 60*35 + 38)));
 
