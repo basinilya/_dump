@@ -14,12 +14,17 @@
 #define ACTUAL_MTIME apr_time_from_sec(946728000) /* date -d "2000-01-01 12:00 UTC" +%s */
 #define ACTUAL_FSIZE_WAV 0x7FFFFFFFL
 
+static void clear_range_headers(request_rec *r) {
+	apr_table_unset(r->headers_in, "If-Range");
+	apr_table_unset(r->headers_in, "Range");
+	r->range = NULL;
+}
+
 static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t actual_fsize) {
 	int rc;
 
-	ap_set_accept_ranges(r);
-
 	ap_set_content_length(r, actual_fsize);
+	ap_set_accept_ranges(r);
 
 	ap_update_mtime(r, actual_mtime);
 	ap_set_last_modified(r);
@@ -35,9 +40,7 @@ static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t act
 	
 	// Not sure should I suppress the apache byterange filter this way:
 	if (ap_condition_if_range(r, r->headers_out) == AP_CONDITION_NOMATCH) {
-		apr_table_unset(r->headers_in, "If-Range");
-		apr_table_unset(r->headers_in, "Range");
-		r->range = NULL;
+		clear_range_headers(r);
 	}
 
 /*
@@ -53,6 +56,8 @@ static int example_handler(request_rec *r)
 {
 	int rc;
 	apr_off_t actual_fsize = ACTUAL_FSIZE_WAV;
+	apr_int64_t range_beg = 0, range_end;
+	const char *range;
 
 	apr_status_t aprrc;
 	apr_file_t *fd;
@@ -78,15 +83,28 @@ static int example_handler(request_rec *r)
 	rc = handle_caching(r, ACTUAL_MTIME, actual_fsize);
 	if (rc != OK) return rc;
 
+	range_end = actual_fsize - 1;
+
+	if (r->range) {
+		// Range: bytes=0-0, 500-999
+		if (2 != sscanf(r->range, "%*[^=]=%" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "", &range_beg, &range_end)) {
+			return HTTP_NOT_FOUND;
+		}
+	}
+
 	{
-		apr_off_t offset = 0;
-		apr_size_t length = actual_fsize;
 		apr_size_t nbytes;
 
 		//apr_file_seek(&fd, APR_SET, &offset);
-		aprrc = ap_send_fd(fd, r, offset, length, &nbytes);
+		aprrc = ap_send_fd(fd, r, range_beg, range_end, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+// "Content-Range: bytes %lu-%lu/%lu\r\n",
+//             resp_body->range->first, resp_body->range->last,
+//             resp_body->len);
+ 
 	}
+	clear_range_headers(r);
 
 	return OK;
 }
@@ -113,3 +131,44 @@ module AP_MODULE_DECLARE_DATA   virtwav_module =
 	NULL,
 	register_hooks   /* Our hook registering function */
 };
+
+
+
+#define WORD_BYTES "bytes:"
+
+static int foreach_range(void (*callback)(void *param), const char *range, apr_off_t actual_fsize) {
+	apr_int64_t range_beg = 0, range_end;
+	int nflds, nchars = -1;
+	
+	if (0 != strncasecmp(WORD_BYTES, range, sizeof(WORD_BYTES)-1)) {
+		printf("bad Range: %s\n", range);
+		return HTTP_NOT_FOUND;
+	}
+	range += sizeof(WORD_BYTES) - 2;
+
+	for (;;) {
+		//ap_rprintf(r, "%s\n", range);
+		nflds = sscanf(range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &range_beg, &nchars, &range_end, &nchars);
+		if (nflds <= 0) { // EOF or bad format
+			break;
+		} else if (nflds == 1) { // one number
+			range_end = actual_fsize - 1;
+		}
+		if (range_beg < 0) { // relative to EOF
+			range_beg += actual_fsize;
+		}
+		if (range_end < 0) { // relative to EOF
+			range_end += actual_fsize;
+		}
+		printf("nflds:%d,nchars:%d: %" APR_INT64_T_FMT " %" APR_INT64_T_FMT "\n", nflds, nchars, range_beg, range_end);
+		range += nchars;
+	}
+	return OK;
+}
+
+int main(int argc, char *argv[]) {
+	const char *range = "bytes: 1-2, -1, 22-33";
+	apr_off_t actual_fsize = 1000;
+	return foreach_range(NULL, range, actual_fsize);
+}
+
