@@ -34,7 +34,7 @@ static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t act
 	if (rc != OK) return rc;
 	
 	// Not sure should I suppress the apache byterange filter this way:
-	if (ap_condition_if_range(r) == AP_CONDITION_NOMATCH) {
+	if (ap_condition_if_range(r, r->headers_out) == AP_CONDITION_NOMATCH) {
 		apr_table_unset(r->headers_in, "If-Range");
 		apr_table_unset(r->headers_in, "Range");
 		r->range = NULL;
@@ -54,12 +54,24 @@ static int example_handler(request_rec *r)
 	int rc;
 	apr_off_t actual_fsize = ACTUAL_FSIZE_WAV;
 
+	apr_status_t aprrc;
+	apr_file_t *fd;
+
 	if (!r->handler || strcmp(r->handler, "virtwav-handler")) return (DECLINED);
 
 	// read real file info
 	{
 		apr_finfo_t finfo;
-		apr_stat(&finfo, r->filename, APR_FINFO_SIZE, r->pool);
+
+		aprrc = apr_file_open(&fd, r->filename,
+			APR_FOPEN_READ | APR_FOPEN_BINARY | APR_FOPEN_SENDFILE_ENABLED, APR_FPROT_OS_DEFAULT,
+			r->pool);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+		aprrc = apr_file_info_get(&finfo, APR_FINFO_SIZE, fd);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+		//apr_stat(&finfo, r->filename, APR_FINFO_SIZE, r->pool);
 		actual_fsize = finfo.size;
 	}
 
@@ -67,18 +79,13 @@ static int example_handler(request_rec *r)
 	if (rc != OK) return rc;
 
 	{
-		apr_file_t fd;
 		apr_off_t offset = 0;
-		apr_size_t length = 0;
+		apr_size_t length = actual_fsize;
 		apr_size_t nbytes;
 
-		apr_file_open(&fd, r->filename,
-			APR_FOPEN_READ | APR_FOPEN_BINARY | APR_FOPEN_SENDFILE_ENABLED | APR_FOPEN_LARGEFILE, APR_FPROT_OS_DEFAULT,
-			r->pool);
-
-		apr_file_seek(&fd, APR_SET, &offset);
-
-		ap_send_fd(&fd, r, offset, apr_size_t length, &nbytes);
+		//apr_file_seek(&fd, APR_SET, &offset);
+		aprrc = ap_send_fd(fd, r, offset, length, &nbytes);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	}
 
 	return OK;
