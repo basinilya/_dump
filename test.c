@@ -1,3 +1,4 @@
+/*
 #include "apr_hash.h"
 #include "ap_config.h"
 #include "ap_provider.h"
@@ -7,10 +8,20 @@
 #include "http_log.h"
 #include "http_protocol.h"
 #include "http_request.h"
+*/
 
-#include <unistd.h> /* for sleep() */
 #include <stdio.h>
+#include <inttypes.h>
+#include <string.h>
 
+struct request_rec;
+typedef struct request_rec request_rec;
+
+#define APR_INT64_T_FMT PRId64
+typedef int64_t apr_int64_t, apr_off_t;
+
+#define HTTP_NOT_FOUND 404
+#define OK 0
 
 #define WORD_BYTES "bytes:"
 
@@ -24,24 +35,34 @@ struct head {
 	request_rec *r;
 	apr_off_t actual_fsize;
 	apr_int64_t totalbytes;
+	const char *range;
 	struct elem *first;
 };
 
 static int process_range_end(struct head *phead) {
+	int i;
 	struct elem *pelem;
-	printf("\ntotal bytes: %" APR_INT64_T_FMT "\n", phead->totalbytes);
-	for (pelem = phead->first; pelem; pelem = pelem->next) {
+	ssize_t total;
+	char *prev = (char *)phead;
+	//printf("\ntotal bytes: %" APR_INT64_T_FMT "\n", phead->totalbytes);
+	for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
 		printf("%" APR_INT64_T_FMT " %" APR_INT64_T_FMT "\n", pelem->range_beg, pelem->range_end);
+		printf("\tcurrent element consumes %" PRIdPTR " bytes\n", prev - (char*)pelem);
+		prev = (char *)pelem;
 	}
+	total = (char *)phead - (char*)&pelem;
+	printf("\nall elements consume %" PRIdPTR " bytes\n", total);
+	printf("number of elements: %d; elem size: %" PRIdPTR "; average consumption: %" PRIdPTR "\n", i, sizeof(struct elem), total / i);
 	return OK;
 }
 
-static int process_range_mid(const char *range, struct head *phead, struct elem **pprev) {
+static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev) {
 	int nflds, nchars = -1;
 	struct elem elem;
 
-	nflds = sscanf(range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &elem.range_beg, &nchars, &elem.range_end, &nchars);
+	nflds = sscanf(phead->range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &elem.range_beg, &nchars, &elem.range_end, &nchars);
 	if (nflds <= 0) { // EOF or bad format
+		*next_in_prev = NULL;
 		return process_range_end(phead);
 	} else if (nflds == 1) { // one number
 		elem.range_end = phead->actual_fsize - 1;
@@ -52,11 +73,10 @@ static int process_range_mid(const char *range, struct head *phead, struct elem 
 	if (elem.range_end < 0) { // relative to EOF
 		elem.range_end += phead->actual_fsize;
 	}
-	printf("nflds:%d,nchars:%d: %" APR_INT64_T_FMT " %" APR_INT64_T_FMT "\n", nflds, nchars, elem.range_beg, elem.range_end);
-	range += nchars;
 	phead->totalbytes += elem.range_end - elem.range_beg + 1;
-	*pprev = &elem;
-	return process_range_mid(range, phead, &elem.next);
+	phead->range += nchars;
+	*next_in_prev = &elem;
+	return process_range_mid(phead, &elem.next);
 }
 
 static int process_range(const char *range, request_rec *r, apr_off_t actual_fsize) {
@@ -68,12 +88,15 @@ static int process_range(const char *range, request_rec *r, apr_off_t actual_fsi
 	}
 	range += sizeof(WORD_BYTES) - 2;
 
-	return process_range_mid(range, &head, &head.first);
+	head.range = range;
+
+	return process_range_mid(&head, &head.first);
 }
 
 int main(int argc, char *argv[]) {
-	const char *range = "bytes: 1-2, -1, 22-33";
+	const char *range = "bytes: 1-2, -1, 22-33, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2";
 	apr_off_t actual_fsize = 1000;
+
 	return process_range(range, NULL, actual_fsize);
 }
 
