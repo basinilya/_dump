@@ -56,11 +56,19 @@ static int process_range_end(struct head * const phead, struct elem ** const dum
 	return OK;
 }
 
-//#define process_range_mid process_range_mid2
-
 typedef int (*process_range_mid_t)(struct head * const phead, struct elem ** const next_in_prev);
 
+process_range_mid_t process_range_mid_real(struct head * const phead, struct elem ** const next_in_prev, struct elem * const pelem);
+
+#if 0
+static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev)
+{
+	struct elem elem;
+	return process_range_mid_real(phead, next_in_prev, &elem)(phead, &elem.next);
+}
+#else
 extern int process_range_mid(struct head * const phead, struct elem ** const next_in_prev);
+#endif
 
 process_range_mid_t process_range_mid_real(struct head * const phead, struct elem ** const next_in_prev, struct elem * const pelem)
 {
@@ -84,15 +92,6 @@ process_range_mid_t process_range_mid_real(struct head * const phead, struct ele
 	return process_range_mid;
 }
 
-#if 1
-int process_range_mid2(struct head * const phead, struct elem ** const next_in_prev)
-{
-	struct elem elem;
-	return process_range_mid_real(phead, next_in_prev, &elem)(phead, &elem.next);
-}
-#else
-#endif
-
 static int process_range(const char *range, request_rec *r, apr_off_t actual_fsize) {
 	struct head head = { r, actual_fsize, 0 };
 
@@ -115,9 +114,7 @@ int main(int argc, char *argv[]) {
 	const char *range = "bytes: 1-2, -1, 22-33, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2, -1, 22-33, -1, 22-33, 1-2";
 	apr_off_t actual_fsize = 1000;
 
-
 	process_range(range, NULL, actual_fsize);
-	//process_range_mid(NULL, NULL);
 
 	printf("all %s\n", fine);
 }
