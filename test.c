@@ -39,7 +39,7 @@ struct head {
 	struct elem *first;
 };
 
-static int process_range_end(struct head *phead) {
+static int process_range_end(struct head * const phead, struct elem ** const dummy) {
 	int i;
 	struct elem *pelem;
 	ssize_t total;
@@ -56,27 +56,36 @@ static int process_range_end(struct head *phead) {
 	return OK;
 }
 
-static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev) {
-	int nflds, nchars = -1;
-	struct elem elem;
+typedef int (*process_range_mid_t)(struct head * const phead, struct elem ** const next_in_prev);
 
-	nflds = sscanf(phead->range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &elem.range_beg, &nchars, &elem.range_end, &nchars);
+static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev);
+
+static process_range_mid_t process_range_mid_real(struct head * const phead, struct elem ** const next_in_prev, struct elem * const pelem)
+{
+	int nflds, nchars = -1;
+	nflds = sscanf(phead->range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &pelem->range_beg, &nchars, &pelem->range_end, &nchars);
 	if (nflds <= 0) { // EOF or bad format
 		*next_in_prev = NULL;
-		return process_range_end(phead);
+		return process_range_end;
 	} else if (nflds == 1) { // one number
-		elem.range_end = phead->actual_fsize - 1;
+		pelem->range_end = phead->actual_fsize - 1;
 	}
-	if (elem.range_beg < 0) { // relative to EOF
-		elem.range_beg += phead->actual_fsize;
+	if (pelem->range_beg < 0) { // relative to EOF
+		pelem->range_beg += phead->actual_fsize;
 	}
-	if (elem.range_end < 0) { // relative to EOF
-		elem.range_end += phead->actual_fsize;
+	if (pelem->range_end < 0) { // relative to EOF
+		pelem->range_end += phead->actual_fsize;
 	}
-	phead->totalbytes += elem.range_end - elem.range_beg + 1;
+	phead->totalbytes += pelem->range_end - pelem->range_beg + 1;
 	phead->range += nchars;
-	*next_in_prev = &elem;
-	return process_range_mid(phead, &elem.next);
+	*next_in_prev = pelem;
+	return process_range_mid;
+}
+
+static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev)
+{
+	struct elem elem;
+	return process_range_mid_real(phead, next_in_prev, &elem)(phead, &elem.next);
 }
 
 static int process_range(const char *range, request_rec *r, apr_off_t actual_fsize) {
