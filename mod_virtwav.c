@@ -110,9 +110,9 @@ static int example_handler(request_rec *r)
 	if (rc != OK) return rc;
 
 	range = apr_table_get(r->headers_in, "Range");
-	if (0 && range) {
-		//clear_range_headers(r);
-		// r->status = HTTP_PARTIAL_CONTENT;
+	if (range) {
+		clear_range_headers(r);
+		r->status = HTTP_PARTIAL_CONTENT;
 		// r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
 		rc = process_range(range, &ctx, actual_fsize);
 	} else {
@@ -148,12 +148,13 @@ int process_range_end(struct range_head * const phead)
 
 	if (phead->totalparts == 1) {
 		char content_range[200];
+
+		pelem = phead->first;
 		sprintf(content_range, "bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "", pelem->range_beg, pelem->range_end, phead->actual_fsize);
 		apr_table_set(r->headers_out, apr_pstrdup(r->pool, "Content-Range"), apr_pstrdup(r->pool, content_range));
 
-		pelem = phead->first;
-
-		aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
+		aprrc = pumpfile(r, ctx->fd, pelem->range_beg, pelem->range_end);
+		//aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	} else {
 
