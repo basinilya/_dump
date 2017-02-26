@@ -83,16 +83,25 @@ static int process_range_mid_real(struct range_head * const phead, struct range_
 			pelem->range_beg = 0;
 		}
 	}
+	if (pelem->range_end < 0) { // relative to EOF
+		pelem->range_end += phead->actual_fsize;
+	}
+
 	if (pelem->range_beg >= phead->actual_fsize) {
 		if (phead->actual_fsize != 0)
 			return HTTP_RANGE_NOT_SATISFIABLE;
 		pelem->range_beg = 0;
 	}
 
-	if (pelem->range_end < 0) { // relative to EOF
-		pelem->range_end += phead->actual_fsize;
-		if (pelem->range_end < pelem->range_beg) {
-			pelem->range_end = pelem->range_beg;
+	if (pelem->range_end < pelem->range_beg) {
+		pelem->range_end = pelem->range_beg;
+	}
+	if (pelem->range_end >= phead->actual_fsize) {
+		if (phead->actual_fsize != 0)
+			pelem->range_end = phead->actual_fsize - 1;
+		else {
+			// cannot serve a zero range. fallback to empty HTTP 200
+			return HTTP_OK;
 		}
 	}
 

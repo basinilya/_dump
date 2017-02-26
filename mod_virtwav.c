@@ -113,13 +113,15 @@ static int example_handler(request_rec *r)
 	if (range) {
 		clear_range_headers(r);
 		r->status = HTTP_PARTIAL_CONTENT;
-		// r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
 		rc = process_range(range, &ctx, actual_fsize);
+		if (rc == HTTP_OK) {
+			r->status = HTTP_OK;
+			rc = OK;
+		}
 	} else {
 		apr_size_t nbytes;
 
 		aprrc = pumpfile(r, ctx.fd, 0, actual_fsize-1);
-		//aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 		rc = OK;
 	}
@@ -129,11 +131,24 @@ static int example_handler(request_rec *r)
 	return rc;
 }
 
+static apr_status_t seek_and_pump(request_rec *r, apr_file_t *fd, struct range_elem *pelem) {
+	apr_status_t aprrc;
+	apr_off_t ofs;
+
+	ofs = pelem->range_beg;
+	aprrc = apr_file_seek(fd, APR_SET, &ofs);
+	if (APR_SUCCESS != aprrc) return aprrc;
+
+	aprrc = pumpfile(r, fd, pelem->range_beg, pelem->range_end);
+	if (APR_SUCCESS != aprrc) return aprrc;
+
+	return APR_SUCCESS;
+}
+
 int process_range_end(struct range_head * const phead)
 {
 	int i;
 	apr_size_t nbytes;
-	apr_off_t ofs;
 	struct range_elem *pelem;
 	char contenttype[200];
 	struct ctx *ctx = (struct ctx*)phead->ctx;
@@ -150,16 +165,10 @@ int process_range_end(struct range_head * const phead)
 #define CONTENT_RANGE_FMT "bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT
 
 	if (phead->totalparts == 1) {
-		char *content_range;
-		content_range = apr_psprintf(r->pool, CONTENT_RANGE_FMT, pelem->range_beg, pelem->range_end, phead->actual_fsize);
-
-		//char strbuf[200];
-		//char sprintf(strbuf, CONTENT_RANGE_FMT, pelem->range_beg, pelem->range_end, phead->actual_fsize);
-		//content_range = apr_pstrdup(r->pool, strbuf);
-
+		char *content_range = apr_psprintf(r->pool, CONTENT_RANGE_FMT, pelem->range_beg, pelem->range_end, phead->actual_fsize);
 		apr_table_set(r->headers_out, apr_pstrdup(r->pool, "Content-Range"), content_range);
 
-		aprrc = pumpfile(r, ctx->fd, pelem->range_beg, pelem->range_end);
+		aprrc = seek_and_pump(r, ctx->fd, pelem);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	} else {
 
@@ -174,12 +183,7 @@ int process_range_end(struct range_head * const phead)
 			ap_rprintf(r, "Content-Range: " CONTENT_RANGE_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
 			ap_rprintf(r, "\r\n");
 
-
-			ofs = pelem->range_beg;
-			aprrc = apr_file_seek(ctx->fd, APR_SET, &ofs);
-			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
-
-			aprrc = pumpfile(r, ctx->fd, pelem->range_beg, pelem->range_end);
+			aprrc = seek_and_pump(r, ctx->fd, pelem);
 			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
 			ap_rprintf(r, "\r\n");
