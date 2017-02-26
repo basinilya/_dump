@@ -97,17 +97,11 @@ static int example_handler(request_rec *r)
 		apr_size_t nbytes;
 		aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+		rc = OK;
 	}
 
-	{
+	apr_file_close(ctx.fd);
 
-		//apr_file_seek(&ctx.fd, APR_SET, &offset);
-
-// "Content-Range: bytes %lu-%lu/%lu\r\n",
-//             resp_body->range->first, resp_body->range->last,
-//             resp_body->len);
- 
-	}
 	clear_range_headers(r);
 
 	return rc;
