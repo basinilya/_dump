@@ -52,15 +52,18 @@ static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t act
 	return OK;
 }
 
+struct ctx {
+	request_rec *r;
+	apr_file_t *fd;
+};
+
 static int example_handler(request_rec *r)
 {
 	int rc;
 	apr_off_t actual_fsize = ACTUAL_FSIZE_WAV;
-	apr_int64_t range_beg = 0, range_end;
-	const char *range;
+	struct ctx ctx = { r };
 
 	apr_status_t aprrc;
-	apr_file_t *fd;
 
 	if (!r->handler || strcmp(r->handler, "virtwav-handler")) return (DECLINED);
 
@@ -68,12 +71,12 @@ static int example_handler(request_rec *r)
 	{
 		apr_finfo_t finfo;
 
-		aprrc = apr_file_open(&fd, r->filename,
+		aprrc = apr_file_open(&ctx.fd, r->filename,
 			APR_FOPEN_READ | APR_FOPEN_BINARY | APR_FOPEN_SENDFILE_ENABLED, APR_FPROT_OS_DEFAULT,
 			r->pool);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
-		aprrc = apr_file_info_get(&finfo, APR_FINFO_SIZE, fd);
+		aprrc = apr_file_info_get(&finfo, APR_FINFO_SIZE, ctx.fd);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
 		//apr_stat(&finfo, r->filename, APR_FINFO_SIZE, r->pool);
@@ -86,18 +89,13 @@ static int example_handler(request_rec *r)
 	range_end = actual_fsize - 1;
 
 	if (r->range) {
-		// Range: bytes=0-0, 500-999
-		if (2 != sscanf(r->range, "%*[^=]=%" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "", &range_beg, &range_end)) {
-			return HTTP_NOT_FOUND;
-		}
+		rc = process_range(r->range, r, apr_off_t actual_fsize);
 	}
 
 	{
 		apr_size_t nbytes;
 
-		//apr_file_seek(&fd, APR_SET, &offset);
-		aprrc = ap_send_fd(fd, r, range_beg, range_end, &nbytes);
-		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+		//apr_file_seek(&ctx.fd, APR_SET, &offset);
 
 // "Content-Range: bytes %lu-%lu/%lu\r\n",
 //             resp_body->range->first, resp_body->range->last,
@@ -106,6 +104,35 @@ static int example_handler(request_rec *r)
 	}
 	clear_range_headers(r);
 
+	return rc;
+}
+
+int process_range_end(struct range_head * const phead)
+{
+	int i;
+	struct range_elem *pelem;
+	char contenttype[200];
+	const char *oldctype = r->content_type;
+	struct ctx *ctx = (struct ctx*)phead->ctx;
+	apr_status_t aprrc;
+	request_rec *r = ctx->r;
+
+	if (phead->totalparts == 0) return HTTP_NOT_FOUND;
+	ap_set_content_length(r, phead->totalbytes);
+	sprintf(contenttype, "multipart/byteranges; boundary=\"%s\"", ap_multipart_boundary);
+	ap_set_content_type(r, contenttype);
+
+	for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
+		ap_rprintf(r, "\r\n");
+		ap_rprintf(r, "-%s\r\n", ap_multipart_boundary);
+		if (oldctype) ap_rprintf(r, "Content-Type: %s\r\n", oldctype);
+		ap_rprintf(r, "Content-Range: bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
+		ap_rprintf(r, "\r\n");
+
+		aprrc = ap_send_fd(ctx->fd, r, range_beg, range_end, &nbytes);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+	}
+	ap_rprintf(r, "\r\n-%s-\r\n", ap_multipart_boundary);
 	return OK;
 }
 
