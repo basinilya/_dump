@@ -1,4 +1,7 @@
+#include "myrange.h"
+#include "mod_core.h"
 #include "apr_hash.h"
+#include "apr_strings.h"
 #include "ap_config.h"
 #include "ap_provider.h"
 #include "httpd.h"
@@ -86,12 +89,10 @@ static int example_handler(request_rec *r)
 	rc = handle_caching(r, ACTUAL_MTIME, actual_fsize);
 	if (rc != OK) return rc;
 
-	range_end = actual_fsize - 1;
-
 	if (r->range) {
 		r->status = HTTP_PARTIAL_CONTENT;
 		r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Content");
-		rc = process_range(r->range, r, apr_off_t actual_fsize);
+		rc = process_range(r->range, r, actual_fsize);
 	} else {
 		apr_size_t nbytes;
 		aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
@@ -118,10 +119,10 @@ int process_range_end(struct range_head * const phead)
 	apr_size_t nbytes;
 	struct range_elem *pelem;
 	char contenttype[200];
-	const char *oldctype = r->content_type;
 	struct ctx *ctx = (struct ctx*)phead->ctx;
 	apr_status_t aprrc;
 	request_rec *r = ctx->r;
+	const char *oldctype = r->content_type;
 
 	if (phead->totalparts == 0) return HTTP_NOT_FOUND;
 	ap_set_content_length(r, phead->totalbytes);
