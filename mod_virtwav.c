@@ -89,11 +89,16 @@ static int example_handler(request_rec *r)
 	range_end = actual_fsize - 1;
 
 	if (r->range) {
+		r->status = HTTP_PARTIAL_CONTENT;
+		r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Content");
 		rc = process_range(r->range, r, apr_off_t actual_fsize);
+	} else {
+		apr_size_t nbytes;
+		aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	}
 
 	{
-		apr_size_t nbytes;
 
 		//apr_file_seek(&ctx.fd, APR_SET, &offset);
 
@@ -110,6 +115,7 @@ static int example_handler(request_rec *r)
 int process_range_end(struct range_head * const phead)
 {
 	int i;
+	apr_size_t nbytes;
 	struct range_elem *pelem;
 	char contenttype[200];
 	const char *oldctype = r->content_type;
@@ -119,20 +125,32 @@ int process_range_end(struct range_head * const phead)
 
 	if (phead->totalparts == 0) return HTTP_NOT_FOUND;
 	ap_set_content_length(r, phead->totalbytes);
-	sprintf(contenttype, "multipart/byteranges; boundary=\"%s\"", ap_multipart_boundary);
-	ap_set_content_type(r, contenttype);
 
-	for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
-		ap_rprintf(r, "\r\n");
-		ap_rprintf(r, "-%s\r\n", ap_multipart_boundary);
-		if (oldctype) ap_rprintf(r, "Content-Type: %s\r\n", oldctype);
-		ap_rprintf(r, "Content-Range: bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
-		ap_rprintf(r, "\r\n");
+	if (phead->totalparts == 1) {
+		char content_range[200];
+		sprintf(content_range, "bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "", pelem->range_beg, pelem->range_end, phead->actual_fsize);
+		apr_table_set(r->headers_out, apr_pstrdup(r->pool, "Content-Range"), apr_pstrdup(r->pool, content_range));
 
-		aprrc = ap_send_fd(ctx->fd, r, range_beg, range_end, &nbytes);
+		pelem = phead->first;
+
+		aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+	} else {
+		sprintf(contenttype, "multipart/byteranges; boundary=\"%s\"", ap_multipart_boundary);
+		ap_set_content_type(r, contenttype);
+
+		for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
+			ap_rprintf(r, "-%s\r\n", ap_multipart_boundary);
+			if (oldctype) ap_rprintf(r, "Content-Type: %s\r\n", oldctype);
+			ap_rprintf(r, "Content-Range: bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
+			ap_rprintf(r, "\r\n");
+
+			aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
+			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+			ap_rprintf(r, "\r\n");
+		}
+		ap_rprintf(r, "-%s-\r\n", ap_multipart_boundary);
 	}
-	ap_rprintf(r, "\r\n-%s-\r\n", ap_multipart_boundary);
 	return OK;
 }
 
