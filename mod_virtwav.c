@@ -55,6 +55,25 @@ static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t act
 	return OK;
 }
 
+static apr_status_t pumpfile(request_rec *r, apr_file_t *fd, apr_off_t ofs, apr_int64_t range_end) {
+	apr_status_t aprrc;
+	apr_size_t nbytes;
+	for (; ofs != range_end + 1;) {
+		char buf[1024];
+
+		nbytes = range_end - ofs + 1;
+		if (nbytes > sizeof(buf)) nbytes = sizeof(buf);
+
+		aprrc = apr_file_read(fd, buf, &nbytes);
+		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+		ofs += nbytes;
+		
+		ap_rwrite(buf, nbytes, r);
+	}
+	return APR_SUCCESS;
+}
+
 struct ctx {
 	request_rec *r;
 	apr_file_t *fd;
@@ -91,14 +110,16 @@ static int example_handler(request_rec *r)
 	if (rc != OK) return rc;
 
 	range = apr_table_get(r->headers_in, "Range");
-	if (range) {
+	if (0 && range) {
 		//clear_range_headers(r);
 		// r->status = HTTP_PARTIAL_CONTENT;
 		// r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
 		rc = process_range(range, &ctx, actual_fsize);
 	} else {
 		apr_size_t nbytes;
-		aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
+
+		aprrc = pumpfile(r, ctx.fd, 0, actual_fsize-1);
+		//aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 		rc = OK;
 	}
@@ -150,20 +171,11 @@ int process_range_end(struct range_head * const phead)
 
 			ofs = pelem->range_beg;
 			aprrc = apr_file_seek(ctx->fd, APR_SET, &ofs);
+			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
-			for (; ofs != pelem->range_end + 1;) {
-				char buf[1024];
+			aprrc = pumpfile(r, ctx->fd, ofs, pelem->range_end);
+			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
-				nbytes = pelem->range_end - ofs + 1;
-				if (nbytes > sizeof(buf)) nbytes = sizeof(buf);
-
-				aprrc = apr_file_read(ctx->fd, buf, &nbytes);
-				if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
-
-				ofs += nbytes;
-				
-				ap_rwrite(buf, nbytes, r);
-			}
 			ap_rprintf(r, "\r\n");
 		}
 		ap_rprintf(r, "-%s-\r\n", ap_multipart_boundary);
