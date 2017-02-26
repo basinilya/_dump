@@ -65,6 +65,7 @@ static int example_handler(request_rec *r)
 	int rc;
 	apr_off_t actual_fsize = ACTUAL_FSIZE_WAV;
 	struct ctx ctx = { r };
+	const char *range;
 
 	apr_status_t aprrc;
 
@@ -89,10 +90,11 @@ static int example_handler(request_rec *r)
 	rc = handle_caching(r, ACTUAL_MTIME, actual_fsize);
 	if (rc != OK) return rc;
 
-	if (r->range) {
+	range = apr_table_get(r->headers_in, "Range");
+	if (range) {
 		r->status = HTTP_PARTIAL_CONTENT;
-		r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Content");
-		rc = process_range(r->range, r, actual_fsize);
+		r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
+		rc = process_range(range, &ctx, actual_fsize);
 	} else {
 		apr_size_t nbytes;
 		aprrc = ap_send_fd(ctx.fd, r, 0, actual_fsize, &nbytes);

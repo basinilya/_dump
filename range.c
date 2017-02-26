@@ -90,7 +90,7 @@ static int process_range_mid_real(struct range_head * const phead, struct range_
 	return process_range_mid(phead, &pelem->next);
 }
 
-#define WORD_BYTES "bytes:"
+#define WORD_BYTES "bytes="
 
 int process_range(const char *range, void *ctx, apr_off_t actual_fsize)
 {
