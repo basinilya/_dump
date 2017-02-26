@@ -92,8 +92,9 @@ static int example_handler(request_rec *r)
 
 	range = apr_table_get(r->headers_in, "Range");
 	if (range) {
-		r->status = HTTP_PARTIAL_CONTENT;
-		r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
+		//clear_range_headers(r);
+		// r->status = HTTP_PARTIAL_CONTENT;
+		// r->status_line = apr_pstrdup(r->pool, "HTTP/1.1 206 Partial Contentttt");
 		rc = process_range(range, &ctx, actual_fsize);
 	} else {
 		apr_size_t nbytes;
@@ -104,8 +105,6 @@ static int example_handler(request_rec *r)
 
 	apr_file_close(ctx.fd);
 
-	clear_range_headers(r);
-
 	return rc;
 }
 
@@ -113,6 +112,7 @@ int process_range_end(struct range_head * const phead)
 {
 	int i;
 	apr_size_t nbytes;
+	apr_off_t ofs;
 	struct range_elem *pelem;
 	char contenttype[200];
 	struct ctx *ctx = (struct ctx*)phead->ctx;
@@ -121,7 +121,9 @@ int process_range_end(struct range_head * const phead)
 	const char *oldctype = r->content_type;
 
 	if (phead->totalparts == 0) return HTTP_NOT_FOUND;
-	ap_set_content_length(r, phead->totalbytes);
+	//ap_set_content_length(r, phead->totalbytes);
+	//ap_set_content_length(r, 3);
+	//r->clength = 0;
 
 	if (phead->totalparts == 1) {
 		char content_range[200];
@@ -133,17 +135,35 @@ int process_range_end(struct range_head * const phead)
 		aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	} else {
+
 		sprintf(contenttype, "multipart/byteranges; boundary=\"%s\"", ap_multipart_boundary);
-		ap_set_content_type(r, contenttype);
+		ap_set_content_type(r, apr_pstrdup(r->pool, contenttype));
 
 		for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
+
 			ap_rprintf(r, "-%s\r\n", ap_multipart_boundary);
+
 			if (oldctype) ap_rprintf(r, "Content-Type: %s\r\n", oldctype);
 			ap_rprintf(r, "Content-Range: bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
 			ap_rprintf(r, "\r\n");
 
-			aprrc = ap_send_fd(ctx->fd, r, pelem->range_beg, pelem->range_end - pelem->range_beg + 1, &nbytes);
-			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+			ofs = pelem->range_beg;
+			aprrc = apr_file_seek(ctx->fd, APR_SET, &ofs);
+
+			for (; ofs != pelem->range_end + 1;) {
+				char buf[1024];
+
+				nbytes = pelem->range_end - ofs + 1;
+				if (nbytes > sizeof(buf)) nbytes = sizeof(buf);
+
+				aprrc = apr_file_read(ctx->fd, buf, &nbytes);
+				if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+
+				ofs += nbytes;
+				
+				ap_rwrite(buf, nbytes, r);
+			}
 			ap_rprintf(r, "\r\n");
 		}
 		ap_rprintf(r, "-%s-\r\n", ap_multipart_boundary);
