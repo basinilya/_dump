@@ -163,7 +163,7 @@ int process_range_end(struct range_head * const phead)
 
 		for (i = 0, pelem = phead->first; pelem; pelem = pelem->next, i++) {
 
-			ap_rprintf(r, "-%s\r\n", ap_multipart_boundary);
+			ap_rprintf(r, "--%s\r\n", ap_multipart_boundary);
 
 			if (oldctype) ap_rprintf(r, "Content-Type: %s\r\n", oldctype);
 			ap_rprintf(r, "Content-Range: bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
@@ -179,7 +179,7 @@ int process_range_end(struct range_head * const phead)
 
 			ap_rprintf(r, "\r\n");
 		}
-		ap_rprintf(r, "-%s-\r\n", ap_multipart_boundary);
+		ap_rprintf(r, "--%s--\r\n", ap_multipart_boundary);
 	}
 	return OK;
 }
