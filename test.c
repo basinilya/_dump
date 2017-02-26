@@ -56,19 +56,19 @@ static __attribute__((noinline)) int process_range_end(struct head * const phead
 	return OK;
 }
 
-static __attribute__((noinline)) int process_range_mid_real(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev);
-
-static __attribute__((noinline)) int process_range_mid(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev)
-{
-	struct elem elem;
-	return process_range_mid_real(phead, &elem, next_in_prev);
-}
-
 static __attribute__((noinline)) int parse_one_range(struct head * const phead, struct elem * const pelem) {
 	int nflds, nchars;
 	nflds = sscanf(phead->range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &pelem->range_beg, &nchars, &pelem->range_end, &nchars);
 	phead->range += nchars;
 	return nflds;
+}
+
+static __attribute__((noinline)) int process_range_mid_real(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev);
+
+static __attribute__((noinline)) int process_range_mid(struct head * const phead, struct elem * const dummy, struct elem ** const next_in_prev)
+{
+	struct elem elem;
+	return process_range_mid_real(phead, &elem, next_in_prev);
 }
 
 static int process_range_mid_real(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev)
