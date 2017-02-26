@@ -32,14 +32,14 @@ struct elem {
 };
 
 struct head {
+	struct elem *first;
 	request_rec *r;
 	apr_off_t actual_fsize;
 	apr_int64_t totalbytes;
 	const char *range;
-	struct elem *first;
 };
 
-static int process_range_end(struct head * const phead, struct elem ** const dummy) {
+static __attribute__((noinline)) int process_range_end(struct head * const phead) {
 	int i;
 	struct elem *pelem;
 	ssize_t total;
@@ -56,28 +56,31 @@ static int process_range_end(struct head * const phead, struct elem ** const dum
 	return OK;
 }
 
-typedef int (*process_range_mid_t)(struct head * const phead, struct elem ** const next_in_prev);
+static __attribute__((noinline)) int process_range_mid_real(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev);
 
-process_range_mid_t process_range_mid_real(struct head * const phead, struct elem ** const next_in_prev, struct elem * const pelem);
-
-#if 0
-static int process_range_mid(struct head * const phead, struct elem ** const next_in_prev)
+static __attribute__((noinline)) int process_range_mid(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev)
 {
 	struct elem elem;
-	return process_range_mid_real(phead, next_in_prev, &elem)(phead, &elem.next);
+	return process_range_mid_real(phead, &elem, next_in_prev);
 }
-#else
-extern int process_range_mid(struct head * const phead, struct elem ** const next_in_prev);
-#endif
 
-process_range_mid_t process_range_mid_real(struct head * const phead, struct elem ** const next_in_prev, struct elem * const pelem)
-{
-	int nflds, nchars = -1;
+static __attribute__((noinline)) int parse_one_range(struct head * const phead, struct elem * const pelem) {
+	int nflds, nchars;
 	nflds = sscanf(phead->range, "%*c%" APR_INT64_T_FMT "%n-%" APR_INT64_T_FMT "%n", &pelem->range_beg, &nchars, &pelem->range_end, &nchars);
+	phead->range += nchars;
+	return nflds;
+}
+
+static int process_range_mid_real(struct head * const phead, struct elem * const pelem, struct elem ** const next_in_prev)
+{
+	int nflds = parse_one_range(phead, pelem);
+
 	if (nflds <= 0) { // EOF or bad format
 		*next_in_prev = NULL;
-		return process_range_end;
-	} else if (nflds == 1) { // one number
+		return process_range_end(phead);
+	}
+
+	if (nflds == 1) { // one number
 		pelem->range_end = phead->actual_fsize - 1;
 	}
 	if (pelem->range_beg < 0) { // relative to EOF
@@ -86,14 +89,15 @@ process_range_mid_t process_range_mid_real(struct head * const phead, struct ele
 	if (pelem->range_end < 0) { // relative to EOF
 		pelem->range_end += phead->actual_fsize;
 	}
+
 	phead->totalbytes += pelem->range_end - pelem->range_beg + 1;
-	phead->range += nchars;
 	*next_in_prev = pelem;
-	return process_range_mid;
+
+	return process_range_mid(phead, pelem, &pelem->next);
 }
 
 static int process_range(const char *range, request_rec *r, apr_off_t actual_fsize) {
-	struct head head = { r, actual_fsize, 0 };
+	struct head head = { NULL, r, actual_fsize, 0 };
 
 	if (0 != strncasecmp(WORD_BYTES, range, sizeof(WORD_BYTES)-1)) {
 		printf("bad Range: %s\n", range);
@@ -105,7 +109,7 @@ static int process_range(const char *range, request_rec *r, apr_off_t actual_fsi
 
 	printf("elem size: %" PRIdPTR "\n", sizeof(struct elem));
 
-	return process_range_mid(&head, &head.first);
+	return process_range_mid(&head, NULL, &head.first);
 }
 
 int main(int argc, char *argv[]) {
