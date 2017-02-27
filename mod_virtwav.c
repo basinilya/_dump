@@ -1,4 +1,6 @@
 #include "myrange.h"
+#include "saytimespan.h"
+
 #include "mod_core.h"
 #include "apr_hash.h"
 #include "apr_strings.h"
@@ -15,7 +17,7 @@
 #include <stdio.h>
 
 #define ACTUAL_MTIME apr_time_from_sec(946728000) /* date -d "2000-01-01 12:00 UTC" +%s */
-#define ACTUAL_FSIZE_WAV 0x7FFFFFFFL
+#define ACTUAL_FSIZE_WAV 0x7FFFFFFEL
 
 static void clear_range_headers(request_rec *r) {
 	apr_table_unset(r->headers_in, "If-Range");
@@ -55,7 +57,11 @@ static int handle_caching(request_rec *r, apr_time_t actual_mtime, apr_off_t act
 	return OK;
 }
 
-static apr_status_t pumpfile(request_rec *r, apr_file_t *fd, apr_off_t ofs, apr_int64_t range_end) {
+struct ctx {
+	request_rec *r;
+};
+
+static apr_status_t pumpfile(struct ctx *ctx, apr_off_t ofs, apr_int64_t range_end) {
 	apr_status_t aprrc;
 	apr_size_t nbytes;
 	for (; ofs != range_end + 1;) {
@@ -64,20 +70,16 @@ static apr_status_t pumpfile(request_rec *r, apr_file_t *fd, apr_off_t ofs, apr_
 		nbytes = range_end - ofs + 1;
 		if (nbytes > sizeof(buf)) nbytes = sizeof(buf);
 
-		aprrc = apr_file_read(fd, buf, &nbytes);
-		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
+		virtwav_read(buf, nbytes, ofs);
 
 		ofs += nbytes;
 		
-		ap_rwrite(buf, nbytes, r);
+		if (-1 == ap_rwrite(buf, nbytes, ctx->r)) {
+			return APR_EGENERAL;
+		}
 	}
 	return APR_SUCCESS;
 }
-
-struct ctx {
-	request_rec *r;
-	apr_file_t *fd;
-};
 
 static int example_handler(request_rec *r)
 {
@@ -89,22 +91,6 @@ static int example_handler(request_rec *r)
 	apr_status_t aprrc;
 
 	if (!r->handler || strcmp(r->handler, "virtwav-handler")) return (DECLINED);
-
-	// read real file info
-	{
-		apr_finfo_t finfo;
-
-		aprrc = apr_file_open(&ctx.fd, r->filename,
-			APR_FOPEN_READ | APR_FOPEN_BINARY | APR_FOPEN_SENDFILE_ENABLED, APR_FPROT_OS_DEFAULT,
-			r->pool);
-		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
-
-		aprrc = apr_file_info_get(&finfo, APR_FINFO_SIZE, ctx.fd);
-		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
-
-		//apr_stat(&finfo, r->filename, APR_FINFO_SIZE, r->pool);
-		actual_fsize = finfo.size;
-	}
 
 	rc = handle_caching(r, ACTUAL_MTIME, actual_fsize);
 	if (rc != OK) return rc;
@@ -121,25 +107,18 @@ static int example_handler(request_rec *r)
 	} else {
 		apr_size_t nbytes;
 
-		aprrc = pumpfile(r, ctx.fd, 0, actual_fsize-1);
+		aprrc = pumpfile(&ctx, 0, actual_fsize-1);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 		rc = OK;
 	}
 
-	apr_file_close(ctx.fd);
-
 	return rc;
 }
 
-static apr_status_t seek_and_pump(request_rec *r, apr_file_t *fd, struct range_elem *pelem) {
+static apr_status_t seek_and_pump(struct ctx *ctx, struct range_elem *pelem) {
 	apr_status_t aprrc;
-	apr_off_t ofs;
 
-	ofs = pelem->range_beg;
-	aprrc = apr_file_seek(fd, APR_SET, &ofs);
-	if (APR_SUCCESS != aprrc) return aprrc;
-
-	aprrc = pumpfile(r, fd, pelem->range_beg, pelem->range_end);
+	aprrc = pumpfile(ctx, pelem->range_beg, pelem->range_end);
 	if (APR_SUCCESS != aprrc) return aprrc;
 
 	return APR_SUCCESS;
@@ -168,7 +147,7 @@ int process_range_end(struct range_head * const phead)
 		char *content_range = apr_psprintf(r->pool, CONTENT_RANGE_FMT, pelem->range_beg, pelem->range_end, phead->actual_fsize);
 		apr_table_set(r->headers_out, apr_pstrdup(r->pool, "Content-Range"), content_range);
 
-		aprrc = seek_and_pump(r, ctx->fd, pelem);
+		aprrc = seek_and_pump(ctx, pelem);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	} else {
 
@@ -183,7 +162,7 @@ int process_range_end(struct range_head * const phead)
 			ap_rprintf(r, "Content-Range: " CONTENT_RANGE_FMT "\r\n", pelem->range_beg, pelem->range_end, phead->actual_fsize);
 			ap_rprintf(r, "\r\n");
 
-			aprrc = seek_and_pump(r, ctx->fd, pelem);
+			aprrc = seek_and_pump(ctx, pelem);
 			if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 
 			ap_rprintf(r, "\r\n");
