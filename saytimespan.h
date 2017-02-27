@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifndef SAYTIMESPAN_SAMPLES
 #define SAYTIMESPAN_SAMPLES "./samples"
+#endif
 
 #define SAYTIMESPAN_SAMPLE_SIZE (16/8)
 #define SAYTIMESPAN_SAMPLE_RATE 22050
