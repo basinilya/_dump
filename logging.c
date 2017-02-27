@@ -14,7 +14,7 @@
 
 #include "mylastheader.h"
 
-#define MYPROG_LOG_LEVEL MYPROG_LOG_DEBUG
+#define MYPROG_LOG_LEVEL MYPROG_LOG_WARNING
 
 static void _myprog_log(int level, char const *emsg)
 {
