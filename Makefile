@@ -1,7 +1,10 @@
 TARGET = testprog
 OFILES = testprog.o logging.o samples.o saytimespan.o
 
-CPPFLAGS = -DSAYTIMESPAN_SAMPLES=\"/home/il/saytimespan/samples\"
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+current_dir := $(patsubst %/,%,$(dir $(mkfile_path)))
+
+CPPFLAGS = -DSAYTIMESPAN_SAMPLES=\"$(current_dir)\"
 
 $(TARGET): $(OFILES)
 
