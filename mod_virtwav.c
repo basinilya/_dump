@@ -136,20 +136,24 @@ int process_range_end(struct range_head * const phead)
 	const char *oldctype = r->content_type;
 
 	if (phead->totalparts == 0) return HTTP_NOT_FOUND;
-	//ap_set_content_length(r, phead->totalbytes);
-	//ap_set_content_length(r, 3);
-	//r->clength = 0;
 
 	pelem = phead->first;
 #define CONTENT_RANGE_FMT "bytes %" APR_INT64_T_FMT "-%" APR_INT64_T_FMT "/%" APR_INT64_T_FMT
 
 	if (phead->totalparts == 1) {
 		char *content_range = apr_psprintf(r->pool, CONTENT_RANGE_FMT, pelem->range_beg, pelem->range_end, phead->actual_fsize);
+
+		ap_set_content_length(r, phead->totalbytes);
 		apr_table_set(r->headers_out, apr_pstrdup(r->pool, "Content-Range"), content_range);
 
 		aprrc = seek_and_pump(ctx, pelem);
 		if (APR_SUCCESS != aprrc) return HTTP_NOT_FOUND;
 	} else {
+		// apr_int64_t totalbytes = phead->totalbytes + (phead->totalparts*...
+		// I can't calculate it. Let's hope Content-Range in each part is enough
+		// ap_set_content_length(r, totalbytes);
+		r->clength = 0;
+		apr_table_unset(r->headers_out, "Content-Length");
 
 		sprintf(contenttype, "multipart/byteranges; boundary=\"%s\"", ap_multipart_boundary);
 		ap_set_content_type(r, apr_pstrdup(r->pool, contenttype));
