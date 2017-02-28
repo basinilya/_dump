@@ -153,32 +153,30 @@ void wavhdr_validate(const struct wavhdr *pwavhdr)
 	uint16_t hBitsPerSample = myletohs(pwavhdr->wavhdr_fmt.BitsPerSample);
 	uint32_t hSampleRate = myletohl(pwavhdr->wavhdr_fmt.SampleRate);
 
-	if (0) {
-		printf(
-				 "wavhdr.riffhdr.ChunkID:\t%.4s"
-			"\n" "wavhdr.riffhdr.ChunkSize:\t%u (0x%08X)"
-			"\n" "wavhdr.riffhdr.Format:\t%.4s"
-			"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
-			"\n" "_"
-			"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
-			"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
-			"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
-			"\n" "_"
-			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
-			"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2Size:\t%u (0x%08X)"
-			"\n" "_"
-			"\n"
-			, CC4(pwavhdr->riffhdr.ChunkID)
-			, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
-			, CC4(pwavhdr->riffhdr.Format)
-			, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
-			, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
-			, myletohl(pwavhdr->wavhdr_fmt.SampleRate)
-			, myletohs(pwavhdr->wavhdr_fmt.BitsPerSample)
-			, CC4(pwavhdr->u.wavhdr_data_pcm.Subchunk2ID)
-			, myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size), myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size)
-			);
-	}
+	log(DBG,
+			 "wavhdr.riffhdr.ChunkID:\t%.4s"
+		"\n" "wavhdr.riffhdr.ChunkSize:\t%u (0x%08X)"
+		"\n" "wavhdr.riffhdr.Format:\t%.4s"
+		"\n" "wavhdr.wavhdr_fmt.Subchunk1ID:\t%.4s"
+		"\n" "_"
+		"\n" "wavhdr.wavhdr_fmt.NumChannels:\t%d"
+		"\n" "wavhdr.wavhdr_fmt.SampleRate:\t%d"
+		"\n" "wavhdr.wavhdr_fmt.BitsPerSample:\t%d"
+		"\n" "_"
+		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2ID:\t%.4s"
+		"\n" "wavhdr.u.wavhdr_data_pcm.Subchunk2Size:\t%u (0x%08X)"
+		"\n" "_"
+		"\n"
+		, CC4(pwavhdr->riffhdr.ChunkID)
+		, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
+		, CC4(pwavhdr->riffhdr.Format)
+		, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
+		, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
+		, myletohl(pwavhdr->wavhdr_fmt.SampleRate)
+		, myletohs(pwavhdr->wavhdr_fmt.BitsPerSample)
+		, CC4(pwavhdr->u.wavhdr_data_pcm.Subchunk2ID)
+		, myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size), myletohl(pwavhdr->u.wavhdr_data_pcm.Subchunk2Size)
+		);
 
 	if (
 		pwavhdr->riffhdr.ChunkID != htonl(CC4_RIFF)
@@ -231,7 +229,8 @@ const union _u_wavhdr virtwav_header = {
 	}
 };
 
-static void samples_entry_init(struct samples_entry *found) {
+void samples_entry_init(struct samples_entry *found)
+{
 	FILE *f;
 	char wavfile[sizeof(SAYTIMESPAN_SAMPLES)+20];
 	sprintf(wavfile, SAYTIMESPAN_SAMPLES "/%s.wav", found->word);

@@ -85,6 +85,11 @@ static void testall() {
 
 	wavhdr_validate(&virtwav_header.x);
 
+	{
+		static struct samples_entry eight2 = { "eight2" };
+		samples_entry_init(&eight2);
+	}
+
 	if (failed)
 		exit(failed);
 }
@@ -127,6 +132,7 @@ static int ossfd;
 static unsigned short sambuf[SAYTIMESPAN_SAMPLE_SIZE*BUFSAMPLES/sizeof(short)];
 
 int main(int argc, char *argv[]) {
+	MYPROG_LOG_LEVEL = MYPROG_LOG_DEBUG;
 	testall();
 	//exit(0);
 	{

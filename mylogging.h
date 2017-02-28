@@ -12,10 +12,14 @@ extern "C" {
 #define MYPROG_LOG_WARNING 3
 #define MYPROG_LOG_ERROR 4
 
+extern int MYPROG_LOG_LEVEL;
+
 #define FMT_S "%s"
 
-void myprog_pSysError(int lvl, char const *fmt, ...);
-void myprog_log(int lvl, char const *fmt, ...);
+#define LOGFUNCATTR __attribute__ ((format (printf, 2, 3)))
+
+void LOGFUNCATTR myprog_pSysError(int lvl, char const *fmt, ...);
+void LOGFUNCATTR myprog_log(int lvl, char const *fmt, ...);
 
 #ifdef __cplusplus
 }

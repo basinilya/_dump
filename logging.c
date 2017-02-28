@@ -14,14 +14,7 @@
 
 #include "mylastheader.h"
 
-#define MYPROG_LOG_LEVEL MYPROG_LOG_WARNING
-
-static void _myprog_log(int level, char const *emsg)
-{
-	if (level < MYPROG_LOG_LEVEL) return;
-	fputs(emsg, stdout);
-	fflush(stdout);
-}
+int MYPROG_LOG_LEVEL = MYPROG_LOG_WARNING;
 
 static char *cleanstr(char *s)
 {
@@ -35,6 +28,28 @@ static char *cleanstr(char *s)
 		s++;
 	}
 	return s;
+}
+
+static void _myprog_log(int level, char *emsg, size_t emsgsz)
+{
+	char *pend;
+
+	if (level >= MYPROG_LOG_LEVEL) {
+		fputs(emsg, stdout);
+		fflush(stdout);
+	}
+
+	pend = cleanstr(emsg);
+
+	if (pend < emsg + sizeof(emsg)-1) {
+		pend++;
+		*pend = '\0';
+	}
+	pend[-1] = '\n';
+
+	if (level >= MYPROG_LOG_LEVEL) {
+		/* TODO: write to log file */
+	}
 }
 
 static void __myprog_log(int level, char mode, int eNum, const char* fmt, va_list args)
@@ -72,14 +87,8 @@ static void __myprog_log(int level, char mode, int eNum, const char* fmt, va_lis
 	} while(0);
 
 	emsg[sizeof(emsg)-1] = '\0';
-	pend = cleanstr(emsg);
 
-	if (pend < emsg + sizeof(emsg)-1) {
-		pend++;
-		*pend = '\0';
-	}
-	pend[-1] = '\n';
-	_myprog_log(level, emsg);
+	_myprog_log(level, emsg, sizeof(emsg));
 }
 
 void myprog_pSysError(int lvl, char const *fmt, ...)
