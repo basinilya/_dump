@@ -152,6 +152,7 @@ void wavhdr_validate(const struct wavhdr *pwavhdr)
 	uint16_t hNumChannels = myletohs(pwavhdr->wavhdr_fmt.NumChannels);
 	uint16_t hBitsPerSample = myletohs(pwavhdr->wavhdr_fmt.BitsPerSample);
 	uint32_t hSampleRate = myletohl(pwavhdr->wavhdr_fmt.SampleRate);
+	uint32_t hRiffchunksize = myletohl(pwavhdr->riffhdr.ChunkSize);
 
 	log(DBG,
 			 "wavhdr.riffhdr.ChunkID:\t%.4s"
@@ -168,7 +169,7 @@ void wavhdr_validate(const struct wavhdr *pwavhdr)
 		"\n" "_"
 		"\n"
 		, CC4(pwavhdr->riffhdr.ChunkID)
-		, myletohl(pwavhdr->riffhdr.ChunkSize), myletohl(pwavhdr->riffhdr.ChunkSize)
+		, hRiffchunksize, hRiffchunksize
 		, CC4(pwavhdr->riffhdr.Format)
 		, CC4(pwavhdr->wavhdr_fmt.Subchunk1ID)
 		, myletohs(pwavhdr->wavhdr_fmt.NumChannels)
@@ -180,7 +181,7 @@ void wavhdr_validate(const struct wavhdr *pwavhdr)
 
 	if (
 		pwavhdr->riffhdr.ChunkID != htonl(CC4_RIFF)
-		|| pwavhdr->riffhdr.ChunkSize != myhtolel(36+hSubchunk2Size)
+		|| hRiffchunksize < 36+hSubchunk2Size
 		|| pwavhdr->riffhdr.Format != htonl(CC4_WAVE)
 
 
@@ -229,6 +230,17 @@ const union _u_wavhdr virtwav_header = {
 	}
 };
 
+static void fread_or_die(void *ptr, size_t size, size_t nmemb, FILE *stream) {
+	if (size*nmemb != fread(ptr, size,  nmemb, stream)) {
+		if (feof(stream)) {
+			log(ERR, "fread() failed: End Of File");
+		} else {
+			pSysError(ERR, "fread() failed");
+		}
+		exit(1);
+	}
+}
+
 void samples_entry_init(struct samples_entry *found)
 {
 	FILE *f;
@@ -239,14 +251,19 @@ void samples_entry_init(struct samples_entry *found)
 		pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
 		exit(1);
 	}
-	if (sizeof(struct wavhdr) != fread(&found->wavhdr, 1,  sizeof(struct wavhdr), f)) {
-		if (feof(f)) {
-			log(ERR, "fread() failed: End Of File");
-		} else {
-			pSysError(ERR, "fread() failed");
+	fread_or_die(&found->wavhdr, 1,  sizeof(struct wavhdr), f);
+	found->data_ofs = sizeof(struct wavhdr);
+	if (found->wavhdr.wavhdr_fmt.Subchunk1Size == myhtolel(16)) {
+		/* Subchunk1 looks fine; skip unknown subchunk2 */
+		while(found->wavhdr.u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)) {
+			int32_t hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
+			log(DBG, "current pos %ld; skip subchunk %.4s of size %u", ftell(found->f), CC4(found->wavhdr.u.wavhdr_data_pcm.Subchunk2ID), hSubchunk2Size);
+			fseek(found->f, hSubchunk2Size, SEEK_CUR);
+			fread_or_die(&found->wavhdr.u.wavhdr_data_pcm, 1,  sizeof(struct ch_wavhdr_data), f);
+			found->data_ofs += hSubchunk2Size + sizeof(struct ch_wavhdr_data);
 		}
-		exit(1);
 	}
+	log(DBG, "data offset: %u (0x%08X)", found->data_ofs, found->data_ofs);
 	wavhdr_validate(&found->wavhdr);
 }
 
@@ -284,7 +301,7 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 		toskip = -bufofs;
 		if (toskip < 0)
 			toskip = 0;
-		toskip += sizeof(struct wavhdr);
+		toskip += found->data_ofs;
 
 		log(DBG, "fillword:     fseek %ld '%s'", toskip, word);
 		fseek(found->f, toskip, SEEK_SET);

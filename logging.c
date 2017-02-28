@@ -35,26 +35,29 @@ static void _myprog_log(int level, char *emsg, size_t emsgsz)
 	char *pend;
 
 	if (level >= MYPROG_LOG_LEVEL) {
+		pend = emsg + strlen(emsg);
+
+		if (pend < emsg + emsgsz-1) {
+			pend++;
+			*pend = '\0';
+		}
+		pend[-1] = '\n';
+
 		fputs(emsg, stdout);
 		fflush(stdout);
-	}
 
-	pend = cleanstr(emsg);
-
-	if (pend < emsg + sizeof(emsg)-1) {
-		pend++;
-		*pend = '\0';
+		pend[-1] = '\0';
 	}
-	pend[-1] = '\n';
 
 	if (level >= MYPROG_LOG_LEVEL) {
+		pend = cleanstr(emsg);
 		/* TODO: write to log file */
 	}
 }
 
 static void __myprog_log(int level, char mode, int eNum, const char* fmt, va_list args)
 {
-	char emsg[1024];
+	char emsg[4096];
 	char *pend = emsg + sizeof(emsg);
 	size_t count = sizeof(emsg);
 	unsigned u;

@@ -77,6 +77,7 @@ struct wavhdr {
 
 struct samples_entry {
 	char word[20];
+	uint32_t data_ofs;
 	FILE *f;
 	struct wavhdr wavhdr;
 };
