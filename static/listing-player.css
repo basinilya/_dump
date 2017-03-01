@@ -1,0 +1,11 @@
+.playerButton img {height: 1em;}
+.listingplayer {
+    width: 100%;
+    position: fixed;
+    top: 10px;
+}
+
+.gapdiv {
+    height: 40px;
+}
+
