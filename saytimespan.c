@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "mylastheader.h"
 
@@ -241,12 +242,14 @@ static void fread_or_die(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	}
 }
 
+static pthread_mutex_t samples_lock = PTHREAD_MUTEX_INITIALIZER;
+
 void samples_entry_init(struct samples_entry *found)
 {
 	FILE *f;
 	char wavfile[sizeof(SAYTIMESPAN_SAMPLES)+20];
 	sprintf(wavfile, SAYTIMESPAN_SAMPLES "/%s.wav", found->word);
-	found->f = f = fopen(wavfile, "rb");
+	f = fopen(wavfile, "rb");
 	if (!f) {
 		pSysError(ERR, "fopen('" FMT_S "') failed", wavfile);
 		exit(1);
@@ -257,14 +260,15 @@ void samples_entry_init(struct samples_entry *found)
 		/* Subchunk1 looks fine; skip unknown subchunk2 */
 		while(found->wavhdr.u.wavhdr_data_pcm.Subchunk2ID != htonl(CC4_DATA)) {
 			int32_t hSubchunk2Size = myletohl(found->wavhdr.u.wavhdr_data_pcm.Subchunk2Size);
-			log(DBG, "current pos %ld; skip subchunk %.4s of size %u", ftell(found->f), CC4(found->wavhdr.u.wavhdr_data_pcm.Subchunk2ID), hSubchunk2Size);
-			fseek(found->f, hSubchunk2Size, SEEK_CUR);
+			log(DBG, "current pos %ld; skip subchunk %.4s of size %u", ftell(f), CC4(found->wavhdr.u.wavhdr_data_pcm.Subchunk2ID), hSubchunk2Size);
+			fseek(f, hSubchunk2Size, SEEK_CUR);
 			fread_or_die(&found->wavhdr.u.wavhdr_data_pcm, 1,  sizeof(struct ch_wavhdr_data), f);
 			found->data_ofs += hSubchunk2Size + sizeof(struct ch_wavhdr_data);
 		}
 	}
 	log(DBG, "data offset: %u (0x%08X)", found->data_ofs, found->data_ofs);
 	wavhdr_validate(&found->wavhdr);
+	found->f = f;
 }
 
 static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *word) {
@@ -283,6 +287,7 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 		log(ERR, "sample not found: %s", word);
 		exit(1);
 	}
+	pthread_mutex_lock(&samples_lock);
 	if (!found->f) {
 		samples_entry_init(found);
 	}
@@ -309,6 +314,7 @@ static ssize_t _fillword(char *buf, ssize_t bufsz, ssize_t bufofs, const char *w
 		log(DBG, "fillword:     fread %" PRIdPTR " bytes to ofs %" PRIdPTR " '%s'", toread, ofs_read_beg, word);
 		fread(buf + ofs_read_beg, 1, toread, found->f);
 	}
+	pthread_mutex_unlock(&samples_lock);
 
 	return newbufofs;
 }
