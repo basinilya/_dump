@@ -17,12 +17,13 @@ public class RetrieveWorker implements Runnable {
 	@Override
 	public void run() {
 		Thread.currentThread().setName("RETR " + file.getName());
-		log("worker start: " + file.getName());
+		//log("worker start: " + file.getName());
 		try {
 			processCommand();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		} finally {
+			getCtx().getWorkersByFilename().remove(file.getName());
 			log("worker end: " + file.getName());
 		}
 	}
@@ -64,7 +65,11 @@ public class RetrieveWorker implements Runnable {
 		progress += p;
 	}
 
-	private MyFTPClient getFtp() {
+	private MyContext getCtx() {
+		return ((MyThread) Thread.currentThread()).getCtx();
+	}
+
+	private MyFTPClient getFtp() throws Exception {
 		return ((MyThread) Thread.currentThread()).getFtp();
 	}
 }

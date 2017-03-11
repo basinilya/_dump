@@ -2,31 +2,42 @@ package org.foo;
 
 public class MyThread extends Thread
 {
+	private final MyContext ctx;
+
 	private MyFTPClient ftp;
 
-	public MyThread(Runnable r) {
+	public MyThread(Runnable r, MyContext ctx) {
 		super(r);
+		this.ctx = ctx;
 	}
-
+	
 	@Override
 	public void run() {
 		try {
-			ftp = new MyFTPClient();
-		} catch (Exception e1) {
-			throw new RuntimeException(e1);
-		}
-		
-		try {
 			super.run();
 		} finally {
+			invalidateFtp();
+		}
+	}
+
+	public MyFTPClient getFtp() throws Exception {
+		if (ftp == null) {
+			ftp = new MyFTPClient();
+		}
+		return ftp;
+	}
+
+	public void invalidateFtp() {
+		if (ftp != null) {
 			try {
 				ftp.close();
 			} catch (Exception e) {
 			}
+			ftp = null;
 		}
 	}
 
-	public MyFTPClient getFtp() {
-		return ftp;
+	public MyContext getCtx() {
+		return ctx;
 	}
 }

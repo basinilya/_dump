@@ -28,8 +28,8 @@ public class MyFTPClient {
 		int reply;
 		String server = "192.168.56.150";
 		ftp.connect(server);
-		log("Connected to " + server + ".");
-		log(ftp.getReplyString());
+		//log("Connected to " + server + ".");
+		//log(ftp.getReplyString()); TODO: trim trailing newline
 
 		// After connection attempt, you should check the reply code to
 		// verify
