@@ -15,8 +15,14 @@ import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
 public class MyFTPClient {
-	FTPClient ftp;
-	boolean error = false;
+	private long lastBorrowed;
+
+	private FTPClient ftp;
+
+	public boolean isValid() throws Exception {
+		int reply = ftp.noop();
+		return FTPReply.isPositiveCompletion(reply);
+	}
 
 	public MyFTPClient() throws Exception {
 		ftp = new FTPClient();
@@ -86,6 +92,14 @@ public class MyFTPClient {
 		}
 		return rslt;
 		*/
+	}
+
+	public long getLastBorrowed() {
+		return lastBorrowed;
+	}
+
+	public void setLastBorrowed(long lastBorrowed) {
+		this.lastBorrowed = lastBorrowed;
 	}
 
 }

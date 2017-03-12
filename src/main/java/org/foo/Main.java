@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.pool.ObjectPool;
 
 public class Main {
 
@@ -26,11 +27,13 @@ public class Main {
 				log("list files failed", e);
 				ctx.invalidateFtp();
 			}
+			break;
 		}
 		//log("Finished all threads");
 	}
 
 	private static void doIt(MyContext ctx) throws Exception {
+		ExecutorService executor = ctx.getExecutorService();
 		Map<String, RetrieveWorker> workersByFilename = ctx.getWorkersByFilename();
 		HashMap<String, RetrieveWorker> workersBeforeListfiles = new HashMap<String, RetrieveWorker>();
 		workersBeforeListfiles.clear();
@@ -42,6 +45,7 @@ public class Main {
 
 		synchronized(workersByFilename) {
 			for (int i = 0; i < files.length; i++) {
+				if (i > 2) break;
 				FTPFile file = files[i];
 				String filename = file.getName();
 				if (!workersBeforeListfiles.containsKey(filename)) {
@@ -50,18 +54,18 @@ public class Main {
 					}
 					RetrieveWorker worker = new RetrieveWorker(file);
 					workersByFilename.put(filename, worker);
-					ctx.getExecutorService().execute(worker);
+					executor.execute(worker);
 				} else {
 					log("skipping " + filename);
 				}
 			}
 		}
 
-		//executor.shutdown();
-		//while(!executor.awaitTermination(4, TimeUnit.SECONDS))
-		for (int i = 0; i < 4; i++)
+		executor.shutdown();
+		while(!executor.awaitTermination(4, TimeUnit.SECONDS))
+		//for (int i = 0; i < 4; i++)
 		{
-			Thread.sleep(4000);
+			//Thread.sleep(4000);
 			StringBuilder sb = new StringBuilder("---------------------\n");
 			synchronized(workersByFilename) {
 				for (RetrieveWorker worker : workersByFilename.values()) {

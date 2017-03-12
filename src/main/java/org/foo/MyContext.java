@@ -14,7 +14,7 @@ public class MyContext {
 
 	private final Map<String, RetrieveWorker> workersByFilename = Collections.synchronizedMap(new LinkedHashMap<String, RetrieveWorker>());
 
-	private final ExecutorService executor = Executors.newFixedThreadPool(5,
+	private final ExecutorService executor = Executors.newFixedThreadPool(1,
 			new ThreadFactory() {
 				@Override
 				public Thread newThread(Runnable r) {
@@ -45,12 +45,30 @@ public class MyContext {
 		}
 	}
 
+	private boolean validateFtp(MyFTPClient ftp) throws Exception {
+		long secondsPassed = (System.nanoTime() - ftp.getLastBorrowed()) / 1000000000L;
+		if (secondsPassed < 4) {
+			return true;
+		}
+		return ftp.isValid();
+	}
+
 	public MyFTPClient getFtp() throws Exception {
 		MyFTPClient ftp = ftpTls.get();
 		if (ftp == null) {
 			ftp = new MyFTPClient();
 			ftpTls.set(ftp);
+		} else {
+			try {
+				if (!validateFtp(ftp)) {
+					throw new Exception("validation failed");
+				}
+			} catch (Exception e) {
+				invalidateFtp();
+				return getFtp();
+			}
 		}
+		ftp.setLastBorrowed(System.nanoTime());
 		return ftp;
 	}
 
