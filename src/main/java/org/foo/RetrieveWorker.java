@@ -21,6 +21,7 @@ public class RetrieveWorker implements Runnable {
 		try {
 			processCommand();
 		} catch (Exception e) {
+			getCtx().invalidateFtp();
 			throw new RuntimeException(e);
 		} finally {
 			getCtx().getWorkersByFilename().remove(file.getName());
@@ -29,7 +30,7 @@ public class RetrieveWorker implements Runnable {
 	}
 
 	private void processCommand() throws Exception {
-		MyFTPClient ftp = getFtp();
+		MyFTPClient ftp = getCtx().getFtp();
 		
 		InputStream is = ftp.retrieve(file.getName());
 
@@ -66,10 +67,10 @@ public class RetrieveWorker implements Runnable {
 	}
 
 	private MyContext getCtx() {
-		return ((MyThread) Thread.currentThread()).getCtx();
+		return getMyThread().getCtx();
 	}
 
-	private MyFTPClient getFtp() throws Exception {
-		return ((MyThread) Thread.currentThread()).getFtp();
+	private MyThread getMyThread() {
+		return (MyThread) Thread.currentThread();
 	}
 }

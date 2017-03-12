@@ -4,8 +4,6 @@ public class MyThread extends Thread
 {
 	private final MyContext ctx;
 
-	private MyFTPClient ftp;
-
 	public MyThread(Runnable r, MyContext ctx) {
 		super(r);
 		this.ctx = ctx;
@@ -16,24 +14,7 @@ public class MyThread extends Thread
 		try {
 			super.run();
 		} finally {
-			invalidateFtp();
-		}
-	}
-
-	public MyFTPClient getFtp() throws Exception {
-		if (ftp == null) {
-			ftp = new MyFTPClient();
-		}
-		return ftp;
-	}
-
-	public void invalidateFtp() {
-		if (ftp != null) {
-			try {
-				ftp.close();
-			} catch (Exception e) {
-			}
-			ftp = null;
+			getCtx().invalidateFtp();
 		}
 	}
 
