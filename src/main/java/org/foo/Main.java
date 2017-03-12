@@ -11,7 +11,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.net.ftp.FTPFile;
-import org.apache.commons.pool.ObjectPool;
 
 public class Main {
 
