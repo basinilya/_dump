@@ -32,6 +32,7 @@ public class RetrieveWorker implements Runnable {
 	}
 
 	private void processCommand() throws Exception {
+		progress = 0;
 		MyFTPClient ftp = ctx.getFtp();
 		
 		InputStream is = ftp.retrieve(file.getName());
@@ -58,7 +59,7 @@ public class RetrieveWorker implements Runnable {
 		return file;
 	}
 
-	private long progress;
+	private long progress = -1;
 
 	public synchronized long getProgress() {
 		return progress;

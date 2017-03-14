@@ -3,8 +3,8 @@ package org.foo;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -41,13 +41,14 @@ public class Main {
 
 	private static void doIt(MyContext ctx, ExecutorService executor) throws Exception {
 		Map<String, RetrieveWorker> workersByFilename = ctx.getWorkersByFilename();
-		HashMap<String, RetrieveWorker> workersBeforeListfiles = new HashMap<String, RetrieveWorker>();
-		workersBeforeListfiles.clear();
+		HashMap<String, RetrieveWorker> workersBeforeListfiles;
 		synchronized(workersByFilename) {
-			workersBeforeListfiles.putAll(workersByFilename);
+			workersBeforeListfiles = new HashMap<String, RetrieveWorker>(workersByFilename);
 		}
 
 		FTPFile[] files = ctx.getFtp().listFiles();
+
+		int addedThisTime = 0;
 
 		synchronized(workersByFilename) {
 			for (int i = 0; i < files.length; i++) {
@@ -60,13 +61,17 @@ public class Main {
 					}
 					RetrieveWorker worker = new RetrieveWorker(ctx, file);
 					workersByFilename.put(filename, worker);
+					// TODO: executor.submit(worker) // .get(4, TimeUnit.SECONDS);
 					executor.execute(worker);
+					addedThisTime++;
 				} else {
 					log("skipping " + filename);
 				}
 			}
 		}
 
+		//if (addedThisTime
+		// TODO: executor.submit(worker) // .get(4, TimeUnit.SECONDS);
 		executor.shutdown();
 		while(!executor.awaitTermination(4, TimeUnit.SECONDS))
 		//for (int i = 0; i < 4; i++)
@@ -77,7 +82,7 @@ public class Main {
 				for (RetrieveWorker worker : workersByFilename.values()) {
 					FTPFile file = worker.getFile();
 					long progress = worker.getProgress();
-					if (progress != 0 && progress != file.getSize()) {
+					if (progress != -1) {
 						sb.append(100 * progress / file.getSize()).append("% ").append(file.getName()).append('\n');
 					}
 				}
