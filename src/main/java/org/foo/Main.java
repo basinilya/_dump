@@ -51,7 +51,7 @@ public class Main {
 					if (!workersBeforeListfiles.isEmpty()) {
 						log("NOT skipping " + filename);
 					}
-					RetrieveWorker worker = new RetrieveWorker(file);
+					RetrieveWorker worker = new RetrieveWorker(ctx, file);
 					workersByFilename.put(filename, worker);
 					executor.execute(worker);
 				} else {

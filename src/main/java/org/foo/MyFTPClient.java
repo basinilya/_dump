@@ -15,12 +15,13 @@ import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
 public class MyFTPClient {
-	private long lastBorrowed;
+	private long lastUsed;
 
 	private FTPClient ftp;
 
-	public boolean isValid() throws Exception {
+	public boolean validate() throws Exception {
 		int reply = ftp.noop();
+		lastUsed = System.nanoTime();
 		return FTPReply.isPositiveCompletion(reply);
 	}
 
@@ -52,6 +53,7 @@ public class MyFTPClient {
 		if (!ftp.changeWorkingDirectory("/pub/manyfiles")) {
 			throw new Exception("failed to change directory: " + ftp.getReplyString());
 		}
+		lastUsed = System.nanoTime();
 	}
 
 	public void close() throws Exception {
@@ -71,6 +73,7 @@ public class MyFTPClient {
 
 	public InputStream retrieve(String filename) throws Exception {
 		InputStream is = ftp.retrieveFileStream(filename);
+		lastUsed = System.nanoTime();
 		return is;
 	}
 
@@ -78,10 +81,12 @@ public class MyFTPClient {
 		if (!ftp.completePendingCommand()) {
 			throw new Exception("something failed");
 		}
+		lastUsed = System.nanoTime();
 	}
 	
 	public FTPFile[] listFiles() throws Exception {
 		FTPFile[] files = ftp.listFiles();
+		lastUsed = System.nanoTime();
 		return files;
 		/*
 		String[] rslt = new String[files.length];
@@ -94,12 +99,12 @@ public class MyFTPClient {
 		*/
 	}
 
-	public long getLastBorrowed() {
-		return lastBorrowed;
+	public long getLastUsed() {
+		return lastUsed;
 	}
 
-	public void setLastBorrowed(long lastBorrowed) {
-		this.lastBorrowed = lastBorrowed;
+	public void setLastUsed(long lastUsed) {
+		this.lastUsed = lastUsed;
 	}
 
 }

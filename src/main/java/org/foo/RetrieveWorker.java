@@ -8,9 +8,11 @@ import org.apache.commons.net.ftp.FTPFile;
 
 public class RetrieveWorker implements Runnable {
 
+	private final MyContext ctx;
 	private final FTPFile file;
 
-	public RetrieveWorker(FTPFile f) {
+	public RetrieveWorker(MyContext ctx, FTPFile f) {
+		this.ctx = ctx;
 		this.file = f;
 	}
 
@@ -21,16 +23,16 @@ public class RetrieveWorker implements Runnable {
 		try {
 			processCommand();
 		} catch (Exception e) {
-			getCtx().invalidateFtp();
+			ctx.invalidateFtp();
 			throw new RuntimeException(e);
 		} finally {
-			getCtx().getWorkersByFilename().remove(file.getName());
+			ctx.getWorkersByFilename().remove(file.getName());
 			log("worker end: " + file.getName());
 		}
 	}
 
 	private void processCommand() throws Exception {
-		MyFTPClient ftp = getCtx().getFtp();
+		MyFTPClient ftp = ctx.getFtp();
 		
 		InputStream is = ftp.retrieve(file.getName());
 
@@ -64,13 +66,5 @@ public class RetrieveWorker implements Runnable {
 
 	private synchronized void progress(long p) {
 		progress += p;
-	}
-
-	private MyContext getCtx() {
-		return getMyThread().getCtx();
-	}
-
-	private MyThread getMyThread() {
-		return (MyThread) Thread.currentThread();
 	}
 }

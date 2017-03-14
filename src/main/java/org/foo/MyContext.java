@@ -10,7 +10,7 @@ import java.util.concurrent.ThreadFactory;
 public class MyContext {
 	public MyContext() throws Exception {}
 
-	private static final ThreadLocal<MyFTPClient> ftpTls = new ThreadLocal<MyFTPClient>();
+	private final ThreadLocal<MyFTPClient> ftpTls = new ThreadLocal<MyFTPClient>();
 
 	private final Map<String, RetrieveWorker> workersByFilename = Collections.synchronizedMap(new LinkedHashMap<String, RetrieveWorker>());
 
@@ -18,11 +18,7 @@ public class MyContext {
 			new ThreadFactory() {
 				@Override
 				public Thread newThread(Runnable r) {
-					try {
-						return new MyThread(r, MyContext.this);
-					} catch (Exception e) {
-						throw new RuntimeException(e);
-					}
+					return new MyThread(r, MyContext.this);
 				}
 			});
 
@@ -46,11 +42,11 @@ public class MyContext {
 	}
 
 	private boolean validateFtp(MyFTPClient ftp) throws Exception {
-		long secondsPassed = (System.nanoTime() - ftp.getLastBorrowed()) / 1000000000L;
-		if (secondsPassed < 4) {
+		long secondsPassed = (System.nanoTime() - ftp.getLastUsed()) / 1000000000L;
+		if (secondsPassed < 30) {
 			return true;
 		}
-		return ftp.isValid();
+		return ftp.validate();
 	}
 
 	public MyFTPClient getFtp() throws Exception {
@@ -68,7 +64,7 @@ public class MyContext {
 				return getFtp();
 			}
 		}
-		ftp.setLastBorrowed(System.nanoTime());
+		ftp.setLastUsed(System.nanoTime());
 		return ftp;
 	}
 
