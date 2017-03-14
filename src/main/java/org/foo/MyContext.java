@@ -14,20 +14,9 @@ public class MyContext {
 
 	private final Map<String, RetrieveWorker> workersByFilename = Collections.synchronizedMap(new LinkedHashMap<String, RetrieveWorker>());
 
-	private final ExecutorService executor = Executors.newFixedThreadPool(1,
-			new ThreadFactory() {
-				@Override
-				public Thread newThread(Runnable r) {
-					return new MyThread(r, MyContext.this);
-				}
-			});
 
 	public Map<String, RetrieveWorker> getWorkersByFilename() {
 		return workersByFilename;
-	}
-
-	public ExecutorService getExecutorService() {
-		return executor;
 	}
 
 	public void invalidateFtp() {

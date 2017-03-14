@@ -17,22 +17,29 @@ public class Main {
 
 	public static void main(String[] args) throws Exception {
 
-		MyContext ctx = new MyContext();
+		final MyContext ctx = new MyContext();
+
+		ExecutorService executor = Executors.newFixedThreadPool(1,
+				new ThreadFactory() {
+					@Override
+					public Thread newThread(Runnable r) {
+						return new MyThread(r, ctx);
+					}
+				});
 
 		for(;;) {
 			try {
-				doIt(ctx);
+				doIt(ctx, executor);
 			} catch (Exception e) {
 				log("list files failed", e);
 				ctx.invalidateFtp();
 			}
-			break;
+			//break;
 		}
 		//log("Finished all threads");
 	}
 
-	private static void doIt(MyContext ctx) throws Exception {
-		ExecutorService executor = ctx.getExecutorService();
+	private static void doIt(MyContext ctx, ExecutorService executor) throws Exception {
 		Map<String, RetrieveWorker> workersByFilename = ctx.getWorkersByFilename();
 		HashMap<String, RetrieveWorker> workersBeforeListfiles = new HashMap<String, RetrieveWorker>();
 		workersBeforeListfiles.clear();
@@ -44,7 +51,7 @@ public class Main {
 
 		synchronized(workersByFilename) {
 			for (int i = 0; i < files.length; i++) {
-				if (i > 2) break;
+				//if (i > 2) break;
 				FTPFile file = files[i];
 				String filename = file.getName();
 				if (!workersBeforeListfiles.containsKey(filename)) {
