@@ -18,7 +18,7 @@ public class Main {
 	public static void main(final String[] args) throws Exception {
 		final MyContext ctx = new MyContext();
 
-		final ExecutorService executor = Executors.newFixedThreadPool(1,
+		final ExecutorService executor = Executors.newFixedThreadPool(5,
 				new ThreadFactory() {
 					@Override
 					public Thread newThread(final Runnable r) {

@@ -2,7 +2,7 @@
 Usage example:
 public abstract class BgFTP {
 	protected abstract void connect(FTPClient ftp);
-	protected abstract void submitter(FTPClient ftp);
+	protected abstract void submitMoreTasks(FTPClient ftp);
 	protected boolean trySubmit(String key, BgFTP.Worker ftpWorker);
 	public void run();
 

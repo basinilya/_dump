@@ -1,57 +1,23 @@
-package org.foo;
+package org.bar.bgftp;
 
-import static org.foo.Main.log;
+import static org.bar.bgftp.Log.log;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.commons.net.ftp.FTPClient;
-import org.apache.commons.net.ftp.FTPClientConfig;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
-public class MyFTPClient {
+class FTPClientHolder {
 	private long lastUsed;
 
-	private final FTPClient ftp;
+	final FTPClient ftp = new FTPClient();
 
 	public boolean validate() throws Exception {
 		final int reply = ftp.noop();
 		lastUsed = System.nanoTime();
 		return FTPReply.isPositiveCompletion(reply);
-	}
-
-	public MyFTPClient() throws Exception {
-		ftp = new FTPClient();
-		ftp.setServerSocketFactory(null);
-		ftp.setSocketFactory(null);
-		final FTPClientConfig config = new FTPClientConfig();
-		// config.setXXX(YYY); // change required options
-		// for example config.setServerTimeZoneId("Pacific/Pitcairn")
-		ftp.configure(config);
-
-		int reply;
-		final String server = "192.168.56.150";
-		ftp.connect(server);
-		//log("Connected to " + server + ".");
-		//log(ftp.getReplyString()); TODO: trim trailing newline
-
-		// After connection attempt, you should check the reply code to
-		// verify
-		// success.
-		reply = ftp.getReplyCode();
-
-		if (!FTPReply.isPositiveCompletion(reply)) {
-			ftp.disconnect();
-			throw new Exception("FTP server refused connection.");
-		}
-		if (!ftp.login("anonymous", "a@b.org")) {
-			throw new Exception("login failed: " + ftp.getReplyString());
-		}
-		if (!ftp.changeWorkingDirectory("/pub/manyfiles")) {
-			throw new Exception("failed to change directory: " + ftp.getReplyString());
-		}
-		lastUsed = System.nanoTime();
 	}
 
 	public void close() throws Exception {
