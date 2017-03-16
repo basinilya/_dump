@@ -4,7 +4,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -15,14 +14,14 @@ import org.apache.commons.net.ftp.FTPFile;
 public class Main {
 
 
-	public static void main(String[] args) throws Exception {
 
+	public static void main(final String[] args) throws Exception {
 		final MyContext ctx = new MyContext();
 
-		ExecutorService executor = Executors.newFixedThreadPool(1,
+		final ExecutorService executor = Executors.newFixedThreadPool(1,
 				new ThreadFactory() {
 					@Override
-					public Thread newThread(Runnable r) {
+					public Thread newThread(final Runnable r) {
 						return new MyThread(r, ctx);
 					}
 				});
@@ -30,7 +29,7 @@ public class Main {
 		for(;;) {
 			try {
 				doIt(ctx, executor);
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				log("list files failed", e);
 				ctx.invalidateFtp();
 			}
@@ -39,27 +38,27 @@ public class Main {
 		//log("Finished all threads");
 	}
 
-	private static void doIt(MyContext ctx, ExecutorService executor) throws Exception {
-		Map<String, RetrieveWorker> workersByFilename = ctx.getWorkersByFilename();
+	private static void doIt(final MyContext ctx, final ExecutorService executor) throws Exception {
+		final Map<String, RetrieveWorker> workersByFilename = ctx.getWorkersByFilename();
 		HashMap<String, RetrieveWorker> workersBeforeListfiles;
 		synchronized(workersByFilename) {
 			workersBeforeListfiles = new HashMap<String, RetrieveWorker>(workersByFilename);
 		}
 
-		FTPFile[] files = ctx.getFtp().listFiles();
+		final FTPFile[] files = ctx.getFtp().listFiles();
 
 		int addedThisTime = 0;
 
 		synchronized(workersByFilename) {
 			for (int i = 0; i < files.length; i++) {
 				//if (i > 2) break;
-				FTPFile file = files[i];
-				String filename = file.getName();
+				final FTPFile file = files[i];
+				final String filename = file.getName();
 				if (!workersBeforeListfiles.containsKey(filename)) {
 					if (!workersBeforeListfiles.isEmpty()) {
 						log("NOT skipping " + filename);
 					}
-					RetrieveWorker worker = new RetrieveWorker(ctx, file);
+					final RetrieveWorker worker = new RetrieveWorker(ctx, file);
 					workersByFilename.put(filename, worker);
 					// TODO: executor.submit(worker) // .get(4, TimeUnit.SECONDS);
 					executor.execute(worker);
@@ -77,11 +76,11 @@ public class Main {
 		//for (int i = 0; i < 4; i++)
 		{
 			//Thread.sleep(4000);
-			StringBuilder sb = new StringBuilder("---------------------\n");
+			final StringBuilder sb = new StringBuilder("---------------------\n");
 			synchronized(workersByFilename) {
-				for (RetrieveWorker worker : workersByFilename.values()) {
-					FTPFile file = worker.getFile();
-					long progress = worker.getProgress();
+				for (final RetrieveWorker worker : workersByFilename.values()) {
+					final FTPFile file = worker.getFile();
+					final long progress = worker.getProgress();
 					if (progress != -1) {
 						sb.append(100 * progress / file.getSize()).append("% ").append(file.getName()).append('\n');
 					}
@@ -92,14 +91,14 @@ public class Main {
 		}
 	}
 
-	public static void log(Object o) {
-		Thread t = Thread.currentThread();
+	public static void log(final Object o) {
+		final Thread t = Thread.currentThread();
 		System.out.println(t.getId() + " " + t.getName() + " " + o);
 	}
 
-	public static void log(Object o, Throwable e) {
-		StringWriter sw = new StringWriter();
-		PrintWriter out = new PrintWriter(sw);
+	public static void log(final Object o, final Throwable e) {
+		final StringWriter sw = new StringWriter();
+		final PrintWriter out = new PrintWriter(sw);
 		e.printStackTrace(out);
 		log(o + " " + sw.toString());
 	}
