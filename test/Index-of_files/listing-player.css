@@ -1,0 +1,9 @@
+.playerButton IMG {
+	HEIGHT: 1em
+}
+.listingplayer {
+	WIDTH: 100%; POSITION: fixed; TOP: 10px
+}
+.gapdiv {
+	HEIGHT: 40px
+}
