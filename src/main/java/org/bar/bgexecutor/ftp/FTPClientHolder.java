@@ -1,6 +1,6 @@
-package org.bar.bgftp;
+package org.bar.bgexecutor.ftp;
 
-import static org.bar.bgftp.Log.log;
+import static org.bar.bgexecutor.Log.*;
 
 import java.io.IOException;
 import java.io.InputStream;

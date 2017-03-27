@@ -1,4 +1,4 @@
-package org.bar.bgftp;
+package org.bar.bgexecutor;
 
 import static org.foo.Main.*;
 
@@ -33,7 +33,7 @@ public abstract class BgExecutor {
                         
                         @Override
                         protected void call2() throws Exception {
-                            ctx.submitMoreTasks();
+                            ctx.submitMoreTasks(mksnapshotWorkers().keySet());
                         }
                     });
                 }
@@ -72,22 +72,28 @@ public abstract class BgExecutor {
         }
     }
     
-    boolean trySubmit(final String key, final Worker ftpWorker) throws Exception {
+    public boolean trySubmit(final String key, final Worker worker) throws Exception {
         synchronized (workersByFilename) {
-            final Worker prev = workersByFilename.put(key, ftpWorker);
+            final Worker prev = workersByFilename.put(key, worker);
             if (prev != null) {
                 workersByFilename.put(key, prev);
                 return false;
             }
-            ftpWorker.key = key;
-            ftpWorker.fut = executor.submit(ftpWorker);
+            worker.key = key;
+            worker.fut = executor.submit(worker);
         }
         return true;
     }
     
     public abstract class BgContext {
         
-        protected abstract void submitMoreTasks() throws Exception;
+        public BgContext() {
+            synchronized (workersByFilename) {
+                contexts.add(this);
+            }
+        }
+        
+        protected abstract void submitMoreTasks(Set<String> tasksSnapshot) throws Exception;
         
         protected void threadDying() {}
     }

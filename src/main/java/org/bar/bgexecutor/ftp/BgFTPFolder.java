@@ -1,26 +1,33 @@
-package org.bar.bgftp;
+package org.bar.bgexecutor.ftp;
+
+import java.util.Set;
 
 import org.apache.commons.net.ftp.FTPClient;
-import org.bar.bgftp.BgExecutor.BgContext;
-import org.bar.bgftp.BgExecutor.Worker;
+import org.bar.bgexecutor.BgExecutor;
+import org.bar.bgexecutor.BgExecutor.BgContext;
+import org.bar.bgexecutor.BgExecutor.Worker;
 
 public abstract class BgFTPFolder extends BgContext {
     
     public BgFTPFolder(final BgExecutor executor) {
         executor.super();
+        this.executor = executor;
     }
     
     protected abstract void connect(FTPClient ftp) throws Exception;
     
-    protected abstract void submitMoreTasks(FTPClient ftp) throws Exception;
+    protected abstract void submitMoreTasks(Set<String> existingTasksSnapshot, FTPClient ftp)
+            throws Exception;
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
     
+    // boolean trySubmit(final String key, final Worker ftpWorker) throws Exception {}
+    
     @Override
-    protected final void submitMoreTasks() throws Exception {
+    protected final void submitMoreTasks(final Set<String> existingTasksSnapshot) throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
-            submitMoreTasks(ftpHolder.ftp);
+            submitMoreTasks(existingTasksSnapshot, ftpHolder.ftp);
             ftpHolder.setLastUsed(System.nanoTime());
         } catch (final Exception e) {
             invalidateFtp();
@@ -96,5 +103,11 @@ public abstract class BgFTPFolder extends BgContext {
     @Override
     protected void threadDying() {
         invalidateFtp();
+    }
+    
+    private final BgExecutor executor;
+    
+    public BgExecutor getExecutor() {
+        return executor;
     }
 }

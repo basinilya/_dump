@@ -1,4 +1,4 @@
-package org.bar.bgftp;
+package org.bar.bgexecutor;
 
 import java.lang.ref.WeakReference;
 
