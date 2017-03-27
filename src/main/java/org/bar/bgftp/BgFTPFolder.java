@@ -4,7 +4,7 @@ import org.apache.commons.net.ftp.FTPClient;
 import org.bar.bgftp.BgExecutor.BgContext;
 import org.bar.bgftp.BgExecutor.Worker;
 
-public abstract class BgFTPFolder extends BgContext<FTPClient> {
+public abstract class BgFTPFolder extends BgContext {
     
     public BgFTPFolder(final BgExecutor executor) {
         executor.super();
@@ -16,7 +16,8 @@ public abstract class BgFTPFolder extends BgContext<FTPClient> {
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
     
-    void submitMoreTasks() throws Exception {
+    @Override
+    protected final void submitMoreTasks() throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
             submitMoreTasks(ftpHolder.ftp);
@@ -80,7 +81,7 @@ public abstract class BgFTPFolder extends BgContext<FTPClient> {
         protected abstract void call(FTPClient ftp) throws Exception;
         
         @Override
-        protected void call2() throws Exception {
+        protected final void call2() throws Exception {
             try {
                 final FTPClientHolder ftpHolder = getFtp();
                 call(ftpHolder.ftp);

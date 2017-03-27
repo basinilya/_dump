@@ -28,7 +28,7 @@ public abstract class BgExecutor {
     public void run() throws Exception {
         for (;;) {
             synchronized (workersByFilename) {
-                for (final BgFTPFolder ctx : contexts) {
+                for (final BgContext ctx : contexts) {
                     trySubmit("submitMoreTasks " + ctx, new Worker() {
                         
                         @Override
@@ -85,7 +85,9 @@ public abstract class BgExecutor {
         return true;
     }
     
-    public abstract class BgContext<T> {
+    public abstract class BgContext {
+        
+        protected abstract void submitMoreTasks() throws Exception;
         
         protected void threadDying() {}
     }
@@ -132,13 +134,13 @@ public abstract class BgExecutor {
         }
     }
     
-    private final Set<BgFTPFolder> contexts = new HashSet<BgFTPFolder>();
+    private final Set<BgContext> contexts = new HashSet<BgContext>();
     
     private final ExecutorService executor = Executors.newFixedThreadPool(5, new ThreadFactory() {
         
         @Override
         public Thread newThread(final Runnable r) {
-            return new ThreadWithConnDestruction(r, BgExecutor.this);
+            return new ThreadWithTlsDestruction(r, BgExecutor.this);
         }
     });
     
@@ -153,11 +155,11 @@ public abstract class BgExecutor {
     }
     
     void threadDying() {
-        HashSet<BgFTPFolder> contextsSnapshot;
+        HashSet<BgContext> contextsSnapshot;
         synchronized (workersByFilename) {
-            contextsSnapshot = new HashSet<BgFTPFolder>(contexts);
+            contextsSnapshot = new HashSet<BgContext>(contexts);
         }
-        for (final BgFTPFolder ctx : contextsSnapshot) {
+        for (final BgContext ctx : contextsSnapshot) {
             ctx.threadDying();
         }
         
