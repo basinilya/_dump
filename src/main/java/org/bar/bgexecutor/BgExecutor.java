@@ -1,6 +1,6 @@
 package org.bar.bgexecutor;
 
-import static org.foo.Main.*;
+import static org.bar.bgexecutor.Log.*;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,7 +23,17 @@ import java.util.concurrent.TimeoutException;
  * Если иметь общий снепшот, то не понятно, когда его очищать 
  */
 
-public abstract class BgExecutor {
+public class BgExecutor {
+    
+    public BgExecutor(final int nThreads) {
+        executor = Executors.newFixedThreadPool(nThreads, new ThreadFactory() {
+            
+            @Override
+            public Thread newThread(final Runnable r) {
+                return new ThreadWithTlsDestruction(r, BgExecutor.this);
+            }
+        });
+    }
     
     public void run() throws Exception {
         for (;;) {
@@ -33,7 +43,7 @@ public abstract class BgExecutor {
                         
                         @Override
                         protected void call2() throws Exception {
-                            ctx.submitMoreTasks(mksnapshotWorkers().keySet());
+                            ctx.submitMoreTasks(mksnapshotWorkers());
                         }
                     });
                 }
@@ -93,7 +103,8 @@ public abstract class BgExecutor {
             }
         }
         
-        protected abstract void submitMoreTasks(Set<String> tasksSnapshot) throws Exception;
+        protected abstract void submitMoreTasks(Map<String, Worker> existingTasksSnapshot)
+                throws Exception;
         
         protected void threadDying() {}
     }
@@ -142,13 +153,7 @@ public abstract class BgExecutor {
     
     private final Set<BgContext> contexts = new HashSet<BgContext>();
     
-    private final ExecutorService executor = Executors.newFixedThreadPool(5, new ThreadFactory() {
-        
-        @Override
-        public Thread newThread(final Runnable r) {
-            return new ThreadWithTlsDestruction(r, BgExecutor.this);
-        }
-    });
+    private final ExecutorService executor;
     
     @Override
     protected void finalize() throws Throwable {

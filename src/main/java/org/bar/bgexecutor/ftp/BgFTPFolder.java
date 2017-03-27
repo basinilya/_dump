@@ -1,6 +1,6 @@
 package org.bar.bgexecutor.ftp;
 
-import java.util.Set;
+import java.util.Map;
 
 import org.apache.commons.net.ftp.FTPClient;
 import org.bar.bgexecutor.BgExecutor;
@@ -16,7 +16,7 @@ public abstract class BgFTPFolder extends BgContext {
     
     protected abstract void connect(FTPClient ftp) throws Exception;
     
-    protected abstract void submitMoreTasks(Set<String> existingTasksSnapshot, FTPClient ftp)
+    protected abstract void submitMoreTasks(Map<String, Worker> existingTasksSnapshot, FTPClient ftp)
             throws Exception;
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
@@ -24,7 +24,8 @@ public abstract class BgFTPFolder extends BgContext {
     // boolean trySubmit(final String key, final Worker ftpWorker) throws Exception {}
     
     @Override
-    protected final void submitMoreTasks(final Set<String> existingTasksSnapshot) throws Exception {
+    protected final void submitMoreTasks(final Map<String, Worker> existingTasksSnapshot)
+            throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
             submitMoreTasks(existingTasksSnapshot, ftpHolder.ftp);
