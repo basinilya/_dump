@@ -39,11 +39,17 @@ public class BgExecutor {
         for (;;) {
             synchronized (workersByFilename) {
                 for (final BgContext ctx : contexts) {
+                    ctx.checkpoint(workersByFilename);
                     trySubmit("submitMoreTasks " + ctx, new Worker() {
                         
                         @Override
                         protected void call2() throws Exception {
                             ctx.submitMoreTasks(mksnapshotWorkers());
+                        }
+                        
+                        @Override
+                        public String toString() {
+                            return "submitMoreTasks";
                         }
                     });
                 }
@@ -66,18 +72,23 @@ public class BgExecutor {
         final long begNanos = System.nanoTime();
         final long endNanos = begNanos + (timeoutSeconds * 1000000000L);
         
-        final Map<String, BgExecutor.Worker> workersSnapshot = mksnapshotWorkers();
-        
-        for (final Worker worker : workersSnapshot.values()) {
-            try {
-                long timeoutNanos = endNanos - System.nanoTime();
-                if (timeoutNanos <= 0) {
-                    timeoutNanos = 0;
+        for (;;) {
+            final Map<String, BgExecutor.Worker> workersSnapshot = mksnapshotWorkers();
+            if (workersSnapshot.isEmpty()) {
+                break;
+            }
+            
+            for (final Worker worker : workersSnapshot.values()) {
+                try {
+                    long timeoutNanos = endNanos - System.nanoTime();
+                    if (timeoutNanos <= 0) {
+                        timeoutNanos = 0;
+                    }
+                    // InterruptedException, ExecutionException, TimeoutException;
+                    worker.fut.get(timeoutNanos, TimeUnit.NANOSECONDS);
+                } catch (final ExecutionException e) {
+                    log("executor dispatched exception to main thread", e);
                 }
-                // InterruptedException, ExecutionException, TimeoutException;
-                worker.fut.get(timeoutNanos, TimeUnit.NANOSECONDS);
-            } catch (final ExecutionException e) {
-                log("executor dispatched exception to main thread", e);
             }
         }
     }
@@ -107,17 +118,20 @@ public class BgExecutor {
                 throws Exception;
         
         protected void threadDying() {}
+        
+        protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {}
     }
     
     public abstract class Worker implements Callable<Void> {
         
-        String key;
+        private String key;
         
-        Future<Void> fut;
+        private Future<Void> fut;
         
         @Override
         public final Void call() throws Exception {
-            Thread.currentThread().setName("Bg " + key);
+            Thread.currentThread().setName(
+                    "Bg" + Thread.currentThread().getId() + "(" + toString() + ")");
             // log("worker start: " + file.getName());
             try {
                 call2();
@@ -126,7 +140,7 @@ public class BgExecutor {
                     workersByFilename.remove(key);
                 }
                 log("worker end: " + key);
-                Thread.currentThread().setName("Bg idle " + Thread.currentThread().getId());
+                Thread.currentThread().setName("Bg" + Thread.currentThread().getId() + "(idle)");
             }
             
             return null;
@@ -134,9 +148,8 @@ public class BgExecutor {
         
         protected abstract void call2() throws Exception;
         
-        @Override
-        public String toString() {
-            return "" + key;
+        public String getKey() {
+            return key;
         }
         
     }

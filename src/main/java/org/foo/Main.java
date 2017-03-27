@@ -3,7 +3,10 @@ package org.foo;
 import static org.bar.bgexecutor.Log.*;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPClientConfig;
@@ -15,6 +18,9 @@ import org.bar.bgexecutor.ftp.BgFTPFolder;
 
 public class Main {
     
+    public static final Set<String> deletedFiles = Collections
+            .synchronizedSet(new HashSet<String>());
+    
     public static void main(final String[] args) throws Exception {
         final BgExecutor ctx = new BgExecutor(5);
         new OurFTPFolder(ctx);
@@ -23,6 +29,8 @@ public class Main {
 }
 
 class OurFTPFolder extends BgFTPFolder {
+    
+    private int nIter;
     
     private final String path = "/pub/manyfiles";
     
@@ -33,24 +41,31 @@ class OurFTPFolder extends BgFTPFolder {
     @Override
     protected void submitMoreTasks(final Map<String, Worker> existingTasksSnapshot,
             final FTPClient ftp) throws Exception {
-        logProgress(existingTasksSnapshot.values());
-        
         final FTPFile[] files = ftp.listFiles();
+        final BgExecutor executor = getExecutor();
         for (int i = 0; i < files.length; i++) {
-            // if (i > 2) break;
             final FTPFile file = files[i];
             final String key = this + file.getName();
+            
+            if (i > 7) {
+                break;
+            }
+            if (Main.deletedFiles.contains(key)) {
+                continue;
+            }
+            
             if (!existingTasksSnapshot.containsKey(key)) {
-                if (!existingTasksSnapshot.isEmpty()) {
+                if (nIter != 0) {
                     log("NOT skipping " + file.getName());
                 }
                 final RetrieveWorker worker = new RetrieveWorker(this, file);
-                getExecutor().trySubmit(key, worker);
+                executor.trySubmit(key, worker);
             } else {
                 log("skipping " + file.getName());
             }
         }
         
+        nIter++;
     }
     
     @Override
@@ -83,6 +98,11 @@ class OurFTPFolder extends BgFTPFolder {
         }
     }
     
+    @Override
+    protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {
+        logProgress(existingTasksSnapshot.values());
+    }
+    
     private void logProgress(final Collection<Worker> workers) {
         final StringBuilder sb = new StringBuilder("---------------------\n");
         for (final Worker _worker : workers) {
@@ -103,6 +123,6 @@ class OurFTPFolder extends BgFTPFolder {
     
     @Override
     public String toString() {
-        return path + "/";
+        return super.toString() + path + "/";
     }
 }

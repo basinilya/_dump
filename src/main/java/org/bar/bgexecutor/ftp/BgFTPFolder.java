@@ -21,8 +21,6 @@ public abstract class BgFTPFolder extends BgContext {
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
     
-    // boolean trySubmit(final String key, final Worker ftpWorker) throws Exception {}
-    
     @Override
     protected final void submitMoreTasks(final Map<String, Worker> existingTasksSnapshot)
             throws Exception {

@@ -34,13 +34,14 @@ public class RetrieveWorker extends FtpWorker {
         }
         
         if (!ftp.completePendingCommand()) {
-            throw new Exception("something failed");
+            throw new Exception("previous FTP command failed");
         }
+        Main.deletedFiles.add(this.getKey());
     }
     
     @Override
     public String toString() {
-        return this.file.getName();
+        return "RETR-" + file.getName();
     }
     
     public FTPFile getFile() {
