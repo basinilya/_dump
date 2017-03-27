@@ -1,10 +1,14 @@
 package org.bar.bgftp;
 
 import org.apache.commons.net.ftp.FTPClient;
+import org.bar.bgftp.BgExecutor.BgContext;
+import org.bar.bgftp.BgExecutor.Worker;
 
-public abstract class BgFTPFolder {
+public abstract class BgFTPFolder extends BgContext<FTPClient> {
     
-    public BgFTPFolder(final BgFTP executor) {}
+    public BgFTPFolder(final BgExecutor executor) {
+        executor.super();
+    }
     
     protected abstract void connect(FTPClient ftp) throws Exception;
     
@@ -65,5 +69,31 @@ public abstract class BgFTPFolder {
             }
             ftpTls.set(null);
         }
+    }
+    
+    public abstract class FtpWorker extends Worker {
+        
+        public FtpWorker(final BgExecutor executor) {
+            executor.super();
+        }
+        
+        protected abstract void call(FTPClient ftp) throws Exception;
+        
+        @Override
+        protected void call2() throws Exception {
+            try {
+                final FTPClientHolder ftpHolder = getFtp();
+                call(ftpHolder.ftp);
+                ftpHolder.setLastUsed(System.nanoTime());
+            } catch (final Exception e) {
+                invalidateFtp();
+                throw e;
+            }
+        }
+    }
+    
+    @Override
+    protected void threadDying() {
+        invalidateFtp();
     }
 }
