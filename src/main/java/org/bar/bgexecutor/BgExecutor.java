@@ -122,6 +122,10 @@ public class BgExecutor {
         protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {}
     }
     
+    void setThreadHint(final String hint) {
+        Thread.currentThread().setName("Bg" + Thread.currentThread().getId() + "(" + hint + ")");
+    }
+    
     public abstract class Worker implements Callable<Void> {
         
         private String key;
@@ -130,8 +134,7 @@ public class BgExecutor {
         
         @Override
         public final Void call() throws Exception {
-            Thread.currentThread().setName(
-                    "Bg" + Thread.currentThread().getId() + "(" + toString() + ")");
+            setThreadHint(toString());
             // log("worker start: " + file.getName());
             try {
                 call2();
@@ -140,7 +143,7 @@ public class BgExecutor {
                     workersByFilename.remove(key);
                 }
                 log("worker end: " + key);
-                Thread.currentThread().setName("Bg" + Thread.currentThread().getId() + "(idle)");
+                setThreadHint("idle");
             }
             
             return null;

@@ -34,8 +34,17 @@ class OurFTPFolder extends BgFTPFolder {
     
     private final String path = "/pub/manyfiles";
     
+    private final String login = "anonymous";
+    
+    private final String server = "192.168.56.150";
+    
     public OurFTPFolder(final BgExecutor executor) {
         super(executor);
+    }
+    
+    @Override
+    protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {
+        logProgress(existingTasksSnapshot.values());
     }
     
     @Override
@@ -45,7 +54,7 @@ class OurFTPFolder extends BgFTPFolder {
         final BgExecutor executor = getExecutor();
         for (int i = 0; i < files.length; i++) {
             final FTPFile file = files[i];
-            final String key = this + file.getName();
+            final String key = mkkey(file.getName());
             
             if (i > 7) {
                 break;
@@ -76,7 +85,6 @@ class OurFTPFolder extends BgFTPFolder {
         ftp.configure(config);
         
         int reply;
-        final String server = "192.168.56.150";
         ftp.connect(server);
         // log("Connected to " + server + ".");
         // log(ftp.getReplyString()); TODO: trim trailing newline
@@ -90,17 +98,12 @@ class OurFTPFolder extends BgFTPFolder {
             ftp.disconnect();
             throw new Exception("FTP server refused connection.");
         }
-        if (!ftp.login("anonymous", "a@b.org")) {
+        if (!ftp.login(login, "a@b.org")) {
             throw new Exception("login failed: " + ftp.getReplyString());
         }
         if (!ftp.changeWorkingDirectory(path)) {
             throw new Exception("failed to change directory: " + ftp.getReplyString());
         }
-    }
-    
-    @Override
-    protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {
-        logProgress(existingTasksSnapshot.values());
     }
     
     private void logProgress(final Collection<Worker> workers) {
@@ -121,8 +124,12 @@ class OurFTPFolder extends BgFTPFolder {
         log(sb);
     }
     
+    private String mkkey(final String filename) {
+        return toString() + filename;
+    }
+    
     @Override
     public String toString() {
-        return super.toString() + path + "/";
+        return login + "@" + server + path + "/";
     }
 }
