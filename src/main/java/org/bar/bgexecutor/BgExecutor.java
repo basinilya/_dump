@@ -12,26 +12,28 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Wrapper for {@link ThreadPoolExecutor} that
+ * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same worker twice
  */
 public class BgExecutor {
     
+    /**
+     * @param nThreads the number of threads in the pool
+     */
     public BgExecutor(final int nThreads) {
-        executor = Executors.newFixedThreadPool(nThreads, new ThreadFactory() {
-            
-            @Override
-            public Thread newThread(final Runnable r) {
-                return new ThreadWithTlsDestruction(r, BgExecutor.this);
-            }
-        });
+        executor = Executors.newFixedThreadPool(nThreads, new BgExecutorThreadFactory(this));
     }
     
+    /**
+     * Queries for initial workers and waits until they all complete. See
+     * {@link #checkpoint(Map, boolean)} for how it works
+     * 
+     * @throws Exception
+     */
     public void run() throws Exception {
         boolean firstTime = true;
         for (;;) {
@@ -54,6 +56,18 @@ public class BgExecutor {
         destroyTls();
     }
     
+    /**
+     * Called by {@link #run()} when it starts and also called periodically allowing to watch
+     * progress and add more workers. Default implementation schedules a call to
+     * {@link BgContext#executorStarving(Map) } in background thread for each context. It returns
+     * false if all workers completed.
+     * 
+     * @param existingWorkersSnapshot map of existing workers by their key. Empty map means no
+     *            workers added yet or all workers completed
+     * @param firstTime true when it's called for the first time
+     * @return true if should continue
+     * @throws Exception
+     */
     protected boolean checkpoint(final Map<String, Worker> existingWorkersSnapshot,
             final boolean firstTime) throws Exception {
         if (!firstTime && existingWorkersSnapshot.size() == 0) {
@@ -78,6 +92,16 @@ public class BgExecutor {
         return true;
     }
     
+    /**
+     * Wait for all workers to complete. Alternative to existing
+     * {@link ExecutorService#awaitTermination(long, TimeUnit)}, but doesn't require shutdown of the
+     * executor
+     * 
+     * @param timeoutSeconds the maximum time to wait
+     * @throws TimeoutException if the wait timed out
+     * @throws InterruptedException {@link Future#get()} called internally theoretically can throw
+     *             this
+     */
     private void awaitStarvation(final long timeoutSeconds) throws TimeoutException,
             InterruptedException {
         final long begNanos = System.nanoTime();
@@ -104,6 +128,14 @@ public class BgExecutor {
         }
     }
     
+    /**
+     * Tries to submit a worker to our pool. Call this from {@link BgContext#executorStarving(Map)}
+     * 
+     * @param key unique string to prevent simultaneous execution of same thing
+     * @param worker the worker
+     * @return false if the key provided is already queued
+     * @throws Exception
+     */
     public boolean trySubmit(final String key, final Worker worker) throws Exception {
         synchronized (workersByFilename) {
             final Worker prev = workersByFilename.put(key, worker);
@@ -117,6 +149,10 @@ public class BgExecutor {
         return true;
     }
     
+    /**
+     * A context in which a worker is executed, e.g. a folder. Can be used to allow a group workers
+     * share one resource
+     */
     public abstract class BgContext {
         
         public BgContext() {
@@ -125,6 +161,10 @@ public class BgExecutor {
             }
         }
         
+        /**
+         * @param existingWorkersSnapshot
+         * @throws Exception
+         */
         protected abstract void executorStarving(Map<String, Worker> existingWorkersSnapshot)
                 throws Exception;
         

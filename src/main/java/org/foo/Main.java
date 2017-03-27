@@ -82,7 +82,7 @@ class OurFTPFolder extends BgFTPFolder {
             final FTPFile file = files[i];
             final String key = mkkey(file.getName());
             
-            if (i > 7) {
+            if (i > 3) {
                 break;
             }
             if (Main.deletedFiles.contains(key)) {
