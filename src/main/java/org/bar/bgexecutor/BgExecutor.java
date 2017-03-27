@@ -13,16 +13,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/*
- * Мысль такая:
- * Если я собираюсь делать листинг нескольких папок в бэкграунде (каждая папка в своем треде), то имеет смысл для каждой папки иметь свой снепшот.
- * Тогда я точно смогу сказать, что снепшот был сделан непосредственно перед листингом и не содержит лишних файлов.
- * Если иметь общий снепшот, то не понятно, когда его очищать 
+/**
+ * Wrapper for {@link ThreadPoolExecutor} that
  */
-
 public class BgExecutor {
     
     public BgExecutor(final int nThreads) {
@@ -36,35 +33,49 @@ public class BgExecutor {
     }
     
     public void run() throws Exception {
+        boolean firstTime = true;
         for (;;) {
             synchronized (workersByFilename) {
-                for (final BgContext ctx : contexts) {
-                    ctx.checkpoint(workersByFilename);
-                    trySubmit("submitMoreTasks " + ctx, new Worker() {
-                        
-                        @Override
-                        protected void call2() throws Exception {
-                            ctx.submitMoreTasks(mksnapshotWorkers());
-                        }
-                        
-                        @Override
-                        public String toString() {
-                            return "submitMoreTasks";
-                        }
-                    });
+                if (!checkpoint(workersByFilename, firstTime)) {
+                    break;
                 }
             }
+            firstTime = false;
+            
             try {
                 awaitStarvation(4);
                 // No exception. We starved
-                break;
             } catch (final TimeoutException e) {
-                continue;
+                //
             }
         }
         executor.shutdown();
         executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-        threadDying();
+        destroyTls();
+    }
+    
+    protected boolean checkpoint(final Map<String, Worker> existingWorkersSnapshot,
+            final boolean firstTime) throws Exception {
+        if (!firstTime && existingWorkersSnapshot.size() == 0) {
+            // all workers completed
+            return false;
+        }
+        final String workerName = "executorStarving()";
+        for (final BgContext ctx : contexts) {
+            trySubmit(ctx.toString() + " " + workerName, new Worker() {
+                
+                @Override
+                protected void call2() throws Exception {
+                    ctx.executorStarving(mksnapshotWorkers());
+                }
+                
+                @Override
+                public String toString() {
+                    return workerName;
+                }
+            });
+        }
+        return true;
     }
     
     private void awaitStarvation(final long timeoutSeconds) throws TimeoutException,
@@ -114,12 +125,10 @@ public class BgExecutor {
             }
         }
         
-        protected abstract void submitMoreTasks(Map<String, Worker> existingTasksSnapshot)
+        protected abstract void executorStarving(Map<String, Worker> existingWorkersSnapshot)
                 throws Exception;
         
-        protected void threadDying() {}
-        
-        protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {}
+        protected void destroyTls() {}
     }
     
     void setThreadHint(final String hint) {
@@ -159,8 +168,6 @@ public class BgExecutor {
     
     private final Map<String, Worker> workersByFilename = new LinkedHashMap<String, Worker>();
     
-    // private final HashMap<String, Worker> workersSnapshot = new HashMap<String, Worker>();
-    
     protected final Map<String, Worker> mksnapshotWorkers() {
         synchronized (workersByFilename) {
             return new HashMap<String, BgExecutor.Worker>(workersByFilename);
@@ -181,13 +188,13 @@ public class BgExecutor {
         super.finalize();
     }
     
-    void threadDying() {
+    void destroyTls() {
         HashSet<BgContext> contextsSnapshot;
         synchronized (workersByFilename) {
             contextsSnapshot = new HashSet<BgContext>(contexts);
         }
         for (final BgContext ctx : contextsSnapshot) {
-            ctx.threadDying();
+            ctx.destroyTls();
         }
         
     }

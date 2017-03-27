@@ -22,9 +22,40 @@ public class Main {
             .synchronizedSet(new HashSet<String>());
     
     public static void main(final String[] args) throws Exception {
-        final BgExecutor ctx = new BgExecutor(5);
+        final BgExecutor ctx = new BgExecutor(5) {
+            
+            @Override
+            protected boolean checkpoint(final Map<String, Worker> existingWorkersSnapshot,
+                    final boolean firstTime) throws Exception {
+                logProgress(existingWorkersSnapshot.values());
+                if (firstTime) {
+                    return super.checkpoint(existingWorkersSnapshot, firstTime);
+                } else {
+                    return !existingWorkersSnapshot.isEmpty();
+                }
+            }
+            
+        };
         new OurFTPFolder(ctx);
         ctx.run();
+    }
+    
+    private static void logProgress(final Collection<Worker> workers) {
+        final StringBuilder sb = new StringBuilder("---------------------\n");
+        for (final Worker _worker : workers) {
+            if (!(_worker instanceof RetrieveWorker)) {
+                continue;
+            }
+            final RetrieveWorker worker = (RetrieveWorker) _worker;
+            final FTPFile file = worker.getFile();
+            final long progress = worker.getProgress();
+            if (progress != -1) {
+                sb.append(100 * progress / file.getSize()).append("% ").append(file.getName())
+                        .append('\n');
+            }
+        }
+        sb.append("---------------------");
+        log(sb);
     }
 }
 
@@ -43,12 +74,7 @@ class OurFTPFolder extends BgFTPFolder {
     }
     
     @Override
-    protected void checkpoint(final Map<String, Worker> existingTasksSnapshot) {
-        logProgress(existingTasksSnapshot.values());
-    }
-    
-    @Override
-    protected void submitMoreTasks(final Map<String, Worker> existingTasksSnapshot,
+    protected void executorStarving(final Map<String, Worker> existingWorkersSnapshot,
             final FTPClient ftp) throws Exception {
         final FTPFile[] files = ftp.listFiles();
         final BgExecutor executor = getExecutor();
@@ -63,7 +89,7 @@ class OurFTPFolder extends BgFTPFolder {
                 continue;
             }
             
-            if (!existingTasksSnapshot.containsKey(key)) {
+            if (!existingWorkersSnapshot.containsKey(key)) {
                 if (nIter != 0) {
                     log("NOT skipping " + file.getName());
                 }
@@ -104,24 +130,6 @@ class OurFTPFolder extends BgFTPFolder {
         if (!ftp.changeWorkingDirectory(path)) {
             throw new Exception("failed to change directory: " + ftp.getReplyString());
         }
-    }
-    
-    private void logProgress(final Collection<Worker> workers) {
-        final StringBuilder sb = new StringBuilder("---------------------\n");
-        for (final Worker _worker : workers) {
-            if (!(_worker instanceof RetrieveWorker)) {
-                continue;
-            }
-            final RetrieveWorker worker = (RetrieveWorker) _worker;
-            final FTPFile file = worker.getFile();
-            final long progress = worker.getProgress();
-            if (progress != -1) {
-                sb.append(100 * progress / file.getSize()).append("% ").append(file.getName())
-                        .append('\n');
-            }
-        }
-        sb.append("---------------------");
-        log(sb);
     }
     
     private String mkkey(final String filename) {

@@ -19,7 +19,7 @@ class ThreadWithTlsDestruction extends Thread {
             final BgExecutor ctx = ctxRef.get();
             if (ctx != null) {
                 ctx.setThreadHint("dying");
-                ctx.threadDying();
+                ctx.destroyTls();
             }
         }
     }

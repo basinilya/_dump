@@ -16,17 +16,17 @@ public abstract class BgFTPFolder extends BgContext {
     
     protected abstract void connect(FTPClient ftp) throws Exception;
     
-    protected abstract void submitMoreTasks(Map<String, Worker> existingTasksSnapshot, FTPClient ftp)
+    protected abstract void executorStarving(Map<String, Worker> existingWorkersSnapshot, FTPClient ftp)
             throws Exception;
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
     
     @Override
-    protected final void submitMoreTasks(final Map<String, Worker> existingTasksSnapshot)
+    protected final void executorStarving(final Map<String, Worker> existingWorkersSnapshot)
             throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
-            submitMoreTasks(existingTasksSnapshot, ftpHolder.ftp);
+            executorStarving(existingWorkersSnapshot, ftpHolder.ftp);
             ftpHolder.setLastUsed(System.nanoTime());
         } catch (final Exception e) {
             invalidateFtp();
@@ -100,7 +100,7 @@ public abstract class BgFTPFolder extends BgContext {
     }
     
     @Override
-    protected void threadDying() {
+    protected void destroyTls() {
         invalidateFtp();
     }
     
