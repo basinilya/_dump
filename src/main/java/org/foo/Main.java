@@ -26,10 +26,10 @@ public class Main {
             
             @Override
             protected boolean checkpoint(final Map<String, Worker> existingWorkersSnapshot,
-                    final boolean firstTime) throws Exception {
+                    final boolean doneItBefore) throws Exception {
                 logProgress(existingWorkersSnapshot.values());
-                if (firstTime) {
-                    return super.checkpoint(existingWorkersSnapshot, firstTime);
+                if (!doneItBefore) {
+                    return super.checkpoint(existingWorkersSnapshot, doneItBefore);
                 } else {
                     return !existingWorkersSnapshot.isEmpty();
                 }
@@ -82,7 +82,7 @@ class OurFTPFolder extends BgFTPFolder {
             final FTPFile file = files[i];
             final String key = mkkey(file.getName());
             
-            if (i > 3) {
+            if (i > 12) {
                 break;
             }
             if (Main.deletedFiles.contains(key)) {
