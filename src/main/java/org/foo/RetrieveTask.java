@@ -5,13 +5,13 @@ import java.io.InputStream;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.bar.bgexecutor.ftp.BgFTPFolder;
-import org.bar.bgexecutor.ftp.BgFTPFolder.FtpWorker;
+import org.bar.bgexecutor.ftp.BgFTPFolder.FtpTask;
 
-public class RetrieveWorker extends FtpWorker {
+public class RetrieveTask extends FtpTask {
     
     private final FTPFile file;
     
-    public RetrieveWorker(final BgFTPFolder folder, final FTPFile f) {
+    public RetrieveTask(final BgFTPFolder folder, final FTPFile f) {
         folder.super(folder.getExecutor());
         this.file = f;
     }

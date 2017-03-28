@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same worker twice. Good
+ * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same task twice. Good
  * for watching local and remote folders for new files. Easily programmed to shutdown when idle.
  */
 public class BgExecutor {
@@ -34,15 +34,15 @@ public class BgExecutor {
     private boolean doneItBefore;
     
     /**
-     * Queries for initial workers and waits until they all complete. See
+     * Queries for initial tasks and waits until they all complete. See
      * {@link #checkpoint(Map, boolean)} for how it works
      * 
      * @throws Exception
      */
     public void run() throws Exception {
         for (;;) {
-            synchronized (workersByKey) {
-                if (!checkpoint(workersByKey, doneItBefore)) {
+            synchronized (tasksByKey) {
+                if (!checkpoint(tasksByKey, doneItBefore)) {
                     break;
                 }
             }
@@ -62,35 +62,35 @@ public class BgExecutor {
     
     /**
      * Called by {@link #run()} when it starts and also called periodically allowing to watch
-     * progress and add more workers. For each context the default implementation schedules a call
+     * progress and add more tasks. For each context the default implementation schedules a call
      * to {@link BgContext#executorStarving(Map) } in background thread. It schedules nothing and
-     * returns false if all workers completed. Do not perform lengthy operations in it, because
+     * returns false if all tasks completed. Do not perform lengthy operations in it, because
      * {@link BgExecutor} instance is locked and new tasks won't be able to start
      * 
-     * @param existingWorkersSnapshot map of existing workers by their key. Empty map means no
-     *            workers added yet or all workers completed
+     * @param existingTasksSnapshot map of existing tasks by their key. Empty map means no
+     *            tasks added yet or all tasks completed
      * @param doneItBefore false when it's called for the first time
      * @return true if should continue to run
      * @throws Exception
      */
-    protected boolean checkpoint(final Map<String, Worker> existingWorkersSnapshot,
+    protected boolean checkpoint(final Map<String, Task> existingTasksSnapshot,
             final boolean doneItBefore) throws Exception {
-        if (doneItBefore && existingWorkersSnapshot.size() == 0) {
-            // all workers completed
+        if (doneItBefore && existingTasksSnapshot.size() == 0) {
+            // all tasks completed
             return false;
         }
-        final String workerName = "executorStarving()";
+        final String taskName = "executorStarving()";
         for (final BgContext ctx : contexts) {
-            trySubmit(ctx.toString() + " " + workerName, new Worker() {
+            trySubmit(ctx.toString() + " " + taskName, new Task() {
                 
                 @Override
                 protected void call2() throws Exception {
-                    ctx.executorStarving(mksnapshotWorkers());
+                    ctx.executorStarving(mksnapshotTasks());
                 }
                 
                 @Override
                 public String toString() {
-                    return workerName;
+                    return taskName;
                 }
             });
         }
@@ -98,7 +98,7 @@ public class BgExecutor {
     }
     
     /**
-     * Wait for all workers to complete. Similar to the existing
+     * Wait for all tasks to complete. Similar to the existing
      * {@link ExecutorService#awaitTermination(long, TimeUnit)}, but doesn't require shutdown of the
      * executor. It is implemented by having a map of all submitted futures and calling
      * {@link Future#get(long, TimeUnit)} for each of them. Alternative would be overriding
@@ -116,19 +116,19 @@ public class BgExecutor {
         final long endNanos = begNanos + (timeoutSeconds * 1000000000L);
         
         for (;;) {
-            final Map<String, BgExecutor.Worker> workersSnapshot = mksnapshotWorkers();
-            if (workersSnapshot.isEmpty()) {
+            final Map<String, BgExecutor.Task> tasksSnapshot = mksnapshotTasks();
+            if (tasksSnapshot.isEmpty()) {
                 break;
             }
             
-            for (final Worker worker : workersSnapshot.values()) {
+            for (final Task task : tasksSnapshot.values()) {
                 try {
                     long timeoutNanos = endNanos - System.nanoTime();
                     if (timeoutNanos <= 0) {
                         timeoutNanos = 0;
                     }
                     // InterruptedException, ExecutionException, TimeoutException;
-                    worker.fut.get(timeoutNanos, TimeUnit.NANOSECONDS);
+                    task.fut.get(timeoutNanos, TimeUnit.NANOSECONDS);
                 } catch (final ExecutionException e) {
                     log("executor dispatched exception to main thread", e);
                 }
@@ -137,35 +137,35 @@ public class BgExecutor {
     }
     
     /**
-     * Tries to submit a worker to our pool. Users should call this method from
+     * Tries to submit a task to our pool. Users should call this method from
      * {@link BgContext#executorStarving(Map)}
      * 
      * @param key unique string to prevent simultaneous execution of same thing
-     * @param worker the worker
+     * @param task the task
      * @return false if the key provided is already queued
      * @throws Exception
      */
-    public boolean trySubmit(final String key, final Worker worker) throws Exception {
-        synchronized (workersByKey) {
-            final Worker prev = workersByKey.put(key, worker);
+    public boolean trySubmit(final String key, final Task task) throws Exception {
+        synchronized (tasksByKey) {
+            final Task prev = tasksByKey.put(key, task);
             if (prev != null) {
-                workersByKey.put(key, prev);
+                tasksByKey.put(key, prev);
                 return false;
             }
-            worker.key = key;
-            worker.fut = executor.submit(worker);
+            task.key = key;
+            task.fut = executor.submit(task);
         }
         return true;
     }
     
     /**
-     * A context in which a worker is executed, e.g. a folder. Can be used to allow a group workers
+     * A context in which a task is executed, e.g. a folder. Can be used to allow a group tasks
      * share one resource
      */
     public abstract class BgContext {
         
         public BgContext() {
-            synchronized (workersByKey) {
+            synchronized (tasksByKey) {
                 contexts.add(this);
             }
         }
@@ -174,12 +174,12 @@ public class BgExecutor {
          * A callback for when we want more tasks from this context. This method itself is run in a
          * background task and it is safe to perform lengthy operations in it
          * 
-         * @param existingWorkersSnapshot contains all workers (including other contexts) BEFORE
+         * @param existingTasksSnapshot contains all tasks (including other contexts) BEFORE
          *            this method was called. Useful to not accidentally submit same task that
          *            completed while this method was executing
          * @throws Exception
          */
-        protected abstract void executorStarving(Map<String, Worker> existingWorkersSnapshot)
+        protected abstract void executorStarving(Map<String, Task> existingTasksSnapshot)
                 throws Exception;
         
         /**
@@ -192,7 +192,7 @@ public class BgExecutor {
     /**
      * Base class for our tasks.
      */
-    public abstract class Worker implements Callable<Void> {
+    public abstract class Task implements Callable<Void> {
         
         /** A string that uniquely identifies this task */
         private String key;
@@ -207,14 +207,14 @@ public class BgExecutor {
         @Override
         public final Void call() throws Exception {
             setThreadHint(toString());
-            log("worker start: " + key);
+            log("task start: " + key);
             try {
                 call2();
             } finally {
-                synchronized (workersByKey) {
-                    workersByKey.remove(key);
+                synchronized (tasksByKey) {
+                    tasksByKey.remove(key);
                 }
-                log("worker end: " + key);
+                log("task end: " + key);
                 setThreadHint("idle");
             }
             
@@ -244,7 +244,7 @@ public class BgExecutor {
     }
     
     /** Map of tasks used in various places and also our lock object */
-    private final Map<String, Worker> workersByKey = new LinkedHashMap<String, Worker>();
+    private final Map<String, Task> tasksByKey = new LinkedHashMap<String, Task>();
     
     /** Set of contexts */
     private final Set<BgContext> contexts = new HashSet<BgContext>();
@@ -252,13 +252,13 @@ public class BgExecutor {
     private final ThreadPoolExecutor executor;
     
     /**
-     * Creates a copy of {@link #workersByKey}
+     * Creates a copy of {@link #tasksByKey}
      * 
      * @return
      */
-    protected final Map<String, Worker> mksnapshotWorkers() {
-        synchronized (workersByKey) {
-            return new HashMap<String, BgExecutor.Worker>(workersByKey);
+    protected final Map<String, Task> mksnapshotTasks() {
+        synchronized (tasksByKey) {
+            return new HashMap<String, BgExecutor.Task>(tasksByKey);
         }
     }
     
@@ -268,7 +268,7 @@ public class BgExecutor {
      */
     void destroyTls() {
         HashSet<BgContext> contextsSnapshot;
-        synchronized (workersByKey) {
+        synchronized (tasksByKey) {
             contextsSnapshot = new HashSet<BgContext>(contexts);
         }
         for (final BgContext ctx : contextsSnapshot) {

@@ -5,7 +5,7 @@ import java.util.Map;
 import org.apache.commons.net.ftp.FTPClient;
 import org.bar.bgexecutor.BgExecutor;
 import org.bar.bgexecutor.BgExecutor.BgContext;
-import org.bar.bgexecutor.BgExecutor.Worker;
+import org.bar.bgexecutor.BgExecutor.Task;
 
 public abstract class BgFTPFolder extends BgContext {
     
@@ -16,17 +16,17 @@ public abstract class BgFTPFolder extends BgContext {
     
     protected abstract void connect(FTPClient ftp) throws Exception;
     
-    protected abstract void executorStarving(Map<String, Worker> existingWorkersSnapshot, FTPClient ftp)
+    protected abstract void executorStarving(Map<String, Task> existingTasksSnapshot, FTPClient ftp)
             throws Exception;
     
     private final ThreadLocal<FTPClientHolder> ftpTls = new ThreadLocal<FTPClientHolder>();
     
     @Override
-    protected final void executorStarving(final Map<String, Worker> existingWorkersSnapshot)
+    protected final void executorStarving(final Map<String, Task> existingTasksSnapshot)
             throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
-            executorStarving(existingWorkersSnapshot, ftpHolder.ftp);
+            executorStarving(existingTasksSnapshot, ftpHolder.ftp);
             ftpHolder.setLastUsed(System.nanoTime());
         } catch (final Exception e) {
             invalidateFtp();
@@ -78,9 +78,9 @@ public abstract class BgFTPFolder extends BgContext {
         }
     }
     
-    public abstract class FtpWorker extends Worker {
+    public abstract class FtpTask extends Task {
         
-        public FtpWorker(final BgExecutor executor) {
+        public FtpTask(final BgExecutor executor) {
             executor.super();
         }
         
