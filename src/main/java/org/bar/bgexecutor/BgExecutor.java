@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same task twice. Good
- * for watching local and remote folders for new files. Easily programmed to shutdown when idle.
+ * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same task twice. Good for
+ * watching local and remote folders for new files. Easily programmed to shutdown when idle.
  */
 public class BgExecutor {
     
@@ -62,13 +62,13 @@ public class BgExecutor {
     
     /**
      * Called by {@link #run()} when it starts and also called periodically allowing to watch
-     * progress and add more tasks. For each context the default implementation schedules a call
-     * to {@link BgContext#executorStarving(Map) } in background thread. It schedules nothing and
+     * progress and add more tasks. For each context the default implementation schedules a call to
+     * {@link BgContext#executorStarving(Map) } in background thread. It schedules nothing and
      * returns false if all tasks completed. Do not perform lengthy operations in it, because
      * {@link BgExecutor} instance is locked and new tasks won't be able to start
      * 
-     * @param existingTasksSnapshot map of existing tasks by their key. Empty map means no
-     *            tasks added yet or all tasks completed
+     * @param existingTasksSnapshot map of existing tasks by their key. Empty map means no tasks
+     *            added yet or all tasks completed
      * @param doneItBefore false when it's called for the first time
      * @return true if should continue to run
      * @throws Exception
@@ -174,9 +174,9 @@ public class BgExecutor {
          * A callback for when we want more tasks from this context. This method itself is run in a
          * background task and it is safe to perform lengthy operations in it
          * 
-         * @param existingTasksSnapshot contains all tasks (including other contexts) BEFORE
-         *            this method was called. Useful to not accidentally submit same task that
-         *            completed while this method was executing
+         * @param existingTasksSnapshot contains all tasks (including other contexts) BEFORE this
+         *            method was called. Useful to not accidentally submit same task that completed
+         *            while this method was executing
          * @throws Exception
          */
         protected abstract void executorStarving(Map<String, Task> existingTasksSnapshot)
@@ -187,6 +187,14 @@ public class BgExecutor {
          * if you need to destroy some thread-local variable. Default implementation does nothing
          */
         protected void destroyTls() {}
+        
+        /**
+         * Used as part of the key for the executorStarving task. Make sure it's unique
+         */
+        @Override
+        public String toString() {
+            return super.toString();
+        }
     }
     
     /**
@@ -232,6 +240,13 @@ public class BgExecutor {
             return key;
         }
         
+        /**
+         * Used as an argument to {@link BgExecutor#setThreadHint(String)}. Make sure it's short
+         */
+        @Override
+        public String toString() {
+            return super.toString();
+        }
     }
     
     /**
