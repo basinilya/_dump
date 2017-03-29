@@ -1,6 +1,6 @@
-package org.bar.bgexecutor;
+package com.spr.ajwf.commons.bgexecutor;
 
-import static org.bar.bgexecutor.Log.*;
+import static com.spr.ajwf.commons.bgexecutor.Log.*;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,12 +23,12 @@ import java.util.concurrent.TimeoutException;
 public class BgExecutor {
     
     /**
-     * @param nThreads the number of threads in the pool
+     * @param nThreads
+     *            the number of threads in the pool
      */
     public BgExecutor(final int nThreads) {
-        executor =
-                (ThreadPoolExecutor) Executors.newFixedThreadPool(nThreads,
-                        new BgExecutorThreadFactory(this));
+        executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(nThreads,
+            new BgExecutorThreadFactory(this));
     }
     
     private boolean doneItBefore;
@@ -67,9 +67,11 @@ public class BgExecutor {
      * returns false if all tasks completed. Do not perform lengthy operations in it, because
      * {@link BgExecutor} instance is locked and new tasks won't be able to start
      * 
-     * @param existingTasksSnapshot map of existing tasks by their key. Empty map means no tasks
-     *            added yet or all tasks completed
-     * @param doneItBefore false when it's called for the first time
+     * @param existingTasksSnapshot
+     *            map of existing tasks by their key. Empty map means no tasks added yet or all
+     *            tasks completed
+     * @param doneItBefore
+     *            false when it's called for the first time
      * @return true if should continue to run
      * @throws Exception
      */
@@ -105,10 +107,12 @@ public class BgExecutor {
      * {@link ThreadPoolExecutor#afterExecute(Runnable, Throwable)} and unlocking a custom lock in
      * it
      * 
-     * @param timeoutSeconds the maximum time to wait
-     * @throws TimeoutException if the wait timed out
-     * @throws InterruptedException {@link Future#get()} called internally theoretically can throw
-     *             this
+     * @param timeoutSeconds
+     *            the maximum time to wait
+     * @throws TimeoutException
+     *             if the wait timed out
+     * @throws InterruptedException
+     *             {@link Future#get()} called internally theoretically can throw this
      */
     private void awaitStarvation(final long timeoutSeconds) throws TimeoutException,
             InterruptedException {
@@ -140,8 +144,10 @@ public class BgExecutor {
      * Tries to submit a task to our pool. Users should call this method from
      * {@link BgContext#executorStarving(Map)}
      * 
-     * @param key unique string to prevent simultaneous execution of same thing
-     * @param task the task
+     * @param key
+     *            unique string to prevent simultaneous execution of same thing
+     * @param task
+     *            the task
      * @return false if the key provided is already queued
      * @throws Exception
      */
@@ -174,9 +180,10 @@ public class BgExecutor {
          * A callback for when we want more tasks from this context. This method itself is run in a
          * background task and it is safe to perform lengthy operations in it
          * 
-         * @param existingTasksSnapshot contains all tasks (including other contexts) BEFORE this
-         *            method was called. Useful to not accidentally submit same task that completed
-         *            while this method was executing
+         * @param existingTasksSnapshot
+         *            contains all tasks (including other contexts) BEFORE this method was called.
+         *            Useful to not accidentally submit same task that completed while this method
+         *            was executing
          * @throws Exception
          */
         protected abstract void executorStarving(Map<String, Task> existingTasksSnapshot)
@@ -252,7 +259,8 @@ public class BgExecutor {
     /**
      * Sets a name for background thread indicating its state
      * 
-     * @param hint used as part of the thread name
+     * @param hint
+     *            used as part of the thread name
      */
     void setThreadHint(final String hint) {
         Thread.currentThread().setName("Bg" + Thread.currentThread().getId() + "(" + hint + ")");

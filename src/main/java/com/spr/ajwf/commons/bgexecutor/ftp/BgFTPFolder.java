@@ -1,11 +1,12 @@
-package org.bar.bgexecutor.ftp;
+package com.spr.ajwf.commons.bgexecutor.ftp;
 
 import java.util.Map;
 
 import org.apache.commons.net.ftp.FTPClient;
-import org.bar.bgexecutor.BgExecutor;
-import org.bar.bgexecutor.BgExecutor.BgContext;
-import org.bar.bgexecutor.BgExecutor.Task;
+
+import com.spr.ajwf.commons.bgexecutor.BgExecutor;
+import com.spr.ajwf.commons.bgexecutor.BgExecutor.BgContext;
+import com.spr.ajwf.commons.bgexecutor.BgExecutor.Task;
 
 public abstract class BgFTPFolder extends BgContext {
     

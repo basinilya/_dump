@@ -4,8 +4,9 @@ import java.io.InputStream;
 
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
-import org.bar.bgexecutor.ftp.BgFTPFolder;
-import org.bar.bgexecutor.ftp.BgFTPFolder.FtpTask;
+
+import com.spr.ajwf.commons.bgexecutor.ftp.BgFTPFolder;
+import com.spr.ajwf.commons.bgexecutor.ftp.BgFTPFolder.FtpTask;
 
 public class RetrieveTask extends FtpTask {
     

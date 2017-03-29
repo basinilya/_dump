@@ -1,6 +1,6 @@
 package org.foo;
 
-import static org.bar.bgexecutor.Log.*;
+import static com.spr.ajwf.commons.bgexecutor.Log.*;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -12,9 +12,10 @@ import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPClientConfig;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
-import org.bar.bgexecutor.BgExecutor;
-import org.bar.bgexecutor.BgExecutor.Task;
-import org.bar.bgexecutor.ftp.BgFTPFolder;
+
+import com.spr.ajwf.commons.bgexecutor.BgExecutor;
+import com.spr.ajwf.commons.bgexecutor.BgExecutor.Task;
+import com.spr.ajwf.commons.bgexecutor.ftp.BgFTPFolder;
 
 public class Main {
     
