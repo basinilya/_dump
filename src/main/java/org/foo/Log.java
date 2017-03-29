@@ -1,4 +1,4 @@
-package com.spr.ajwf.commons.bgexecutor;
+package org.foo;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;

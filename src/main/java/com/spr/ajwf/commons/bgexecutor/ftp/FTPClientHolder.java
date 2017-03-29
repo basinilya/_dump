@@ -1,6 +1,6 @@
 package com.spr.ajwf.commons.bgexecutor.ftp;
 
-import static com.spr.ajwf.commons.bgexecutor.Log.*;
+import static org.foo.Log.*;
 
 import java.io.IOException;
 
