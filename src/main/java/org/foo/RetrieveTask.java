@@ -19,6 +19,7 @@ public class RetrieveTask extends FtpTask {
     
     @Override
     public void call(final FTPClient ftp) throws Exception {
+        // ((Object) null).toString();
         progress = 0;
         
         final InputStream is = ftp.retrieveFileStream(file.getName());
@@ -37,7 +38,7 @@ public class RetrieveTask extends FtpTask {
         if (!ftp.completePendingCommand()) {
             throw new Exception("previous FTP command failed");
         }
-        Main.deletedFiles.add(this.getKey());
+        Main.DELETEDFILES.add(this.getKey());
     }
     
     @Override

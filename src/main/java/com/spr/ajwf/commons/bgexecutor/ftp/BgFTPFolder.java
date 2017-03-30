@@ -27,7 +27,7 @@ public abstract class BgFTPFolder extends BgContext {
             throws Exception {
         try {
             final FTPClientHolder ftpHolder = getFtp();
-            executorStarving(existingTasksSnapshot, ftpHolder.ftp);
+            executorStarving(existingTasksSnapshot, ftpHolder.getFtp());
             ftpHolder.setLastUsed(System.nanoTime());
         } catch (final Exception e) {
             invalidateFtp();
@@ -41,7 +41,7 @@ public abstract class BgFTPFolder extends BgContext {
             ftp = new FTPClientHolder();
             ftpTls.set(ftp);
             try {
-                connect(ftp.ftp);
+                connect(ftp.getFtp());
             } catch (final Exception e) {
                 invalidateFtp();
                 throw e;
@@ -91,7 +91,7 @@ public abstract class BgFTPFolder extends BgContext {
         protected final void call2() throws Exception {
             try {
                 final FTPClientHolder ftpHolder = getFtp();
-                call(ftpHolder.ftp);
+                call(ftpHolder.getFtp());
                 ftpHolder.setLastUsed(System.nanoTime());
             } catch (final Exception e) {
                 invalidateFtp();
@@ -107,6 +107,7 @@ public abstract class BgFTPFolder extends BgContext {
     
     private final BgExecutor executor;
     
+    @Override
     public BgExecutor getExecutor() {
         return executor;
     }

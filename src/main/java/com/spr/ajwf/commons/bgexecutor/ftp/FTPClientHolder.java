@@ -1,18 +1,18 @@
 package com.spr.ajwf.commons.bgexecutor.ftp;
 
-import static org.foo.Log.*;
-
 import java.io.IOException;
 
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
+import com.spr.ajwf.commons.logger.Logger;
+
 class FTPClientHolder {
     
     private long lastUsed;
     
-    final FTPClient ftp = new FTPClient();
+    private final FTPClient ftp = new FTPClient();
     
     public boolean validate() throws Exception {
         final int reply = ftp.noop();
@@ -21,7 +21,7 @@ class FTPClientHolder {
     }
     
     public void close() throws Exception {
-        log("close ftp client");
+        LOGGER.info("close ftp client");
         try {
             ftp.logout();
         } finally {
@@ -53,4 +53,9 @@ class FTPClientHolder {
         this.lastUsed = lastUsed;
     }
     
+    private static final Logger LOGGER = new Logger(FTPClientHolder.class);
+    
+    public FTPClient getFtp() {
+        return ftp;
+    }
 }

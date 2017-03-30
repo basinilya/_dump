@@ -1,7 +1,5 @@
 package com.spr.ajwf.commons.bgexecutor;
 
-import static org.foo.Log.*;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -15,6 +13,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import com.spr.ajwf.commons.logger.Logger;
 
 /**
  * Wrapper for {@link ThreadPoolExecutor} that prevents accidental run of same task twice. Good for
@@ -31,7 +31,7 @@ public class BgExecutor {
             new BgExecutorThreadFactory(this));
     }
     
-    private boolean doneItBefore;
+    private boolean doneItBeforeField;
     
     /**
      * Queries for initial tasks and waits until they all complete. See
@@ -39,25 +39,28 @@ public class BgExecutor {
      * 
      * @throws Exception
      */
-    public void run() throws Exception {
-        for (;;) {
-            synchronized (tasksByKey) {
-                if (!checkpoint(tasksByKey, doneItBefore)) {
-                    break;
+    public void run(final boolean failOnExecutionException) throws Exception {
+        try {
+            for (;;) {
+                synchronized (tasksByKey) {
+                    if (!checkpoint(tasksByKey, contexts, doneItBeforeField)) {
+                        break;
+                    }
+                }
+                doneItBeforeField = true;
+                
+                try {
+                    awaitStarvation(4, failOnExecutionException);
+                    // No exception. We starved
+                } catch (final TimeoutException e) {
+                    //
                 }
             }
-            doneItBefore = true;
-            
-            try {
-                awaitStarvation(4);
-                // No exception. We starved
-            } catch (final TimeoutException e) {
-                //
-            }
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            destroyTls();
         }
-        executor.shutdown();
-        executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-        destroyTls();
     }
     
     /**
@@ -70,31 +73,21 @@ public class BgExecutor {
      * @param existingTasksSnapshot
      *            map of existing tasks by their key. Empty map means no tasks added yet or all
      *            tasks completed
+     * @param contextsSnapshot
+     *            set of contexts
      * @param doneItBefore
      *            false when it's called for the first time
      * @return true if should continue to run
      * @throws Exception
      */
     protected boolean checkpoint(final Map<String, Task> existingTasksSnapshot,
-            final boolean doneItBefore) throws Exception {
+            final Set<BgContext> contextsSnapshot, final boolean doneItBefore) throws Exception {
         if (doneItBefore && existingTasksSnapshot.size() == 0) {
             // all tasks completed
             return false;
         }
-        final String taskName = "executorStarving()";
-        for (final BgContext ctx : contexts) {
-            trySubmit(ctx.toString() + " " + taskName, new Task() {
-                
-                @Override
-                protected void call2() throws Exception {
-                    ctx.executorStarving(mksnapshotTasks());
-                }
-                
-                @Override
-                public String toString() {
-                    return taskName;
-                }
-            });
+        for (final BgContext ctx : contextsSnapshot) {
+            ctx.submitStarving();
         }
         return true;
     }
@@ -114,8 +107,8 @@ public class BgExecutor {
      * @throws InterruptedException
      *             {@link Future#get()} called internally theoretically can throw this
      */
-    private void awaitStarvation(final long timeoutSeconds) throws TimeoutException,
-            InterruptedException {
+    private void awaitStarvation(final long timeoutSeconds, final boolean failOnExecutionException)
+            throws TimeoutException, ExecutionException, InterruptedException {
         final long begNanos = System.nanoTime();
         final long endNanos = begNanos + (timeoutSeconds * 1000000000L);
         
@@ -134,7 +127,10 @@ public class BgExecutor {
                     // InterruptedException, ExecutionException, TimeoutException;
                     task.fut.get(timeoutNanos, TimeUnit.NANOSECONDS);
                 } catch (final ExecutionException e) {
-                    log("executor dispatched exception to main thread", e);
+                    if (failOnExecutionException) {
+                        throw e;
+                    }
+                    LOGGER.info("swallow exception dispatched to main thread", e.getCause());
                 }
             }
         }
@@ -202,6 +198,26 @@ public class BgExecutor {
         public String toString() {
             return super.toString();
         }
+        
+        public BgExecutor getExecutor() {
+            return BgExecutor.this;
+        }
+        
+        public boolean submitStarving() throws Exception {
+            final String taskName = "executorStarving()";
+            return trySubmit(toString() + " " + taskName, new Task() {
+                
+                @Override
+                protected void call2() throws Exception {
+                    executorStarving(mksnapshotTasks());
+                }
+                
+                @Override
+                public String toString() {
+                    return taskName;
+                }
+            });
+        }
     }
     
     /**
@@ -216,20 +232,23 @@ public class BgExecutor {
         private Future<Void> fut;
         
         /**
-         * This implementation ensures that a task is removed from our map of futures when it
+         * This implementation ensures that the task is removed from our map of futures when it
          * completes so the map does not grow infinitely
          */
         @Override
         public final Void call() throws Exception {
             setThreadHint(toString());
-            log("task start: " + key);
+            LOGGER.trace("task start: " + key);
             try {
                 call2();
+            } catch (final Exception e) {
+                LOGGER.info("Exception in background thread. Dispatching it to main thread:", e);
+                throw e;
             } finally {
                 synchronized (tasksByKey) {
                     tasksByKey.remove(key);
                 }
-                log("task end: " + key);
+                LOGGER.trace("task end: " + key);
                 setThreadHint("idle");
             }
             
@@ -290,7 +309,7 @@ public class BgExecutor {
      * {@link BgContext#destroyTls()}
      */
     void destroyTls() {
-        HashSet<BgContext> contextsSnapshot;
+        HashSet<BgContext> contextsSnapshot = null;
         synchronized (tasksByKey) {
             contextsSnapshot = new HashSet<BgContext>(contexts);
         }
@@ -306,7 +325,7 @@ public class BgExecutor {
      */
     @Override
     protected void finalize() throws Throwable {
-        log(this + " finalize()");
+        LOGGER.trace(this + " finalize()");
         try {
             executor.shutdown();
         } catch (final Exception e) {
@@ -314,7 +333,9 @@ public class BgExecutor {
         super.finalize();
     }
     
-    public ThreadPoolExecutor getExecutor() {
+    public ThreadPoolExecutor getPoolExecutor() {
         return executor;
     }
+    
+    private static final Logger LOGGER = new Logger(BgExecutor.class);
 }
