@@ -3,7 +3,6 @@ package com.spr.ajwf.commons.bgexecutor.ftp;
 import java.io.IOException;
 
 import org.apache.commons.net.ftp.FTPClient;
-import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
 import com.spr.ajwf.commons.logger.Logger;
@@ -33,16 +32,6 @@ class FTPClientHolder {
                 }
             }
         }
-    }
-    
-    public FTPFile[] listFiles() throws Exception {
-        final FTPFile[] files = ftp.listFiles();
-        lastUsed = System.nanoTime();
-        return files;
-        /*
-         * String[] rslt = new String[files.length]; for (int i = 0 ; i < files.length; i++) {
-         * FTPFile f = files[i]; rslt[i] = f.getName(); f.getSize(); } return rslt;
-         */
     }
     
     public long getLastUsed() {
