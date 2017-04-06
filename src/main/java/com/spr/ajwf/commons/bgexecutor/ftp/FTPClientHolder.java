@@ -38,8 +38,8 @@ class FTPClientHolder {
         return lastUsed;
     }
     
-    public void setLastUsed(final long lastUsed) {
-        this.lastUsed = lastUsed;
+    public void use() {
+        this.lastUsed = System.nanoTime();
     }
     
     private static final Logger LOGGER = new Logger(FTPClientHolder.class);
