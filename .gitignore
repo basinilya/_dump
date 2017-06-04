@@ -1,0 +1,7 @@
+*.o
+*.swp
+*.stackdump
+core*
+.gdb_history
+*.exe
+test
