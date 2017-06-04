@@ -104,10 +104,10 @@ g_tree_find_node_ex (GTree        *tree,
 
       if (cmp < 0)
         {
-          if ( (mode & find_floor) && last_lesser_node) {
-            return last_lesser_node;
-          }
           if (!node->left_child) {
+            if ( (mode & find_floor) ) {
+              return last_lesser_node; /* can be null */
+            }
             if ( (mode & find_ceil) ) {
               return node;
             }
@@ -119,10 +119,10 @@ g_tree_find_node_ex (GTree        *tree,
         }
       else
         {
-          if ( (mode & find_ceil) && last_greater_node) {
-            return last_greater_node;
-          }
           if (!node->right_child) {
+            if ( (mode & find_ceil) ) {
+              return last_greater_node; /* can be null */
+            }
             if ( (mode & find_floor) ) {
               return node;
             }
@@ -218,6 +218,15 @@ int main(int argc, char *argv[]) {
 	g_tree_insert(tree, GINT_TO_POINTER(8), "eight");
 	g_tree_insert(tree, GINT_TO_POINTER(-1), "minus one");
 	g_tree_insert(tree, GINT_TO_POINTER(0), "zero");
+
+	g_tree_insert(tree, GINT_TO_POINTER(-40), "minus fourty");
+	g_tree_insert(tree, GINT_TO_POINTER(-41), "minus fourty one");
+	g_tree_insert(tree, GINT_TO_POINTER(-42), "minus fourty two");
+
+	g_tree_insert(tree, GINT_TO_POINTER(40), "fourty");
+	g_tree_insert(tree, GINT_TO_POINTER(41), "fourty one");
+	g_tree_insert(tree, GINT_TO_POINTER(42), "fourty two");
+
 	g_tree_foreach(tree, traverse, NULL);
 	printf("=======\n");
 	// node = ;
@@ -254,15 +263,15 @@ int main(int argc, char *argv[]) {
 
 	assertEquals(-99, ceilingKey(-100));
 	assertEquals(-99, ceilingKey(-99));
-	assertEquals(-1, ceilingKey(-98));
+	assertEquals(-42, ceilingKey(-98));
 
 	assertEquals(exp_root, ceilingKey(root_key-1));
 	assertEquals(exp_root, ceilingKey(root_key));
 	assertEquals(exp_root_right, ceilingKey(root_key+1));
 
-	assertEquals(20, ceilingKey(19));
-	assertEquals(20, ceilingKey(20));
-	assertNull(ceilingKey(21));
+	assertEquals(40, ceilingKey(38));
+	assertEquals(42, ceilingKey(42));
+	assertNull(ceilingKey(43));
 
 	// /////////////
 
@@ -282,16 +291,16 @@ int main(int argc, char *argv[]) {
 	// /////////////
 
 	assertEquals(-99, higherKey(-100));
-	assertEquals(-1, higherKey(-99));
-	assertEquals(-1, higherKey(-98));
+	assertEquals(-42, higherKey(-99));
+	assertEquals(-42, higherKey(-98));
 
 	assertEquals(exp_root, higherKey(root_key-1));
 	assertEquals(exp_root_right, higherKey(root_key));
 	assertEquals(exp_root_right, higherKey(root_key+1));
 
 	assertEquals(20, higherKey(19));
-	assertNull(higherKey(20));
-	assertNull(higherKey(21));
+	assertNull(higherKey(42));
+	assertNull(higherKey(43));
 
 	return 0;
 }
