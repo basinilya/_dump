@@ -66,39 +66,12 @@ g_tree_last_node(GTree *tree)
   return tmp;
 }
 
-static
-gint compare_int(gconstpointer p1, gconstpointer p2) {
-	int i1 = GPOINTER_TO_INT(p1);
-	int i2 = GPOINTER_TO_INT(p2);
-	//printf("%d %d\n", i1, i2);
-	return i1 == i2 ? 0 : i1 > i2 ? 1 : -1;
-}
-
-
-static
-gboolean traverse(gpointer key, gpointer value, gpointer data) {
-	const char *sval = (const char *)value;
-	printf("%s\n", sval);
-	return FALSE;
-}
-
-/*
-static
-gint find_last(gconstpointer p, gpointer user_data) {
-	return 1;
-}
-*/
-
-static inline gpointer node_val(GTreeNode *node) {
-	return node ? node->value : NULL;
-}
-
-static inline char *node_key(GTreeNode *node, char buf[11]) {
-	return node ? (sprintf(buf, "%d", GPOINTER_TO_INT(node->key)),buf) : "NULL";
-}
-
 typedef enum {
-	find_exact, find_floor, find_ceil, find_lower, find_upper
+	find_exact = 0,
+	find_floor = 0x2,
+	find_ceil  = 0x20,
+	find_lower = find_floor + 1,
+	find_higher = find_ceil + 1
 } find_mode;
 
 static GTreeNode *
@@ -119,17 +92,23 @@ g_tree_find_node_ex (GTree        *tree,
   while (1)
     {
       cmp = tree->key_compare (key, node->key, tree->key_compare_data);
-      if (cmp == 0)
-        return node;
-      else if (cmp < 0)
+      if (cmp == 0) {
+        if (mode == find_lower) {
+          cmp = -1;
+        } else if (mode == find_higher) {
+          cmp = 1;
+        } else {
+          return node;
+        }
+      }
+
+      if (cmp < 0)
         {
-          // искомый ключ меньше текущей ноды
-          
-          if (mode == find_floor && last_lesser_node) {
+          if ( (mode & find_floor) && last_lesser_node) {
             return last_lesser_node;
           }
           if (!node->left_child) {
-            if (mode == find_ceil) {
+            if ( (mode & find_ceil) ) {
               return node;
             }
             return NULL;
@@ -140,11 +119,11 @@ g_tree_find_node_ex (GTree        *tree,
         }
       else
         {
-          if (mode == find_ceil && last_greater_node) {
+          if ( (mode & find_ceil) && last_greater_node) {
             return last_greater_node;
           }
           if (!node->right_child) {
-            if (mode == find_floor) {
+            if ( (mode & find_floor) ) {
               return node;
             }
             return NULL;
@@ -156,6 +135,36 @@ g_tree_find_node_ex (GTree        *tree,
     }
 }
 
+
+
+
+
+#ifdef GTREEEX_DEBUG
+
+static
+gint compare_int(gconstpointer p1, gconstpointer p2) {
+	int i1 = GPOINTER_TO_INT(p1);
+	int i2 = GPOINTER_TO_INT(p2);
+	//printf("%d %d\n", i1, i2);
+	return i1 == i2 ? 0 : i1 > i2 ? 1 : -1;
+}
+
+
+static
+gboolean traverse(gpointer key, gpointer value, gpointer data) {
+	const char *sval = (const char *)value;
+	printf("%s\n", sval);
+	return FALSE;
+}
+
+static inline gpointer node_val(GTreeNode *node) {
+	return node ? node->value : NULL;
+}
+
+static inline char *node_key(GTreeNode *node, char buf[11]) {
+	return node ? (sprintf(buf, "%d", GPOINTER_TO_INT(node->key)),buf) : "NULL";
+}
+
 static inline GTreeNode *_floorKey(GTree *tree, int key) {
 	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_floor);
 }
@@ -165,6 +174,11 @@ static inline GTreeNode *_lowerKey(GTree *tree, int key) {
 	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_lower);
 }
 #define lowerKey(key) _lowerKey(tree, key)
+
+static inline GTreeNode *_higherKey(GTree *tree, int key) {
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_higher);
+}
+#define higherKey(key) _higherKey(tree, key)
 
 
 static inline GTreeNode *_ceilingKey(GTree *tree, int key) {
@@ -250,15 +264,11 @@ int main(int argc, char *argv[]) {
 	assertEquals(20, ceilingKey(20));
 	assertNull(ceilingKey(21));
 
-#if 0
-#endif
-
 	// /////////////
 
 	assertNull(lowerKey(-100));
 	assertNull(lowerKey(-99));
 	assertEquals(-99, lowerKey(-98));
-#if 0
 
 	assertEquals(exp_root_left, lowerKey(root_key-1));
 	assertEquals(exp_root_left, lowerKey(root_key));
@@ -267,6 +277,7 @@ int main(int argc, char *argv[]) {
 	assertEquals(10, lowerKey(19));
 	assertEquals(10, lowerKey(20));
 	assertEquals(20, lowerKey(21));
+
 
 	// /////////////
 
@@ -282,8 +293,7 @@ int main(int argc, char *argv[]) {
 	assertNull(higherKey(20));
 	assertNull(higherKey(21));
 
-#endif
-
 	return 0;
 }
 
+#endif /* GTREEEX_DEBUG */
