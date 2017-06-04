@@ -98,7 +98,7 @@ static inline char *node_key(GTreeNode *node, char buf[11]) {
 }
 
 typedef enum {
-	find_exact, find_floor, find_ceil
+	find_exact, find_floor, find_ceil, find_lower, find_upper
 } find_mode;
 
 static GTreeNode *
@@ -157,26 +157,44 @@ g_tree_find_node_ex (GTree        *tree,
 }
 
 static inline GTreeNode *_floorKey(GTree *tree, int key) {
-	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_ceil);
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_floor);
 }
 #define floorKey(key) _floorKey(tree, key)
 
-static inline void assertEquals(int expected, GTreeNode *actual_node) {
+static inline GTreeNode *_lowerKey(GTree *tree, int key) {
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_lower);
+}
+#define lowerKey(key) _lowerKey(tree, key)
+
+
+static inline GTreeNode *_ceilingKey(GTree *tree, int key) {
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_ceil);
+}
+#define ceilingKey(key) _ceilingKey(tree, key)
+
+static inline void _assertEquals(int line, int expected, GTreeNode *actual_node) {
 	char buf[11];
 	if (actual_node && GINT_TO_POINTER(expected) == actual_node->key) return;
-	printf("expected: %d actual: %s\n", expected, node_key(actual_node, buf));
+	printf(":%d expected: %d actual: %s\n", line, expected, node_key(actual_node, buf));
 	exit(1);
 }
 
-static inline void assertNull(GTreeNode *actual_node) {
+static inline void _assertNull(int line, GTreeNode *actual_node) {
 	char buf[11];
 	if (!actual_node) return;
-	printf("expected: NULL actual: %s\n", node_key(actual_node, buf));
+	printf(":%d expected: NULL actual: %s\n", line, node_key(actual_node, buf));
 	exit(1);
 }
+#define assertNull(actual_node) _assertNull(__LINE__, actual_node)
+#define assertEquals(expected, actual_node) _assertEquals(__LINE__, expected, actual_node)
+
+#define exp_root 8
+#define exp_root_left 0
+#define exp_root_right 10
 
 int main(int argc, char *argv[]) {
 	GTreeNode *root_node;
+	int root_key;
 	//int key;
 	// GTreeNode *node;
 	GTree *tree = g_tree_new(compare_int);
@@ -195,20 +213,24 @@ int main(int argc, char *argv[]) {
 	//printf("floor for %d: %s\n", key, NULS(node_val(g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_floor))));
 	//printf("=======\n%s\n", NULS((const char*)g_tree_search(tree, (GCompareFunc)find_last, NULL)));
 
+	printf("=======\n");
+
 	// ////////////////////
 
 	root_node = tree->root;
-	assertEquals(10, root_node);
+	assertEquals(8, root_node);
+	root_key = GPOINTER_TO_INT(root_node->key);
 	// System.out.println("root key: " + rootKey);
 
+
 	assertNull(floorKey(-100));
-#if 0
 	assertEquals(-99, floorKey(-99));
 	assertEquals(-99, floorKey(-98));
 
-	assertEquals(8, floorKey(9));
-	assertEquals(10, floorKey(10));
-	assertEquals(10, floorKey(11));
+
+	assertEquals(exp_root_left, floorKey(root_key-1));
+	assertEquals(exp_root, floorKey(root_key));
+	assertEquals(exp_root, floorKey(root_key+1));
 
 	assertEquals(10, floorKey(19));
 	assertEquals(20, floorKey(20));
@@ -220,23 +242,27 @@ int main(int argc, char *argv[]) {
 	assertEquals(-99, ceilingKey(-99));
 	assertEquals(-1, ceilingKey(-98));
 
-	assertEquals(10, ceilingKey(9));
-	assertEquals(10, ceilingKey(10));
-	assertEquals(20, ceilingKey(11));
+	assertEquals(exp_root, ceilingKey(root_key-1));
+	assertEquals(exp_root, ceilingKey(root_key));
+	assertEquals(exp_root_right, ceilingKey(root_key+1));
 
 	assertEquals(20, ceilingKey(19));
 	assertEquals(20, ceilingKey(20));
 	assertNull(ceilingKey(21));
+
+#if 0
+#endif
 
 	// /////////////
 
 	assertNull(lowerKey(-100));
 	assertNull(lowerKey(-99));
 	assertEquals(-99, lowerKey(-98));
+#if 0
 
-	assertEquals(8, lowerKey(9));
-	assertEquals(8, lowerKey(10));
-	assertEquals(10, lowerKey(11));
+	assertEquals(exp_root_left, lowerKey(root_key-1));
+	assertEquals(exp_root_left, lowerKey(root_key));
+	assertEquals(exp_root, lowerKey(root_key+1));
 
 	assertEquals(10, lowerKey(19));
 	assertEquals(10, lowerKey(20));
@@ -248,9 +274,9 @@ int main(int argc, char *argv[]) {
 	assertEquals(-1, higherKey(-99));
 	assertEquals(-1, higherKey(-98));
 
-	assertEquals(10, higherKey(9));
-	assertEquals(20, higherKey(10));
-	assertEquals(20, higherKey(11));
+	assertEquals(exp_root, higherKey(root_key-1));
+	assertEquals(exp_root_right, higherKey(root_key));
+	assertEquals(exp_root_right, higherKey(root_key+1));
 
 	assertEquals(20, higherKey(19));
 	assertNull(higherKey(20));
