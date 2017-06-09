@@ -117,9 +117,10 @@ fm_rec_echo() {
 
 fm_rec_roks() {
     local convargs
-    #convargs='-c copy'
-    convargs='-q:a 9'
-    local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
+    convargs='-c copy'
+    #convargs='-q:a 9'
+    #local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed -n "s,.*\\\\'url\\\\': \\\\'\\(rtmp://[^\\\\]*\)\\\\'.*,\1,;t L1;d;:L1 p;q" )
+    local url=$( wget --quiet -O - "http://roks.ru/player.php" | sed 's,.*"\([^"]*roks.stream[^"]*\).*,\1,;t;d' )
     if [ -z "$url" ]; then
         echo "failed to get stream url"
 	rc=1
