@@ -160,6 +160,10 @@ static inline void put(int key, int val) {
 	g_tree_insert(tree, GINT_TO_POINTER(key), GINT_TO_POINTER(key));
 }
 
+static inline GTreeNode *get(int key) {
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_EXACT);
+}
+
 static inline GTreeNode *floorKey(int key) {
 	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_FLOOR);
 }
@@ -196,86 +200,116 @@ int main(int argc, char *argv[]) {
 
 	tree = g_tree_new(compare_int);
 
-	for (int i = -9; i <= 9; i += 4) {
+	for (int i = -9; i <= 9; i += 3) {
 		put(i, i);
 	}
 
+assertNull(get(-10));
 assertNull(floorKey(-10));
 assertEquals(-9, ceilingKey(-10));
 assertNull(lowerKey(-10));
 assertEquals(-9, higherKey(-10));
+assertEquals(-9, get(-9));
 assertEquals(-9, floorKey(-9));
 assertEquals(-9, ceilingKey(-9));
 assertNull(lowerKey(-9));
-assertEquals(-5, higherKey(-9));
+assertEquals(-6, higherKey(-9));
+assertNull(get(-8));
 assertEquals(-9, floorKey(-8));
-assertEquals(-5, ceilingKey(-8));
+assertEquals(-6, ceilingKey(-8));
 assertEquals(-9, lowerKey(-8));
-assertEquals(-5, higherKey(-8));
+assertEquals(-6, higherKey(-8));
+assertNull(get(-7));
 assertEquals(-9, floorKey(-7));
-assertEquals(-5, ceilingKey(-7));
+assertEquals(-6, ceilingKey(-7));
 assertEquals(-9, lowerKey(-7));
-assertEquals(-5, higherKey(-7));
-assertEquals(-9, floorKey(-6));
-assertEquals(-5, ceilingKey(-6));
+assertEquals(-6, higherKey(-7));
+assertEquals(-6, get(-6));
+assertEquals(-6, floorKey(-6));
+assertEquals(-6, ceilingKey(-6));
 assertEquals(-9, lowerKey(-6));
-assertEquals(-5, higherKey(-6));
-assertEquals(-5, floorKey(-5));
-assertEquals(-5, ceilingKey(-5));
-assertEquals(-9, lowerKey(-5));
-assertEquals(-1, higherKey(-5));
-assertEquals(-5, floorKey(-4));
-assertEquals(-1, ceilingKey(-4));
-assertEquals(-5, lowerKey(-4));
-assertEquals(-1, higherKey(-4));
-assertEquals(-5, floorKey(-3));
-assertEquals(-1, ceilingKey(-3));
-assertEquals(-5, lowerKey(-3));
-assertEquals(-1, higherKey(-3));
-assertEquals(-5, floorKey(-2));
-assertEquals(-1, ceilingKey(-2));
-assertEquals(-5, lowerKey(-2));
-assertEquals(-1, higherKey(-2));
-assertEquals(-1, floorKey(-1));
-assertEquals(-1, ceilingKey(-1));
-assertEquals(-5, lowerKey(-1));
-assertEquals(3, higherKey(-1));
-assertEquals(-1, floorKey(0));
-assertEquals(3, ceilingKey(0));
-assertEquals(-1, lowerKey(0));
+assertEquals(-3, higherKey(-6));
+assertNull(get(-5));
+assertEquals(-6, floorKey(-5));
+assertEquals(-3, ceilingKey(-5));
+assertEquals(-6, lowerKey(-5));
+assertEquals(-3, higherKey(-5));
+assertNull(get(-4));
+assertEquals(-6, floorKey(-4));
+assertEquals(-3, ceilingKey(-4));
+assertEquals(-6, lowerKey(-4));
+assertEquals(-3, higherKey(-4));
+assertEquals(-3, get(-3));
+assertEquals(-3, floorKey(-3));
+assertEquals(-3, ceilingKey(-3));
+assertEquals(-6, lowerKey(-3));
+assertEquals(0, higherKey(-3));
+assertNull(get(-2));
+assertEquals(-3, floorKey(-2));
+assertEquals(0, ceilingKey(-2));
+assertEquals(-3, lowerKey(-2));
+assertEquals(0, higherKey(-2));
+assertNull(get(-1));
+assertEquals(-3, floorKey(-1));
+assertEquals(0, ceilingKey(-1));
+assertEquals(-3, lowerKey(-1));
+assertEquals(0, higherKey(-1));
+assertEquals(0, get(0));
+assertEquals(0, floorKey(0));
+assertEquals(0, ceilingKey(0));
+assertEquals(-3, lowerKey(0));
 assertEquals(3, higherKey(0));
-assertEquals(-1, floorKey(1));
+assertNull(get(1));
+assertEquals(0, floorKey(1));
 assertEquals(3, ceilingKey(1));
-assertEquals(-1, lowerKey(1));
+assertEquals(0, lowerKey(1));
 assertEquals(3, higherKey(1));
-assertEquals(-1, floorKey(2));
+assertNull(get(2));
+assertEquals(0, floorKey(2));
 assertEquals(3, ceilingKey(2));
-assertEquals(-1, lowerKey(2));
+assertEquals(0, lowerKey(2));
 assertEquals(3, higherKey(2));
+assertEquals(3, get(3));
 assertEquals(3, floorKey(3));
 assertEquals(3, ceilingKey(3));
-assertEquals(-1, lowerKey(3));
-assertEquals(7, higherKey(3));
+assertEquals(0, lowerKey(3));
+assertEquals(6, higherKey(3));
+assertNull(get(4));
 assertEquals(3, floorKey(4));
-assertEquals(7, ceilingKey(4));
+assertEquals(6, ceilingKey(4));
 assertEquals(3, lowerKey(4));
-assertEquals(7, higherKey(4));
+assertEquals(6, higherKey(4));
+assertNull(get(5));
 assertEquals(3, floorKey(5));
-assertEquals(7, ceilingKey(5));
+assertEquals(6, ceilingKey(5));
 assertEquals(3, lowerKey(5));
-assertEquals(7, higherKey(5));
-assertEquals(3, floorKey(6));
-assertEquals(7, ceilingKey(6));
+assertEquals(6, higherKey(5));
+assertEquals(6, get(6));
+assertEquals(6, floorKey(6));
+assertEquals(6, ceilingKey(6));
 assertEquals(3, lowerKey(6));
-assertEquals(7, higherKey(6));
-assertEquals(7, floorKey(7));
-assertEquals(7, ceilingKey(7));
-assertEquals(3, lowerKey(7));
-assertNull(higherKey(7));
-assertEquals(7, floorKey(8));
-assertNull(ceilingKey(8));
-assertEquals(7, lowerKey(8));
-assertNull(higherKey(8));
+assertEquals(9, higherKey(6));
+assertNull(get(7));
+assertEquals(6, floorKey(7));
+assertEquals(9, ceilingKey(7));
+assertEquals(6, lowerKey(7));
+assertEquals(9, higherKey(7));
+assertNull(get(8));
+assertEquals(6, floorKey(8));
+assertEquals(9, ceilingKey(8));
+assertEquals(6, lowerKey(8));
+assertEquals(9, higherKey(8));
+assertEquals(9, get(9));
+assertEquals(9, floorKey(9));
+assertEquals(9, ceilingKey(9));
+assertEquals(6, lowerKey(9));
+assertNull(higherKey(9));
+assertNull(get(10));
+assertEquals(9, floorKey(10));
+assertNull(ceilingKey(10));
+assertEquals(9, lowerKey(10));
+assertNull(higherKey(10));
+
 
 	printf("PASSED\n");
 
