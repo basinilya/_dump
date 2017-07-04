@@ -5,10 +5,6 @@
 
 #include <glib.h>
 
-static inline const char *NULS(const char *s) {
-	return s ? s : "NULL";
-}
-
 /* opaque glib structures */
 typedef struct _GTreeNode GTreeNode;
 
