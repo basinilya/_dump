@@ -67,11 +67,11 @@ g_tree_last_node(GTree *tree)
 }
 
 typedef enum {
-	find_exact = 0,
-	find_floor = 0x2,
-	find_ceil  = 0x20,
-	find_lower = find_floor + 1,
-	find_higher = find_ceil + 1
+	FIND_EXACT = 0,
+	FIND_FLOOR = 0x2,
+	FIND_CEIL  = 0x20,
+	FIND_LOWER = (FIND_FLOOR + 1),
+	FIND_HIGHER = (FIND_CEIL + 1)
 } find_mode;
 
 static GTreeNode *
@@ -93,9 +93,9 @@ g_tree_find_node_ex (GTree        *tree,
     {
       cmp = tree->key_compare (key, node->key, tree->key_compare_data);
       if (cmp == 0) {
-        if (mode == find_lower) {
+        if (mode == FIND_LOWER) {
           cmp = -1;
-        } else if (mode == find_higher) {
+        } else if (mode == FIND_HIGHER) {
           cmp = 1;
         } else {
           return node;
@@ -105,10 +105,10 @@ g_tree_find_node_ex (GTree        *tree,
       if (cmp < 0)
         {
           if (!node->left_child) {
-            if ( (mode & find_floor) ) {
+            if ( (mode & FIND_FLOOR) ) {
               return last_lesser_node; /* can be null */
             }
-            if ( (mode & find_ceil) ) {
+            if ( (mode & FIND_CEIL) ) {
               return node;
             }
             return NULL;
@@ -120,10 +120,10 @@ g_tree_find_node_ex (GTree        *tree,
       else
         {
           if (!node->right_child) {
-            if ( (mode & find_ceil) ) {
+            if ( (mode & FIND_CEIL) ) {
               return last_greater_node; /* can be null */
             }
-            if ( (mode & find_floor) ) {
+            if ( (mode & FIND_FLOOR) ) {
               return node;
             }
             return NULL;
@@ -161,19 +161,19 @@ static inline void put(int key, int val) {
 }
 
 static inline GTreeNode *floorKey(int key) {
-	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_floor);
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_FLOOR);
 }
 
 static inline GTreeNode *lowerKey(int key) {
-	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_lower);
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_LOWER);
 }
 
 static inline GTreeNode *higherKey(int key) {
-	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_higher);
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_HIGHER);
 }
 
 static inline GTreeNode *ceilingKey(int key) {
-	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), find_ceil);
+	return g_tree_find_node_ex(tree, GINT_TO_POINTER(key), FIND_CEIL);
 }
 
 static inline void _assertEquals(int line, int expected, GTreeNode *actual_node) {
