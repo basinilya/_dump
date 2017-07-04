@@ -13,6 +13,13 @@
     <artifactId>commons-net</artifactId>
     <version>3.3</version>
 </dependency>
+
+
+<dependency>
+  <groupId>com.oracle</groupId>
+  <artifactId>ojdbc7</artifactId>
+  <version>12.1.0.1</version>
+</dependency>
 <!-- 
 <dependency>
     <groupId>commons-dbcp</groupId>
@@ -22,6 +29,29 @@
  -->
 <!--
 -->
+	<dependency>
+		<groupId>commons-collections</groupId>
+		<artifactId>commons-collections</artifactId>
+		<version>3.2.2</version>
+	</dependency>
+	<dependency>
+  <groupId>commons-lang</groupId>
+  <artifactId>commons-lang</artifactId>
+  <version>2.4</version>
+	</dependency>
+
+<dependency>
+	<groupId>com.google.guava</groupId>
+	<artifactId>guava</artifactId>
+	<version>21.0</version>
+</dependency>
+
+
+	<dependency>
+		<groupId>commons-io</groupId>
+		<artifactId>commons-io</artifactId>
+		<version>2.5</version>
+	</dependency>
 </dependencies>
 
   <build>
@@ -29,8 +59,8 @@
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
+          <source>1.7</source>
+          <target>1.7</target>
         </configuration>
       </plugin>
     </plugins>
