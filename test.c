@@ -14,56 +14,40 @@ typedef struct _GTreeNode GTreeNode;
 
 struct _GTree
 {
-  GTreeNode        *root;
-  GCompareDataFunc  key_compare;
-  GDestroyNotify    key_destroy_func;
-  GDestroyNotify    value_destroy_func;
-  gpointer          key_compare_data;
-  guint             nnodes;
-  gint              ref_count;
+	GTreeNode        *root;
+	GCompareDataFunc  key_compare;
+	GDestroyNotify    key_destroy_func;
+	GDestroyNotify    value_destroy_func;
+	gpointer          key_compare_data;
+	guint             nnodes;
+	gint              ref_count;
 };
 
 struct _GTreeNode
 {
-  gpointer   key;         /* key for this node */
-  gpointer   value;       /* value stored at this node */
-  GTreeNode *left;        /* left subtree */
-  GTreeNode *right;       /* right subtree */
-  gint8      balance;     /* height (right) - height (left) */
-  guint8     left_child;
-  guint8     right_child;
+	gpointer   key;         /* key for this node */
+	gpointer   value;       /* value stored at this node */
+	GTreeNode *left;        /* left subtree */
+	GTreeNode *right;       /* right subtree */
+	gint8      balance;     /* height (right) - height (left) */
+	guint8     left_child;
+	guint8     right_child;
 };
-
-static inline GTreeNode *
-g_tree_first_node(GTree *tree)
-{
-  GTreeNode *tmp;
-
-  if (!tree->root)
-    return NULL;
-
-  tmp = tree->root;
-
-  while (tmp->left_child)
-    tmp = tmp->left;
-
-  return tmp;
-}
 
 static inline GTreeNode *
 g_tree_last_node(GTree *tree)
 {
-  GTreeNode *tmp;
+	GTreeNode *tmp;
 
-  if (!tree->root)
-    return NULL;
+	if (!tree->root)
+		return NULL;
 
-  tmp = tree->root;
+	tmp = tree->root;
 
-  while (tmp->right_child)
-    tmp = tmp->right;
+	while (tmp->right_child)
+		tmp = tmp->right;
 
-  return tmp;
+	return tmp;
 }
 
 typedef enum {
@@ -81,59 +65,59 @@ g_tree_find_node_ex (GTree        *tree,
                   find_mode mode
                   )
 {
-  GTreeNode *node;
-  gint cmp;
-  GTreeNode *last_lesser_node = NULL;
-  GTreeNode *last_greater_node = NULL;
+	GTreeNode *node;
+	gint cmp;
+	GTreeNode *last_lesser_node = NULL;
+	GTreeNode *last_greater_node = NULL;
 
-  node = tree->root;
-  if (!node)
-    return NULL;
+	node = tree->root;
+	if (!node)
+		return NULL;
 
-  while (1)
-    {
-      cmp = key_compare (key, node->key, tree->key_compare_data);
-      if (cmp == 0) {
-        if (mode == FIND_LOWER) {
-          cmp = -1;
-        } else if (mode == FIND_HIGHER) {
-          cmp = 1;
-        } else {
-          return node;
-        }
-      }
+	while (1)
+		{
+			cmp = key_compare (key, node->key, tree->key_compare_data);
+			if (cmp == 0) {
+				if (mode == FIND_LOWER) {
+					cmp = -1;
+				} else if (mode == FIND_HIGHER) {
+					cmp = 1;
+				} else {
+					return node;
+				}
+			}
 
-      if (cmp < 0)
-        {
-          if (!node->left_child) {
-            if ( (mode & FIND_FLOOR) ) {
-              return last_lesser_node; /* can be null */
-            }
-            if ( (mode & FIND_CEIL) ) {
-              return node;
-            }
-            return NULL;
-          }
+			if (cmp < 0)
+				{
+					if (!node->left_child) {
+						if ( (mode & FIND_FLOOR) ) {
+							return last_lesser_node; /* can be null */
+						}
+						if ( (mode & FIND_CEIL) ) {
+							return node;
+						}
+						return NULL;
+					}
 
-          last_greater_node = node;
-          node = node->left;
-        }
-      else
-        {
-          if (!node->right_child) {
-            if ( (mode & FIND_CEIL) ) {
-              return last_greater_node; /* can be null */
-            }
-            if ( (mode & FIND_FLOOR) ) {
-              return node;
-            }
-            return NULL;
-          }
+					last_greater_node = node;
+					node = node->left;
+				}
+			else
+				{
+					if (!node->right_child) {
+						if ( (mode & FIND_CEIL) ) {
+							return last_greater_node; /* can be null */
+						}
+						if ( (mode & FIND_FLOOR) ) {
+							return node;
+						}
+						return NULL;
+					}
 
-          last_lesser_node = node;
-          node = node->right;
-        }
-    }
+					last_lesser_node = node;
+					node = node->right;
+				}
+		}
 }
 
 #ifdef GTREEEX_DEBUG
@@ -211,7 +195,7 @@ static inline void _assertNull(int line, GTreeNode *actual_node) {
 #define assertEquals(expected, actual_node) _assertEquals(__LINE__, expected, actual_node)
 
 int main(int argc, char *argv[]) {
-  int i;
+	int i;
 
 	tree = g_tree_new(compare_int);
 
