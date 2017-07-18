@@ -7,19 +7,26 @@ import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.commons.net.ftp.FTPClient;
+
 public class FtpProxyTest {
     
     public static void main(final String[] args) throws Exception {
         if ("".length() == 0) {
-            final ProxySelector parent = ProxySelector.getDefault();
-            final ProxySelector ps = new DefaultProxySelector(parent);
+            final FTPClient asd = null;
+            asd.connect("");
+            asd.setSoTimeout(11);
+            ProxySelector ps = null;
+            ps = ProxySelector.getDefault();
+            final ProxySelector parent = ps;
+            // ps = new DefaultProxySelector(parent);
             URI u = null;
             u = new URI("socket://bs.reksoft.ru:1489");
-            u = new URI("socket://192.168.148.150:1489");
             u = new URI("socket://localhost:1489");
             u = new URI("socket://192.168.0.1:1489");
             u = new URI("socket://127.0.0.1:1489");
             u = new URI("http://123.0.0.2:1489");
+            u = new URI("socket://192.168.148.150:1489");
             final List<Proxy> l = ps.select(u);
             for (final Iterator<Proxy> iter = l.iterator(); iter.hasNext();) {
                 
