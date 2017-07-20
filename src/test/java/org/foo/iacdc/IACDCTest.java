@@ -21,7 +21,6 @@ public class IACDCTest extends TestCase {
     public void testDoIt() throws Exception {
         final ObjectMapper mapper = new ObjectMapper();
         
-        mapper.getSerializationConfig();
         AMPPJsonRequest req = null;
         
         req =
