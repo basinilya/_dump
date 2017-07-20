@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "allOf": [
+    { "$ref": "common.schema.json#/definitions/LinkedData" },
+    {
+      "type": "object",
+      "properties": {
+        "version_tag": { "type": "string" },
+        "package_name": { "type": "string" },
+        "submitted_date": { "$ref": "common.schema.json#/definitions/Timestamp"}
+      },
+      "required": [
+        "version_tag", 
+        "package_name",
+        "submitted_date"
+      ]
+    }
+  ]
+}

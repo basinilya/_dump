@@ -3,6 +3,9 @@ package org.foo.rabbitmq;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -17,6 +20,8 @@ public class Worker {
     
     public static void main(final String[] argv) throws IOException, InterruptedException,
             TimeoutException {
+        final Logger logger = LoggerFactory.getLogger(Worker.class);
+        logger.info("aaa");
         
         final ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("dioptase");
@@ -49,6 +54,7 @@ public class Worker {
         final boolean autoAck = false; // acknowledgment is covered below
         channel.basicConsume(TASK_QUEUE_NAME, autoAck, consumer);
         
+        System.out.println(" [x] Main exit");
     }
     
     private static void doWork(final String task) throws InterruptedException {

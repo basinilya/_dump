@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "description": "the response returned by the automated processing system when it has created a task for the request received",
+  "allOf": [
+    { "$ref": "common.schema.json#/definitions/LinkedData"},
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "an opaque ID of the task, to be included in log messages and monitoring to help track activity across our production systems",
+          "type": "string"
+        },
+        "_links": {
+          "description": "links for server-to-server communication, to allow the caller to cancel the task for example.",
+          "$ref": "common.schema.json#/definitions/LinkSet"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  ]
+}

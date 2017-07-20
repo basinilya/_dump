@@ -1,0 +1,76 @@
+{
+	"$schema": "http://json-schema.org/draft-04/schema#",
+	"definitions": {
+		"LinkedData": {
+			"type": "object",
+			"properties": {
+				"_links": {"$ref": "#/definitions/LinkSet"}
+			},
+			"required": ["_links"]
+		},
+		"LinkSet": {
+			"type": "array",
+			"items": {"$ref": "#/definitions/Link"}
+		},
+		"Link": {
+			"type": "object",
+			"properties": {
+				"rel": {
+					"type": "string"
+				},
+				"href": {
+                    "$ref": "#/definitions/URL"
+                },
+				"method": {
+					"type": "string",
+					"enum": [
+						"GET",
+						"POST",
+						"PUT",
+						"PATCH",
+						"DELETE"
+					],
+					"description": "defaults to GET"
+				},
+				"accepts": {
+					"description": "only required for PUT and PATCH, optional for POST, ignored for GET and DELETE",
+					"$ref": "#/definitions/ContentType"
+				}
+			},
+			"required": [
+				"rel",
+				"href"
+			]
+		},
+		"URL": {
+			"type": "string",
+			"format": "uri"
+		},
+		"ContentType": {
+			"title": "A MIME content type identifier",
+			"description": "see https://www.sitepoint.com/web-foundations/mime-types-complete-list/",
+			"type": "string"
+		},
+		"JsonPointer": {
+			"description": "a JSON Pointer expression as defined by RFC 6901 (https://tools.ietf.org/html/rfc6901)",
+			"type": "string"
+		},
+		"RichText": {
+			"description": "rich text represented as HTML fragments (zero or more elements without a root element)",
+			"type": "string"
+		},
+		"Timestamp": {
+			"description": "a UTC timestamp in RFC 3339 format",
+			"type": "string"
+		},
+		"Index": {
+			"description": "an index into a list",
+			"type": "integer",
+			"minValue": 0
+		},
+		"UserId": {
+			"title": "an user id allocated by the identity system (IDP), also known as a 'PWG PRID'",
+			"type": "string"
+		}
+	}
+}

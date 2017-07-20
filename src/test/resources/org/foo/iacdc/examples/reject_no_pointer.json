@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "code": "invalid_json",
+      "description": "Invalid JSON"
+    }
+  ]
+}
