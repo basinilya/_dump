@@ -34,10 +34,10 @@ public class MQTest extends TestCase {
         final String exchangeName = EXCHANGE_NAME;
         String msgNodeId = null;
         
-        boolean exclusiveConsume = true;
+        boolean isExclConsume = true;
         
         if (msgNodeId != null) {
-            exclusiveConsume = false; // cluster
+            isExclConsume = false; // cluster
         }
         
         final String clientKind = CLIENT_KIND;
@@ -58,25 +58,24 @@ public class MQTest extends TestCase {
         final Preferences userPrefs = Preferences.userNodeForPackage(DummyForPrefs.class);
         msgNodeId = userPrefs.get(KEY_MSG_NODE_ID, null);
         
-        for (boolean queueIsNew = !exclusiveConsume;;) {
-            final Channel channel = connection.createChannel();
-            
-            //
-            //
+        String bindingKey = null;
+        
+        for (boolean queueIsNew = false;;) {
+            final Channel responseChannel = connection.createChannel();
             
             if (msgNodeId == null) {
                 queueIsNew = true;
                 msgNodeId = RandomStringUtils.randomAlphanumeric(8);
             }
-            final String bindingKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
+            bindingKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
             final String queueName = bindingKey;
             
-            channel.queueDeclare(queueName, true, false, false, null);
+            responseChannel.queueDeclare(queueName, true, false, false, null);
             
-            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.TOPIC);
-            channel.queueBind(queueName, exchangeName, bindingKey);
+            responseChannel.exchangeDeclare(exchangeName, BuiltinExchangeType.TOPIC);
+            responseChannel.queueBind(queueName, exchangeName, bindingKey);
             
-            final Consumer consumer = new DefaultConsumer(channel) {
+            final Consumer responseConsumer = new DefaultConsumer(responseChannel) {
                 
                 @Override
                 public void handleDelivery(final String consumerTag, final Envelope envelope,
@@ -90,14 +89,15 @@ public class MQTest extends TestCase {
                         System.out.println(" [x] Interrupted");
                     } finally {
                         System.out.println(" [x] Done");
-                        channel.basicAck(envelope.getDeliveryTag(), false);
+                        responseChannel.basicAck(envelope.getDeliveryTag(), false);
                     }
                 }
             };
             
-            final boolean autoAck = false; // acknowledgment is covered below
+            final boolean isAutoAck = false;
             try {
-                channel.basicConsume(queueName, autoAck, "", true, exclusiveConsume, null, consumer);
+                responseChannel.basicConsume(queueName, isAutoAck, "", true, isExclConsume, null,
+                        responseConsumer);
                 if (queueIsNew) {
                     userPrefs.put(KEY_MSG_NODE_ID, msgNodeId);
                 }
@@ -105,9 +105,12 @@ public class MQTest extends TestCase {
             } catch (final IOException e) {
                 // channel was implicitly closed
                 if (queueIsNew) {
-                    disposeNewQueue(connection, queueName);
+                    disposeQueue(connection, queueName);
+                }
+                if (queueIsNew || !isExclConsume) {
                     throw e;
                 }
+                
                 msgNodeId = null;
             }
         }
@@ -159,7 +162,7 @@ public class MQTest extends TestCase {
         }
     }
     
-    private void disposeNewQueue(final Connection connection, final String queueName) {
+    private void disposeQueue(final Connection connection, final String queueName) {
         try {
             final Channel tmp = connection.createChannel();
             tmp.queueDelete(queueName);
