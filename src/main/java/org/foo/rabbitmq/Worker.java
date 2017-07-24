@@ -13,6 +13,7 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
+import com.rabbitmq.client.ShutdownSignalException;
 
 public class Worker {
     
@@ -27,6 +28,7 @@ public class Worker {
         factory.setHost("dioptase");
         final Connection connection = factory.newConnection();
         final Channel channel = connection.createChannel();
+        String consumerTag = null;
         try {
             
             channel.queueDeclare(TASK_QUEUE_NAME, true, false, false, null);
@@ -37,6 +39,12 @@ public class Worker {
                                              // below)
             
             final Consumer consumer = new DefaultConsumer(channel) {
+                
+                @Override
+                public void handleShutdownSignal(final String consumerTag,
+                        final ShutdownSignalException sig) {
+                    System.out.println("" + Thread.currentThread().getName());
+                }
                 
                 @Override
                 public void handleDelivery(final String consumerTag, final Envelope envelope,
@@ -50,7 +58,8 @@ public class Worker {
                         System.out.println(" [x] Interrupted");
                     } finally {
                         System.out.println(" [x] Done");
-                        channel.basicAck(envelope.getDeliveryTag(), false);
+                        final long tag = envelope.getDeliveryTag();
+                        channel.basicAck(tag, false);
                     }
                 }
             };
@@ -58,16 +67,25 @@ public class Worker {
             // Start a non-nolocal, non-exclusive consumer, with a server-generated consumerTag.
             // channel.basicConsume(TASK_QUEUE_NAME, autoAck, consumer);
             final boolean exclusive = true;
-            channel.basicConsume(TASK_QUEUE_NAME, autoAck, "", true, exclusive, null, consumer);
+            consumerTag =
+                    channel.basicConsume(TASK_QUEUE_NAME, autoAck, "", true, exclusive, null,
+                            consumer);
         } catch (final Exception e) {
             connection.close();
             throw e;
         }
         
+        Thread.sleep(1000);
+        System.out.println("" + Thread.currentThread().getName());
+        // final GetResponse gr = channel.basicGet(TASK_QUEUE_NAME, true);
+        channel.basicCancel(consumerTag);
+        Thread.sleep(5000);
+        connection.close();
         System.out.println(" [x] Main exit");
     }
     
     private static void doWork(final String task) throws InterruptedException {
+        Thread.sleep(5000);
         for (final char ch : task.toCharArray()) {
             if (ch == '.') {
                 Thread.sleep(1000);

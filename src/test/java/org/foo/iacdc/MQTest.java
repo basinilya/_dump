@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.Future;
 import java.util.prefs.Preferences;
 
 import junit.framework.TestCase;
@@ -13,6 +14,7 @@ import org.apache.commons.lang.RandomStringUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.AMQP.BasicProperties;
+import com.rabbitmq.client.Address;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -21,6 +23,7 @@ import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.MessageProperties;
+import com.rabbitmq.tools.json.JSONWriter;
 import com.spr.ajwf.methods.jobs.DummyForPrefs;
 
 public class MQTest extends TestCase {
@@ -44,7 +47,6 @@ public class MQTest extends TestCase {
         //
         //
         final ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost(System.getProperty("iampp.host"));
         final String user = System.getProperty("iampp.user");
         if (user != null) {
             factory.setUsername(user);
@@ -53,7 +55,8 @@ public class MQTest extends TestCase {
         if (password != null) {
             factory.setPassword(password);
         }
-        final Connection connection = factory.newConnection();
+        final Address[] addrs = new Address[] { new Address(System.getProperty("iampp.host")) };
+        final Connection connection = factory.newConnection(addrs);
         
         final Preferences userPrefs = Preferences.userNodeForPackage(DummyForPrefs.class);
         msgNodeId = userPrefs.get(KEY_MSG_NODE_ID, null);
@@ -114,6 +117,7 @@ public class MQTest extends TestCase {
                 msgNodeId = null;
             }
         }
+        final Future<Object> fut = null;
         
         if ("".length() == 0) {
             return;
@@ -122,6 +126,8 @@ public class MQTest extends TestCase {
         //
         
         // userPrefs.put(MSG_NODE_ID, msgNodeId);
+        
+        final JSONWriter wr = null; // TODO: use
         
         final ObjectMapper mapper = new ObjectMapper();
         final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
