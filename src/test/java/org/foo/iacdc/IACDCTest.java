@@ -2,6 +2,7 @@ package org.foo.iacdc;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Date;
 import java.util.Set;
 
 import junit.framework.TestCase;
@@ -13,6 +14,12 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.ValidationMessage;
 
 public class IACDCTest extends TestCase {
+    
+    /*
+     * Durable reply queue: We need a persistent name for it, unique across all machines, but all
+     * Dev VMs are clones, so we cannot guarantee uniqueness. If we simply reject a foreign reply
+     * with requeue=true, it will be inefficient, besides there must be
+     */
     
     public static void main1(final String[] args) throws Exception {
         new IACDCTest().testDoIt();
@@ -36,7 +43,7 @@ public class IACDCTest extends TestCase {
             req.setPackage_name("x");
             req.setPackage_state(PackageState.language_editing);
             req.setRequest_id("x");
-            req.setTimestamp("x");
+            req.setTimestamp(new Date());
             req.setUser_name("x");
             req.setYear("x");
         }

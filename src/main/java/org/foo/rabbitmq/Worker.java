@@ -27,32 +27,42 @@ public class Worker {
         factory.setHost("dioptase");
         final Connection connection = factory.newConnection();
         final Channel channel = connection.createChannel();
-        
-        channel.queueDeclare(TASK_QUEUE_NAME, true, false, false, null);
-        System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
-        
-        final int prefetchCount = 1;
-        channel.basicQos(prefetchCount); // accept only one unack-ed message at a time (see below)
-        
-        final Consumer consumer = new DefaultConsumer(channel) {
+        try {
             
-            @Override
-            public void handleDelivery(final String consumerTag, final Envelope envelope,
-                    final AMQP.BasicProperties properties, final byte[] body) throws IOException {
-                final String message = new String(body, "UTF-8");
-                System.out.println(" [x] Received '" + message + "'");
-                try {
-                    doWork(message);
-                } catch (final InterruptedException e) {
-                    System.out.println(" [x] Interrupted");
-                } finally {
-                    System.out.println(" [x] Done");
-                    channel.basicAck(envelope.getDeliveryTag(), false);
+            channel.queueDeclare(TASK_QUEUE_NAME, true, false, false, null);
+            System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
+            
+            final int prefetchCount = 1;
+            channel.basicQos(prefetchCount); // accept only one unack-ed message at a time (see
+                                             // below)
+            
+            final Consumer consumer = new DefaultConsumer(channel) {
+                
+                @Override
+                public void handleDelivery(final String consumerTag, final Envelope envelope,
+                        final AMQP.BasicProperties properties, final byte[] body)
+                        throws IOException {
+                    final String message = new String(body, "UTF-8");
+                    System.out.println(" [x] Received '" + message + "'");
+                    try {
+                        doWork(message);
+                    } catch (final InterruptedException e) {
+                        System.out.println(" [x] Interrupted");
+                    } finally {
+                        System.out.println(" [x] Done");
+                        channel.basicAck(envelope.getDeliveryTag(), false);
+                    }
                 }
-            }
-        };
-        final boolean autoAck = false; // acknowledgment is covered below
-        channel.basicConsume(TASK_QUEUE_NAME, autoAck, consumer);
+            };
+            final boolean autoAck = false; // acknowledgment is covered below
+            // Start a non-nolocal, non-exclusive consumer, with a server-generated consumerTag.
+            // channel.basicConsume(TASK_QUEUE_NAME, autoAck, consumer);
+            final boolean exclusive = true;
+            channel.basicConsume(TASK_QUEUE_NAME, autoAck, "", true, exclusive, null, consumer);
+        } catch (final Exception e) {
+            connection.close();
+            throw e;
+        }
         
         System.out.println(" [x] Main exit");
     }

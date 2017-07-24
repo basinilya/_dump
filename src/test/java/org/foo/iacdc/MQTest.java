@@ -1,23 +1,124 @@
 package org.foo.iacdc;
 
-import java.nio.file.attribute.FileTime;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.prefs.Preferences;
 
 import junit.framework.TestCase;
 
+import org.apache.commons.lang.RandomStringUtils;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.AMQP.BasicProperties;
+import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.Consumer;
+import com.rabbitmq.client.DefaultConsumer;
+import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.MessageProperties;
+import com.spr.ajwf.methods.jobs.DummyForPrefs;
 
 public class MQTest extends TestCase {
     
+    public static final String KEY_MSG_NODE_ID = "msgNodeId";
+    
+    public static final String CLIENT_KIND = "MQTest";
+    
     public void testDoIt() throws Exception {
+        
+        final String exchangeName = EXCHANGE_NAME;
+        String msgNodeId = null;
+        
+        boolean exclusiveConsume = true;
+        
+        if (msgNodeId != null) {
+            exclusiveConsume = false; // cluster
+        }
+        
+        final String clientKind = CLIENT_KIND;
+        //
+        //
+        final ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost(System.getProperty("iampp.host"));
+        final String user = System.getProperty("iampp.user");
+        if (user != null) {
+            factory.setUsername(user);
+        }
+        final String password = System.getProperty("iampp.password");
+        if (password != null) {
+            factory.setPassword(password);
+        }
+        final Connection connection = factory.newConnection();
+        
+        final Preferences userPrefs = Preferences.userNodeForPackage(DummyForPrefs.class);
+        msgNodeId = userPrefs.get(KEY_MSG_NODE_ID, null);
+        
+        for (boolean queueIsNew = !exclusiveConsume;;) {
+            final Channel channel = connection.createChannel();
+            
+            //
+            //
+            
+            if (msgNodeId == null) {
+                queueIsNew = true;
+                msgNodeId = RandomStringUtils.randomAlphanumeric(8);
+            }
+            final String bindingKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
+            final String queueName = bindingKey;
+            
+            channel.queueDeclare(queueName, true, false, false, null);
+            
+            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.TOPIC);
+            channel.queueBind(queueName, exchangeName, bindingKey);
+            
+            final Consumer consumer = new DefaultConsumer(channel) {
+                
+                @Override
+                public void handleDelivery(final String consumerTag, final Envelope envelope,
+                        final AMQP.BasicProperties properties, final byte[] body)
+                        throws IOException {
+                    final String message = new String(body, "UTF-8");
+                    System.out.println(" [x] Received '" + message + "'");
+                    try {
+                        doWork(message);
+                    } catch (final InterruptedException e) {
+                        System.out.println(" [x] Interrupted");
+                    } finally {
+                        System.out.println(" [x] Done");
+                        channel.basicAck(envelope.getDeliveryTag(), false);
+                    }
+                }
+            };
+            
+            final boolean autoAck = false; // acknowledgment is covered below
+            try {
+                channel.basicConsume(queueName, autoAck, "", true, exclusiveConsume, null, consumer);
+                if (queueIsNew) {
+                    userPrefs.put(KEY_MSG_NODE_ID, msgNodeId);
+                }
+                break;
+            } catch (final IOException e) {
+                // channel was implicitly closed
+                if (queueIsNew) {
+                    disposeNewQueue(connection, queueName);
+                    throw e;
+                }
+                msgNodeId = null;
+            }
+        }
+        
+        if ("".length() == 0) {
+            return;
+        }
+        //
+        //
+        
+        // userPrefs.put(MSG_NODE_ID, msgNodeId);
         
         final ObjectMapper mapper = new ObjectMapper();
         final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
@@ -38,32 +139,50 @@ public class MQTest extends TestCase {
         req.setUser_name("x");
         req.setYear("x");
         // "2017-06-22T10:01:45+00:00"
-        System.out.println(Calendar.getInstance());
-        System.out.println(FileTime.fromMillis(System.currentTimeMillis()));
         
         final byte[] bytes = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(req);
         for (final byte b : bytes) {
             System.out.print((char) b);
         }
         
-        if ("".length() == 0) {
-            
-            final ConnectionFactory factory = new ConnectionFactory();
-            factory.setHost(System.getProperty("iampp.host"));
-            factory.setUsername(System.getProperty("iampp.user"));
-            factory.setPassword(System.getProperty("iampp.password"));
-            final Connection connection = factory.newConnection();
+        if ("".length() == 1) {
+            final Channel channel = null;
             MessageProperties.PERSISTENT_TEXT_PLAIN.toString();
             
-            final Channel channel = connection.createChannel();
+            channel.queueDeclare(AMPP_IN, true, false, false, null);
+            channel.queueDeclare(AMPP_STATUS, true, false, false, null);
+            channel.queueDeclare(AMPP_OUT, true, false, false, null);
             
-            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+            channel.basicPublish("", AMPP_IN, JSON, bytes);
             
-            channel.basicPublish("", QUEUE_NAME, JSON, bytes);
+            // final channel.basicc
         }
     }
     
-    private final static String QUEUE_NAME = "ampp-in"; //
+    private void disposeNewQueue(final Connection connection, final String queueName) {
+        try {
+            final Channel tmp = connection.createChannel();
+            tmp.queueDelete(queueName);
+            tmp.close();
+        } catch (final Exception e2) {
+        }
+    }
+    
+    private void doWork(final String task) throws InterruptedException {
+        for (final char ch : task.toCharArray()) {
+            if (ch == '.') {
+                Thread.sleep(1000);
+            }
+        }
+    }
+    
+    private final static String AMPP_IN = "ampp_in"; //
+    
+    private final static String AMPP_STATUS = "ampp_status";
+    
+    private final static String AMPP_OUT = "ampp_out";
+    
+    private final static String EXCHANGE_NAME = "iacdc-dev-exchange";
     
     private final static String CONTENT_TYPE2 = "application/x.iacdc-ampp-request_1.0+json";
     
