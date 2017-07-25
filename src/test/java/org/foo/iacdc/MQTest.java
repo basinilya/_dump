@@ -1,8 +1,11 @@
 package org.foo.iacdc;
 
+import static org.foo.iacdc.RabbitMQConstants.*;
+
 import java.beans.PropertyDescriptor;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.prefs.Preferences;
@@ -33,39 +36,42 @@ public class MQTest extends TestCase {
     public static final String CLIENT_KIND = "MQTest";
     
     private void commonSetup(final Channel channel, final String exchangeName) throws IOException {
-        final boolean durable = true;
-        channel.exchangeDeclare(exchangeName, BuiltinExchangeType.TOPIC, durable);
-        channel.queueDeclare(AMPP_IN, durable, false, false, null);
+        channel.exchangeDeclare(exchangeName, BuiltinExchangeType.TOPIC, DURABLE);
+        channel.queueDeclare(AMPP_IN, DURABLE, false, false, null);
         channel.queueBind(AMPP_IN, exchangeName, AMPP_IN);
     }
     
     public void testDoIt() throws Exception {
         
+        final String user = System.getProperty("iampp.user");
+        final String password = System.getProperty("iampp.password");
+        final Address[] addrs = new Address[] { new Address(System.getProperty("iampp.host")) };
+        
+        final int nThreads = 5;
         final String exchangeName = EXCHANGE_NAME;
         String msgNodeId = null;
         
         boolean isExclConsume = true;
+        final String clientKind = CLIENT_KIND;
         
         if (msgNodeId != null) {
             isExclConsume = false; // cluster
         }
         
-        final String clientKind = CLIENT_KIND;
         //
+        final ArrayList<Channel> channels = new ArrayList<Channel>(nThreads);
         //
         final ConnectionFactory factory = new ConnectionFactory();
-        final String user = System.getProperty("iampp.user");
         if (user != null) {
             factory.setUsername(user);
         }
-        final String password = System.getProperty("iampp.password");
         if (password != null) {
             factory.setPassword(password);
         }
-        final Address[] addrs = new Address[] { new Address(System.getProperty("iampp.host")) };
         final Connection connection = factory.newConnection(addrs);
         
         Channel channel = connection.createChannel();
+        channels.add(channel);
         
         commonSetup(channel, exchangeName);
         
@@ -73,10 +79,10 @@ public class MQTest extends TestCase {
         msgNodeId = userPrefs.get(KEY_MSG_NODE_ID, null);
         
         if (isExclConsume) {
-            for (boolean queueIsNew = false;;) {
+            for (boolean nodeIsNew = false;;) {
                 
                 if (msgNodeId == null) {
-                    queueIsNew = true;
+                    nodeIsNew = true;
                     msgNodeId = RandomStringUtils.randomAlphanumeric(8);
                 }
                 final String queueName = AMPP_LOCK + "." + msgNodeId + "." + clientKind;
@@ -85,56 +91,67 @@ public class MQTest extends TestCase {
                     
                     channel.queueDeclare(queueName, NON_DURABLE, EXCLUSIVE, AUTO_DELETE, null);
                     
-                    if (queueIsNew) {
+                    if (nodeIsNew) {
                         userPrefs.put(KEY_MSG_NODE_ID, msgNodeId);
                     }
                     break;
                 } catch (final IOException e) {
                     // channel was implicitly closed
-                    channel = null;
+                    channels.clear();
                     
-                    if (queueIsNew) {
-                        channel = disposeQueue(connection, queueName);
-                    }
-                    if (queueIsNew || !isExclConsume) {
+                    if (nodeIsNew) {
                         throw e;
                     }
                     
                     channel = connection.createChannel();
+                    channels.add(channel);
                     msgNodeId = null;
                 }
             }
         }
-        
-        final Consumer responseConsumer = new DefaultConsumer(channel) {
-            
-            @Override
-            public void handleDelivery(final String consumerTag, final Envelope envelope,
-                    final AMQP.BasicProperties properties, final byte[] body) throws IOException {
-                final String message = new String(body, "UTF-8");
-                System.out.println(" [x] Received '" + message + "'");
-                try {
-                    doWork(message);
-                } catch (final InterruptedException e) {
-                    System.out.println(" [x] Interrupted");
-                } finally {
-                    System.out.println(" [x] Done");
-                    getChannel().basicAck(envelope.getDeliveryTag(), false);
-                }
-            }
-        };
         
         final String outQueueAndKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
         
         channel.queueDeclare(outQueueAndKey, DURABLE, NON_EXCLUSIVE, NON_AUTO_DELETE, null);
         channel.queueBind(outQueueAndKey, exchangeName, outQueueAndKey);
         
-        final boolean isAutoAck = false;
+        for (int i = 0;; i++) {
+            channel.basicQos(1);
+            
+            final Consumer responseConsumer = new DefaultConsumer(channel) {
+                
+                @Override
+                public void handleDelivery(final String consumerTag, final Envelope envelope,
+                        final AMQP.BasicProperties properties, final byte[] body)
+                        throws IOException {
+                    final String message = new String(body, "UTF-8");
+                    
+                    System.out.println(" [x] Received '" + message + "'" + properties.toString()
+                            + ' ' + envelope.toString());
+                    try {
+                        doWork(message);
+                    } catch (final InterruptedException e) {
+                        System.out.println(" [x] Interrupted");
+                    } finally {
+                        System.out.println(" [x] Done");
+                        getChannel().basicAck(envelope.getDeliveryTag(), false);
+                    }
+                }
+            };
+            
+            channel.basicConsume(outQueueAndKey, NON_AUTO_ACK, responseConsumer);
+            
+            if ((++i) >= nThreads) {
+                break;
+            }
+            
+            channel = connection.createChannel();
+            channels.add(channel);
+        }
         
-        channel.basicConsume(outQueueAndKey, isAutoAck, "", true, isExclConsume, null,
-                responseConsumer);
+        System.out.println("" + outQueueAndKey);
         
-        if ("".length() == 1) {
+        if ("".length() == 0) {
             return;
         }
         //
@@ -181,17 +198,6 @@ public class MQTest extends TestCase {
         }
     }
     
-    private Channel disposeQueue(final Connection connection, final String queueName) {
-        Channel chForClose = null;
-        try {
-            chForClose = connection.createChannel();
-            chForClose.queueDelete(queueName);
-        } catch (final Exception e2) {
-            System.err.println("failed to delete new queue: " + e2.toString());
-        }
-        return chForClose;
-    }
-    
     private void doWork(final String task) throws InterruptedException {
         for (final char ch : task.toCharArray()) {
             if (ch == '.') {
@@ -199,18 +205,6 @@ public class MQTest extends TestCase {
             }
         }
     }
-    
-    private static final boolean NON_DURABLE = false;
-    
-    private static final boolean DURABLE = true;
-    
-    private static final boolean EXCLUSIVE = true;
-    
-    private static final boolean NON_EXCLUSIVE = false;
-    
-    private static final boolean AUTO_DELETE = true;
-    
-    private static final boolean NON_AUTO_DELETE = false;
     
     private final static String AMPP_IN = "ampp-in";
     

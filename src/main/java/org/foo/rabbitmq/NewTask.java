@@ -18,7 +18,9 @@ public class NewTask {
         final Connection connection = factory.newConnection();
         final Channel channel = connection.createChannel();
         
-        channel.queueDeclare(TASK_QUEUE_NAME, true, false, false, null);
+        // channel.queueDeclarePassive(TASK_QUEUE_NAME);
+        
+        // channel.queueDeclare(TASK_QUEUE_NAME, true, false, false, null);
         final String message = getMessage(argv);
         
         channel.basicPublish("", TASK_QUEUE_NAME, MessageProperties.PERSISTENT_TEXT_PLAIN,
