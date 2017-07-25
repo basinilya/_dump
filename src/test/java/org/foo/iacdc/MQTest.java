@@ -69,66 +69,70 @@ public class MQTest extends TestCase {
         
         commonSetup(channel, exchangeName);
         
-        String bindingKey = null;
-        
         final Preferences userPrefs = Preferences.userNodeForPackage(DummyForPrefs.class);
         msgNodeId = userPrefs.get(KEY_MSG_NODE_ID, null);
         
-        for (boolean queueIsNew = false;;) {
-            
-            if (msgNodeId == null) {
-                queueIsNew = true;
-                msgNodeId = RandomStringUtils.randomAlphanumeric(8);
-            }
-            bindingKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
-            final String queueName = bindingKey;
-            
-            channel.queueDeclare(queueName, true, false, false, null);
-            
-            channel.queueBind(queueName, exchangeName, bindingKey);
-            
-            final Consumer responseConsumer = new DefaultConsumer(channel) {
+        if (isExclConsume) {
+            for (boolean queueIsNew = false;;) {
                 
-                @Override
-                public void handleDelivery(final String consumerTag, final Envelope envelope,
-                        final AMQP.BasicProperties properties, final byte[] body)
-                        throws IOException {
-                    final String message = new String(body, "UTF-8");
-                    System.out.println(" [x] Received '" + message + "'");
-                    try {
-                        doWork(message);
-                    } catch (final InterruptedException e) {
-                        System.out.println(" [x] Interrupted");
-                    } finally {
-                        System.out.println(" [x] Done");
-                        getChannel().basicAck(envelope.getDeliveryTag(), false);
+                if (msgNodeId == null) {
+                    queueIsNew = true;
+                    msgNodeId = RandomStringUtils.randomAlphanumeric(8);
+                }
+                final String queueName = AMPP_LOCK + "." + msgNodeId + "." + clientKind;
+                
+                try {
+                    
+                    channel.queueDeclare(queueName, NON_DURABLE, EXCLUSIVE, AUTO_DELETE, null);
+                    
+                    if (queueIsNew) {
+                        userPrefs.put(KEY_MSG_NODE_ID, msgNodeId);
                     }
+                    break;
+                } catch (final IOException e) {
+                    // channel was implicitly closed
+                    channel = null;
+                    
+                    if (queueIsNew) {
+                        channel = disposeQueue(connection, queueName);
+                    }
+                    if (queueIsNew || !isExclConsume) {
+                        throw e;
+                    }
+                    
+                    channel = connection.createChannel();
+                    msgNodeId = null;
                 }
-            };
-            
-            final boolean isAutoAck = false;
-            try {
-                channel.basicConsume(queueName, isAutoAck, "", true, isExclConsume, null,
-                        responseConsumer);
-                if (queueIsNew) {
-                    userPrefs.put(KEY_MSG_NODE_ID, msgNodeId);
-                }
-                break;
-            } catch (final IOException e) {
-                // channel was implicitly closed
-                channel = null;
-                
-                if (queueIsNew) {
-                    channel = disposeQueue(connection, queueName);
-                }
-                if (queueIsNew || !isExclConsume) {
-                    throw e;
-                }
-                
-                channel = connection.createChannel();
-                msgNodeId = null;
             }
         }
+        
+        final Consumer responseConsumer = new DefaultConsumer(channel) {
+            
+            @Override
+            public void handleDelivery(final String consumerTag, final Envelope envelope,
+                    final AMQP.BasicProperties properties, final byte[] body) throws IOException {
+                final String message = new String(body, "UTF-8");
+                System.out.println(" [x] Received '" + message + "'");
+                try {
+                    doWork(message);
+                } catch (final InterruptedException e) {
+                    System.out.println(" [x] Interrupted");
+                } finally {
+                    System.out.println(" [x] Done");
+                    getChannel().basicAck(envelope.getDeliveryTag(), false);
+                }
+            }
+        };
+        
+        final String outQueueAndKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
+        
+        channel.queueDeclare(outQueueAndKey, DURABLE, NON_EXCLUSIVE, NON_AUTO_DELETE, null);
+        channel.queueBind(outQueueAndKey, exchangeName, outQueueAndKey);
+        
+        final boolean isAutoAck = false;
+        
+        channel.basicConsume(outQueueAndKey, isAutoAck, "", true, isExclConsume, null,
+                responseConsumer);
         
         if ("".length() == 1) {
             return;
@@ -196,11 +200,25 @@ public class MQTest extends TestCase {
         }
     }
     
+    private static final boolean NON_DURABLE = false;
+    
+    private static final boolean DURABLE = true;
+    
+    private static final boolean EXCLUSIVE = true;
+    
+    private static final boolean NON_EXCLUSIVE = false;
+    
+    private static final boolean AUTO_DELETE = true;
+    
+    private static final boolean NON_AUTO_DELETE = false;
+    
     private final static String AMPP_IN = "ampp-in";
     
     private final static String AMPP_STATUS = "ampp-status";
     
     private final static String AMPP_OUT = "ampp-out";
+    
+    private final static String AMPP_LOCK = "_ampp-lock";
     
     private final static String EXCHANGE_NAME = "iacdc-dev-exchange";
     

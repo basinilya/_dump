@@ -66,15 +66,17 @@ public class Worker {
                     System.out.println(" [x] Received '" + message + "'");
                     try {
                         doWork(message);
-                        System.out.println("basicCancel");
-                        getChannel().basicCancel(consumerTag);
-                        System.out.println("basicCancel done");
-                        Thread.sleep(3000);
+                        if ("".length() == 1) {
+                            System.out.println("basicCancel");
+                            getChannel().basicCancel(consumerTag);
+                            System.out.println("basicCancel done");
+                        }
+                        Thread.sleep(300);
                     } catch (final InterruptedException e) {
                         System.out.println(" [x] Interrupted");
                     } finally {
                         System.out.println("basicAck");
-                        channel.basicAck(envelope.getDeliveryTag(), false);
+                        // channel.basicAck(envelope.getDeliveryTag(), false);
                         System.out.println("basicAck done");
                     }
                 }
