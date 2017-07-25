@@ -8,9 +8,11 @@ public class AMPPJsonRequest {
     
     private Date timestamp;
     
-    private String journal_id, year, article_id, package_name, package_location;
+    private String journal_id, year, article_id, in_package_name, in_package_location;
     
     private PackageState package_state;
+    
+    private String user_name, response_routing_key, out_package_location;
     
     public String getRequest_id() {
         return request_id;
@@ -60,20 +62,20 @@ public class AMPPJsonRequest {
         this.article_id = article_id;
     }
     
-    public String getPackage_name() {
-        return package_name;
+    public String getIn_package_name() {
+        return in_package_name;
     }
     
-    public void setPackage_name(final String package_name) {
-        this.package_name = package_name;
+    public void setIn_package_name(final String package_name) {
+        this.in_package_name = package_name;
     }
     
-    public String getPackage_location() {
-        return package_location;
+    public String getIn_package_location() {
+        return in_package_location;
     }
     
-    public void setPackage_location(final String package_location) {
-        this.package_location = package_location;
+    public void setIn_package_location(final String package_location) {
+        this.in_package_location = package_location;
     }
     
     public PackageState getPackage_state() {
@@ -92,5 +94,20 @@ public class AMPPJsonRequest {
         this.user_name = user_name;
     }
     
-    private String user_name;
+    public String getResponse_routing_key() {
+        return response_routing_key;
+    }
+    
+    public void setResponse_routing_key(final String response_routing_key) {
+        this.response_routing_key = response_routing_key;
+    }
+    
+    public String getOut_package_location() {
+        return out_package_location;
+    }
+    
+    public void setOut_package_location(final String out_package_location) {
+        this.out_package_location = out_package_location;
+    }
+    
 }

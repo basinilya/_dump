@@ -39,8 +39,8 @@ public class IACDCTest extends TestCase {
             req.setApplication_id("x");
             req.setArticle_id("x");
             req.setJournal_id("x");
-            req.setPackage_location("x");
-            req.setPackage_name("x");
+            req.setIn_package_location("x");
+            req.setIn_package_name("x");
             req.setPackage_state(PackageState.language_editing);
             req.setRequest_id("x");
             req.setTimestamp(new Date());

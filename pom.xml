@@ -17,7 +17,7 @@
 <dependency>
     <groupId>com.networknt</groupId>
     <artifactId>json-schema-validator</artifactId>
-    <version>0.1.10-SNAPSHOT</version>
+    <version>0.1.10</version>
 </dependency>
 <!-- 
 
@@ -73,7 +73,7 @@
 	<dependency>
 		<groupId>com.rabbitmq</groupId>
 		<artifactId>amqp-client</artifactId>
-		<version>4.0.2</version>
+		<version>4.1.1</version>
 	</dependency>
 <dependency>
   <groupId>com.rabbitmq.jms</groupId>
