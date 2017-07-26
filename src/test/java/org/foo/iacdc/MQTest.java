@@ -85,7 +85,7 @@ public class MQTest extends TestCase {
                     nodeIsNew = true;
                     msgNodeId = RandomStringUtils.randomAlphanumeric(8);
                 }
-                final String queueName = AMPP_LOCK + "." + msgNodeId + "." + clientKind;
+                final String queueName = ACDC_LOCK_PREF + msgNodeId + "." + clientKind;
                 
                 try {
                     
@@ -110,7 +110,7 @@ public class MQTest extends TestCase {
             }
         }
         
-        final String outQueueAndKey = AMPP_OUT + "." + msgNodeId + "." + clientKind;
+        final String outQueueAndKey = ACDC_IN_PREF + msgNodeId + "." + clientKind;
         
         channel.queueDeclare(outQueueAndKey, DURABLE, NON_EXCLUSIVE, NON_AUTO_DELETE, null);
         channel.queueBind(outQueueAndKey, exchangeName, outQueueAndKey);
@@ -208,11 +208,16 @@ public class MQTest extends TestCase {
     
     private final static String AMPP_IN = "ampp-in";
     
-    private final static String AMPP_STATUS = "ampp-status";
+    /** Prefix for the name of the queue for external systems replies */
+    private final static String ACDC_IN_PREF = "acdc-in.";
     
-    private final static String AMPP_OUT = "ampp-out";
+    /** global exchange and queue names for retry messages */
+    // TODO: for now, we'll just have a big prefetchCount and never NaCK messages. The messages will
+    // not be requeued until our consumer is cancelled
+    private final static String ACDC_RETRY = "acdc-retry";
     
-    private final static String AMPP_LOCK = "_ampp-lock";
+    /** Prefix for the name of the technical, always empty queue for locking */
+    private final static String ACDC_LOCK_PREF = "_acdc-lock.";
     
     private final static String EXCHANGE_NAME = "iacdc-dev-exchange";
     
