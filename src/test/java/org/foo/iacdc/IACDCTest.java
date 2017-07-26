@@ -2,7 +2,6 @@ package org.foo.iacdc;
 
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Date;
 import java.util.Set;
 
 import junit.framework.TestCase;
@@ -41,9 +40,9 @@ public class IACDCTest extends TestCase {
             req.setJournal_id("x");
             req.setIn_package_location("x");
             req.setIn_package_name("x");
-            req.setPackage_state(PackageState.language_editing);
+            req.setPackage_state(PackageState.language_editing.name());
             req.setRequest_id("x");
-            req.setTimestamp(new Date());
+            req.setTimestamp(null);
             req.setUser_name("x");
             req.setYear("x");
         }

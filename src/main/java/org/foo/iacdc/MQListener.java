@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.prefs.Preferences;
 
@@ -129,12 +128,6 @@ public class MQListener {
         channel.queueDeclare(outQueueAndKey, DURABLE, NON_EXCLUSIVE, NON_AUTO_DELETE, null);
         channel.queueBind(outQueueAndKey, exchangeName, outQueueAndKey);
         
-        // setup JSON
-        final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
-        final JSONWriter wr = new JSONWriter(true);
-        final JSONReader rd = new JSONReader();
-        
         /*
          * final ObjectMapper mapper = new ObjectMapper(); mapper.setDateFormat(df); final byte[]
          * bytes = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(req);
@@ -150,14 +143,23 @@ public class MQListener {
                 public void handleDelivery(final String consumerTag, final Envelope envelope,
                         final AMQP.BasicProperties properties, final byte[] body)
                         throws IOException {
-                    final String message = new String(body, "UTF-8");
+                    final String message = new String(body, ENCODING);
                     
                     System.out.println(" [x] Received '" + message + "'" + properties.toString()
                             + ' ' + envelope.toString());
+                    
+                    // setup JSON
+                    final SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+                    df.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    final JSONWriter wr = new JSONWriter(true);
+                    final JSONReader rd = new JSONReader();
+                    
                     boolean canRetry = false;
                     AMPPJsonResponse response = null;
                     int tryNo = 0;
                     try {
+                        
+                        @SuppressWarnings("unchecked")
                         final Map<String, Object> map = (Map<String, Object>) rd.read(message);
                         response = readObject(AMPPJsonResponse.class, map, null);
                         if (response.getTry_no() != null) {
@@ -174,7 +176,7 @@ public class MQListener {
                                     properties.builder().expiration(Integer.toString(expiration))
                                             .build();
                             response.setTry_no(tryNo + 1);
-                            final byte[] retrybody = wr.write(response).getBytes("UTF-8");
+                            final byte[] retrybody = wr.write(response).getBytes(ENCODING);
                             getChannel().basicPublish(ACDC_RETRY, envelope.getRoutingKey(),
                                     newProps, retrybody);
                             getChannel().basicAck(envelope.getDeliveryTag(), false);
@@ -205,38 +207,10 @@ public class MQListener {
         //
         //
         
-        // userPrefs.put(MSG_NODE_ID, msgNodeId);
-        
-        AMPPJsonRequest req = null;
-        
-        req = new AMPPJsonRequest();
-        req.setApplication_id("ЛЕНИН");
-        req.setArticle_id("ТОВАРИЩИ!");
-        req.setJournal_id("x");
-        req.setIn_package_location("x");
-        req.setIn_package_name("x");
-        req.setPackage_state(PackageState.language_editing.name());
-        req.setRequest_id(UUID.randomUUID().toString().replace("-", ""));
-        req.setTimestamp("2017-06-22T10:01:45Z");
-        req.setUser_name(System.getProperty("user.name"));
-        req.setYear("x");
-        final PropertyDescriptor aid = null;
-        // "2017-06-22T10:01:45+00:00"
-        
-        final byte[] bytes = new byte[] {};
-        for (final byte b : bytes) {
-            System.out.print((char) b);
-        }
-        System.out.print('\n');
-        
-        System.out.println(wr.write(req));
-        
         if ("".length() == 1) {
             MessageProperties.PERSISTENT_TEXT_PLAIN.toString();
             
-            channel.basicPublish("", AMPP_IN, JSON, bytes);
-            
-            // final channel.basicc
+            channel.basicPublish("", AMPP_IN, PERSISTENT_JSON, null);
         }
     }
     
@@ -248,10 +222,7 @@ public class MQListener {
         }
     }
     
-    private Object mkE(final BasicProperties model, final int expiration) {
-        return model.builder().expiration(Integer.toString(expiration)).build();
-    }
-    
+    @SuppressWarnings("unchecked")
     public <T> T readObject(final Class<T> klass, final Map<String, Object> input,
             final String[] properties) {
         Set<String> propertiesSet = null;
@@ -319,22 +290,21 @@ public class MQListener {
         return (T) object;
     }
     
+    private final static String ENCODING = "UTF-8";
+    
     private final static String AMPP_IN = "ampp-in";
     
     /** Prefix for the name of the queue for external systems replies */
     private final static String ACDC_IN_PREF = "acdc-in.";
     
     /** global exchange and queue names for retry messages */
-    // TODO: for now, we'll just have a big prefetchCount and never NaCK messages. The messages will
-    // not be requeued until our consumer is cancelled
     private final static String ACDC_RETRY = "acdc-retry";
     
     /** Prefix for the name of the technical, always empty queue for locking */
     private final static String ACDC_LOCK_PREF = "_acdc-lock.";
     
-    private final static String CONTENT_TYPE2 = "application/x.iacdc-ampp-request_1.0+json";
+    // private final static String CONTENT_TYPE2 = "application/x.iacdc-ampp-request_1.0+json";
     
-    /** Content-type "application/json", deliveryMode 1 (nonpersistent), priority zero */
-    public static final BasicProperties JSON = new BasicProperties("application/json", null, null,
-            1, 0, null, null, null, null, null, null, null, null, null);
+    public static final BasicProperties PERSISTENT_JSON = MessageProperties.PERSISTENT_TEXT_PLAIN
+            .builder().contentType("application/json").build();
 }
