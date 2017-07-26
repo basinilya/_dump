@@ -6,6 +6,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.AMQP.BasicProperties;
+import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
@@ -39,11 +40,11 @@ public class Worker {
             // channel.queueDelete(RETRY_QUEUE);
             // channel.queueDelete(TASK_QUEUE);
             
-            // channel.exchangeDeclare(RETRY_EXCHANGE, BuiltinExchangeType.FANOUT, NON_DURABLE,
-            // AUTO_DELETE, null);
+            channel.exchangeDeclare(RETRY_EXCHANGE, BuiltinExchangeType.FANOUT, NON_DURABLE,
+                    AUTO_DELETE, null);
             
             channel.queueDeclare(RETRY_QUEUE, NON_DURABLE, NON_EXCLUSIVE, AUTO_DELETE, queueArgs);
-            // channel.queueBind(RETRY_QUEUE, RETRY_EXCHANGE, "", null);
+            channel.queueBind(RETRY_QUEUE, RETRY_EXCHANGE, "", null);
             
             channel.queueDeclare(TASK_QUEUE, NON_DURABLE, NON_EXCLUSIVE, AUTO_DELETE, null);
             

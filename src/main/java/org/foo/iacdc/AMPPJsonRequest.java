@@ -1,16 +1,15 @@
 package org.foo.iacdc;
 
-import java.util.Date;
 
 public class AMPPJsonRequest {
     
     private String request_id, application_id;
     
-    private Date timestamp;
+    private String timestamp;
     
     private String journal_id, year, article_id, in_package_name, in_package_location;
     
-    private PackageState package_state;
+    private String package_state;
     
     private String user_name, response_routing_key, out_package_location;
     
@@ -30,11 +29,11 @@ public class AMPPJsonRequest {
         this.application_id = application_id;
     }
     
-    public Date getTimestamp() {
+    public String getTimestamp() {
         return timestamp;
     }
     
-    public void setTimestamp(final Date timestamp) {
+    public void setTimestamp(final String timestamp) {
         this.timestamp = timestamp;
     }
     
@@ -78,11 +77,11 @@ public class AMPPJsonRequest {
         this.in_package_location = package_location;
     }
     
-    public PackageState getPackage_state() {
+    public String getPackage_state() {
         return package_state;
     }
     
-    public void setPackage_state(final PackageState package_state) {
+    public void setPackage_state(final String package_state) {
         this.package_state = package_state;
     }
     
