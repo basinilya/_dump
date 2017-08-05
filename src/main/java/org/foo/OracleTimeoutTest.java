@@ -9,8 +9,9 @@ public class OracleTimeoutTest {
     
     public static void main(final String[] args) throws Exception {
         Class.forName("oracle.jdbc.OracleDriver");
-        final Connection conn = DriverManager.getConnection(
-            "jdbc:oracle:thin:@eiger.reksoft.ru:1522:PPB", "ppbbig", "ppbbig");
+        final Connection conn =
+                DriverManager.getConnection("jdbc:oracle:thin:@eiger.reksoft.ru:1522:PPB",
+                        "ppbbig", "ppbbig");
         final Statement st = conn.createStatement();
         st.setQueryTimeout(1);
         final ResultSet rs = st.executeQuery("select count(*) from cdrcall");

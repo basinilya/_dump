@@ -44,8 +44,8 @@ public class DefaultProxySelector extends ProxySelector {
         try {
             final Class selectorClazz = parent.getClass();
             final ClassLoader cldr = selectorClazz.getClassLoader();
-            final Class nonProxyInfoClazz = Class.forName(selectorClazz.getName() + "$"
-                    + "NonProxyInfo", true, cldr);
+            final Class nonProxyInfoClazz =
+                    Class.forName(selectorClazz.getName() + "$" + "NonProxyInfo", true, cldr);
             final Field f = nonProxyInfoClazz.getDeclaredField(fieldName);
             f.setAccessible(true);
             final Object realNPI = f.get(null);
@@ -170,8 +170,9 @@ public class DefaultProxySelector extends ProxySelector {
                     if (DefaultProxySelector.props[i][0].equalsIgnoreCase(str2)) {
                         for (localObject1 = 1; localObject1 < DefaultProxySelector.props[i].length; localObject1++) {
                             
-                            str1 = NetProperties.get(DefaultProxySelector.props[i][localObject1]
-                                    + "Host");
+                            str1 =
+                                    NetProperties.get(DefaultProxySelector.props[i][localObject1]
+                                            + "Host");
                             if ((str1 != null) && (str1.length() != 0)) {
                                 break;
                             }
@@ -186,8 +187,8 @@ public class DefaultProxySelector extends ProxySelector {
                                 } else {
                                     str333 = str2;
                                 }
-                                localObject3 = DefaultProxySelector.this.getSystemProxy(str333,
-                                    str3);
+                                localObject3 =
+                                        DefaultProxySelector.this.getSystemProxy(str333, str3);
                                 if (localObject3 != null) {
                                     return (Proxy) localObject3;
                                 }
@@ -213,8 +214,8 @@ public class DefaultProxySelector extends ProxySelector {
                                 if ((str2 != null)
                                         && (!str2.equals(localNonProxyInfo2.hostsSource()))) {
                                     localObject3 = new RegexpPool();
-                                    final StringTokenizer localStringTokenizer = new StringTokenizer(
-                                            str2, "|", false);
+                                    final StringTokenizer localStringTokenizer =
+                                            new StringTokenizer(str2, "|", false);
                                     try {
                                         while (localStringTokenizer.hasMoreTokens()) {
                                             ((RegexpPool) localObject3).add(localStringTokenizer
@@ -235,15 +236,18 @@ public class DefaultProxySelector extends ProxySelector {
                         
                         int localObject2;
                         
-                        j = NetProperties.getInteger(
-                            DefaultProxySelector.props[i][localObject1] + "Port", 0).intValue();
+                        j =
+                                NetProperties.getInteger(
+                                        DefaultProxySelector.props[i][localObject1] + "Port", 0)
+                                        .intValue();
                         if ((j == 0) && (localObject1 < DefaultProxySelector.props[i].length - 1)) {
                             
                             for (localObject2 = 1; localObject2 < DefaultProxySelector.props[i].length - 1; localObject2++) {
                                 if ((localObject2 != localObject1) && (j == 0)) {
-                                    j = NetProperties.getInteger(
-                                        DefaultProxySelector.props[i][localObject2] + "Port", 0)
-                                            .intValue();
+                                    j =
+                                            NetProperties.getInteger(
+                                                    DefaultProxySelector.props[i][localObject2]
+                                                            + "Port", 0).intValue();
                                 }
                             }
                         }
@@ -259,8 +263,8 @@ public class DefaultProxySelector extends ProxySelector {
                         localInetSocketAddress = InetSocketAddress.createUnresolved(str1, j);
                         
                         if (localObject1 == DefaultProxySelector.props[i].length - 1) {
-                            final int k = NetProperties.getInteger("socksProxyVersion", 5)
-                                    .intValue();
+                            final int k =
+                                    NetProperties.getInteger("socksProxyVersion", 5).intValue();
                             return SocksProxy.create(localInetSocketAddress, k);
                         }
                         return new Proxy(Proxy.Type.HTTP, localInetSocketAddress);

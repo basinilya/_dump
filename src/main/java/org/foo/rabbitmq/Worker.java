@@ -2,6 +2,8 @@ package org.foo.rabbitmq;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
 import com.rabbitmq.client.AMQP;
@@ -24,10 +26,12 @@ public class Worker {
     
     public static void main(final String[] argv) throws IOException, InterruptedException,
             TimeoutException {
+        // final ExecutorService executor = Executors.newSingleThreadExecutor();
+        final ExecutorService executor = Executors.newFixedThreadPool(5);
         final ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("dioptase");
         
-        final Connection connection = factory.newConnection();
+        final Connection connection = factory.newConnection(executor);
         
         final Channel channel = connection.createChannel();
         try {
@@ -50,7 +54,7 @@ public class Worker {
             
             final BasicProperties props =
                     new BasicProperties.Builder().contentType("text/plain").deliveryMode(2)
-                            .priority(0).expiration("5000").build();
+                            .priority(0).expiration("1").build();
             System.out.println(props.toString());
             
             channel.basicPublish(RETRY_EXCHANGE, TASK_QUEUE, props, "test-retry".getBytes("UTF-8"));
@@ -90,10 +94,10 @@ public class Worker {
                         doWork(message);
                         if ("".length() == 0) {
                             System.out.println("basicCancel");
-                            getChannel().basicCancel(consumerTag);
+                            // getChannel().basicCancel(consumerTag);
                             System.out.println("basicCancel done");
                         }
-                        // Thread.sleep(3000);
+                        Thread.sleep(3000);
                     } catch (final InterruptedException e) {
                         System.out.println(" [x] Interrupted");
                     } finally {
@@ -108,7 +112,13 @@ public class Worker {
             // channel.basicConsume(TASK_QUEUE_NAME, autoAck, consumer);
             final boolean exclusive = true;
             
-            channel.basicConsume(TASK_QUEUE, isAutoAck, "", true, exclusive, null, consumer);
+            final String consumerTag =
+                    channel.basicConsume(TASK_QUEUE, isAutoAck, "", true, exclusive, null, consumer);
+            
+            Thread.sleep(1500);
+            channel.basicCancel(consumerTag);
+            executor.shutdown();
+            
         } catch (final Exception e) {
             connection.close();
             throw e;

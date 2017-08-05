@@ -1,12 +1,9 @@
 {
-   "request_id" : "4fbf262f56d74f978510d69f99505945",
-   "application_id" : "acdc",
-   "timestamp" : "2017-06-22T10:01:45+00:00",
-   "journal_id" : "10144",
-   "year" : "2016" ,
-   "article_id" : "877",
-   "package_name" : "10144_2016_877_Article_Input.zip",
-   "package_location" : "ftp://springer.com/ampp/in/",
-   "package_state" : "normalized",
-   "user_name" : "springernature/sonal"
+  "request_id" : "4fbf262f56d74f978510d69f99505945",
+  "application_id" : "ampp",
+  "timestamp" : "2017-06-22T10:01:45Z",
+  "package_name" : "10144_2016_1001_Article_Input.zip",
+  "package_location" : "ftp://103.82.76.10/fasttest/FTPExchangeJob/AMPP_Output",
+  "state" : "success",
+  "message" : "success."
 }
