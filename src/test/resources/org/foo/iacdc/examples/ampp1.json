@@ -1,9 +1,0 @@
-{
-  "request_id" : "4fbf262f56d74f978510d69f99505945",
-  "application_id" : "ampp",
-  "timestamp" : "2017-06-22T10:01:45Z",
-  "package_name" : "10144_2016_1001_Article_Input.zip",
-  "package_location" : "ftp://103.82.76.10/fasttest/FTPExchangeJob/AMPP_Output",
-  "state" : "success",
-  "message" : "success."
-}

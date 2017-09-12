@@ -15,6 +15,14 @@ public class Logger {
         log(o, e);
     }
     
+    public void error(final Object o) {
+        LogTest.log(o);
+    }
+    
+    public void error(final Object o, final Throwable e) {
+        log(o, e);
+    }
+    
     public void trace(final Object o, final Throwable e) {
         log(o, e);
     }
