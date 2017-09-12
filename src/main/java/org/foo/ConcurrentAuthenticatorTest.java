@@ -11,7 +11,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public abstract class ConcurrentAuthenticatorTest {
+public class ConcurrentAuthenticatorTest {
     
     public static void main(final String[] args) throws Exception {
         final ExecutorService executor = Executors.newCachedThreadPool();
