@@ -53,8 +53,8 @@ public class ConcurrentAuthenticatorTest {
             public Void call() throws Exception {
                 final URL u =
                         new URL("http://httpbin.org/basic-auth/" + user + "/" + password + "");
-                // downloadContent(u);
-                requestAuth(u);
+                downloadContent(u);
+                // requestAuth(u);
                 return null;
             }
         };

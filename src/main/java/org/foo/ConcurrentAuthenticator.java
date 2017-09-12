@@ -79,9 +79,7 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
     protected final PasswordAuthentication getPasswordAuthentication() {
         try {
             final ConcurrentAuthenticator selfCopy = (ConcurrentAuthenticator) clone();
-            synchronized (ConcurrentAuthenticator.this) {
-                return unlockAndGetPasswordAuthentication(Thread.currentThread(), selfCopy);
-            }
+            return unlockAndGetPasswordAuthentication(Thread.currentThread(), selfCopy);
         } catch (final CloneNotSupportedException e) {
             throw new RuntimeException("this can't be", e);
         }

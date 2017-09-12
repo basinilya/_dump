@@ -38,14 +38,22 @@ public abstract class ConcurrentAuthenticatorUnsafe extends ConcurrentAuthentica
         if (UNSAFE == null) {
             return super.unlockAndGetPasswordAuthentication(callerThread, selfCopy);
         } else {
-            ConcurrentAuthenticatorUnsafe.this.notifyAll();
-            UNSAFE.monitorExit(ConcurrentAuthenticatorUnsafe.this);
+            int n = 0;
+            try {
+                for (;; n++) {
+                    UNSAFE.monitorExit(ConcurrentAuthenticatorUnsafe.this);
+                }
+            } catch (final IllegalMonitorStateException e) {
+            }
+            
             try {
                 return selfCopy.getPasswordAuthentication(callerThread);
             } catch (final Exception e) {
                 throw new RuntimeException(e);
             } finally {
-                UNSAFE.monitorEnter(ConcurrentAuthenticatorUnsafe.this);
+                for (; n > 0; n--) {
+                    UNSAFE.monitorEnter(ConcurrentAuthenticatorUnsafe.this);
+                }
             }
         }
     }
