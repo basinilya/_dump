@@ -17,7 +17,7 @@ public abstract class ConcurrentAuthenticatorTest {
         final ExecutorService executor = Executors.newCachedThreadPool();
         ((ThreadPoolExecutor) executor).setKeepAliveTime(3, TimeUnit.SECONDS);
         
-        class Impl extends ConcurrentAuthenticatorUnsafe {
+        Authenticator.setDefault(new ConcurrentAuthenticatorUnsafe() {
             
             @Override
             protected PasswordAuthentication getPasswordAuthentication(final Thread callerThread)
@@ -31,9 +31,7 @@ public abstract class ConcurrentAuthenticatorTest {
                 final String password = parts[parts.length - 1];
                 return new PasswordAuthentication(user, password.toCharArray());
             }
-        }
-        
-        Authenticator.setDefault(new Impl());
+        });
         try {
             final Future<Void> fut1 = test(executor, "user1", "password1");
             final Future<Void> fut2 = test(executor, "user2", "password2");
