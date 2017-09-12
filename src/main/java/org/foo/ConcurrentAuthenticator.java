@@ -40,33 +40,31 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
         this.executor = executor;
     }
     
-    protected PasswordAuthentication unlockAndGetPasswordAuthentication(final Thread callerThread,
-            final ConcurrentAuthenticator selfCopy) {
+    protected synchronized PasswordAuthentication unlockAndGetPasswordAuthentication(
+            final Thread callerThread, final ConcurrentAuthenticator selfCopy) {
         try {
-            synchronized (ConcurrentAuthenticator.this) {
-                class Task implements Callable<PasswordAuthentication> {
-                    
-                    boolean done;
-                    
-                    @Override
-                    public PasswordAuthentication call() throws Exception {
-                        try {
-                            return selfCopy.getPasswordAuthentication(callerThread);
-                        } finally {
-                            synchronized (ConcurrentAuthenticator.this) {
-                                done = true;
-                                ConcurrentAuthenticator.this.notifyAll();
-                            }
+            class Task implements Callable<PasswordAuthentication> {
+                
+                boolean done;
+                
+                @Override
+                public PasswordAuthentication call() throws Exception {
+                    try {
+                        return selfCopy.getPasswordAuthentication(callerThread);
+                    } finally {
+                        synchronized (ConcurrentAuthenticator.this) {
+                            done = true;
+                            ConcurrentAuthenticator.this.notifyAll();
                         }
                     }
                 }
-                final Task task = new Task();
-                final Future<PasswordAuthentication> fut = executor.submit(task);
-                while (!task.done) {
-                    ConcurrentAuthenticator.this.wait();
-                }
-                return fut.get();
             }
+            final Task task = new Task();
+            final Future<PasswordAuthentication> fut = executor.submit(task);
+            while (!task.done) {
+                ConcurrentAuthenticator.this.wait();
+            }
+            return fut.get();
         } catch (final InterruptedException e) {
             callerThread.interrupt();
             throw new RuntimeException(e);
@@ -85,4 +83,13 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
         }
     }
     
+    @Override
+    public String toString() {
+        return "A [requestingHost=" + getRequestingHost() + ", requestingSite="
+                + getRequestingSite() + ", requestingPort=" + getRequestingPort()
+                + ", requestingProtocol=" + getRequestingProtocol() + ", requestingPrompt="
+                + getRequestingPrompt() + ", requestingScheme=" + getRequestingScheme()
+                + ", requestingURL=" + getRequestingURL() + ", requestorType=" + getRequestorType()
+                + "]";
+    }
 }

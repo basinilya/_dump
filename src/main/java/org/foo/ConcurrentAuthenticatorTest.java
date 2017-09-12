@@ -17,15 +17,15 @@ public class ConcurrentAuthenticatorTest {
         final ExecutorService executor = Executors.newCachedThreadPool();
         ((ThreadPoolExecutor) executor).setKeepAliveTime(3, TimeUnit.SECONDS);
         
-        final ConcurrentAuthenticator inst = new ConcurrentAuthenticatorUnsafe() {
+        final ConcurrentAuthenticator inst = new ConcurrentAuthenticator() {
             
             @Override
             protected PasswordAuthentication getPasswordAuthentication(final Thread callerThread)
                     throws Exception {
                 final URL u = getRequestingURL();
-                System.out.println("requesting auth for \"" + u + "\"...");
+                System.out.println("requesting auth for " + u);
                 Thread.sleep(2000);
-                System.out.println("got auth for \"" + u + "\"");
+                System.out.println("got auth for " + u);
                 final String[] parts = u.getPath().split("/");
                 final String user = parts[parts.length - 2];
                 final String password = parts[parts.length - 1];
