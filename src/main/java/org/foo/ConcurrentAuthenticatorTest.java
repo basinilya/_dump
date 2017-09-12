@@ -17,7 +17,7 @@ public class ConcurrentAuthenticatorTest {
         final ExecutorService executor = Executors.newCachedThreadPool();
         ((ThreadPoolExecutor) executor).setKeepAliveTime(3, TimeUnit.SECONDS);
         
-        final ConcurrentAuthenticatorUnsafe inst = new ConcurrentAuthenticatorUnsafe() {
+        final ConcurrentAuthenticator inst = new ConcurrentAuthenticatorUnsafe() {
             
             @Override
             protected PasswordAuthentication getPasswordAuthentication(final Thread callerThread)
