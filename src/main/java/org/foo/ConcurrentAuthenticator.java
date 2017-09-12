@@ -10,14 +10,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link Authenticator} disallows simultaneous password prompting from different threads by running
- * the callback inside a synchronized block. This implementation circumvents it by losing the
- * monitor ownership by calling {@link Object#wait()}.
+ * {@link Authenticator} disallows simultaneous password prompting from different threads, because
+ * the callback runs inside a synchronized block. This implementation circumvents it by calling
+ * {@link Object#wait()} and losing the monitor ownership. The side effect is that the actual
+ * password prompt has to run in a separate thread.
  */
 public abstract class ConcurrentAuthenticator extends Authenticator implements Cloneable {
     
-    protected abstract PasswordAuthentication getPasswordAuthentication(final Thread callerThread,
-            final Object selfCopy) throws Exception;
+    protected abstract PasswordAuthentication getPasswordAuthentication(final Thread callerThread)
+            throws Exception;
     
     private final ExecutorService executor;
     
@@ -40,7 +41,7 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
     }
     
     protected PasswordAuthentication unlockAndGetPasswordAuthentication(final Thread callerThread,
-            final Object selfCopy) {
+            final ConcurrentAuthenticator selfCopy) {
         try {
             synchronized (ConcurrentAuthenticator.this) {
                 class Task implements Callable<PasswordAuthentication> {
@@ -50,7 +51,7 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
                     @Override
                     public PasswordAuthentication call() throws Exception {
                         try {
-                            return getPasswordAuthentication(callerThread, selfCopy);
+                            return selfCopy.getPasswordAuthentication(callerThread);
                         } finally {
                             synchronized (ConcurrentAuthenticator.this) {
                                 done = true;
@@ -77,7 +78,7 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
     @Override
     protected final PasswordAuthentication getPasswordAuthentication() {
         try {
-            final Object selfCopy = clone();
+            final ConcurrentAuthenticator selfCopy = (ConcurrentAuthenticator) clone();
             synchronized (ConcurrentAuthenticator.this) {
                 return unlockAndGetPasswordAuthentication(Thread.currentThread(), selfCopy);
             }
@@ -86,8 +87,4 @@ public abstract class ConcurrentAuthenticator extends Authenticator implements C
         }
     }
     
-    @SuppressWarnings("unchecked")
-    protected static <T> T cast(final T self, final Object selfCopy) {
-        return (T) selfCopy;
-    }
 }

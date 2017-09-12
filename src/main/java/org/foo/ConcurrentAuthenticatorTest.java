@@ -20,12 +20,11 @@ public abstract class ConcurrentAuthenticatorTest {
         class Impl extends ConcurrentAuthenticatorUnsafe {
             
             @Override
-            protected PasswordAuthentication getPasswordAuthentication(final Thread callerThread,
-                    final Object selfCopy) throws Exception {
-                final Impl requestParams = cast(this, selfCopy);
-                final URL u = requestParams.getRequestingURL();
+            protected PasswordAuthentication getPasswordAuthentication(final Thread callerThread)
+                    throws Exception {
+                final URL u = getRequestingURL();
                 System.out.println("requesting auth for \"" + u + "\"...");
-                Thread.sleep(6000);
+                Thread.sleep(200000);
                 System.out.println("got auth for \"" + u + "\"");
                 final String[] parts = u.getPath().split("/");
                 final String user = parts[parts.length - 2];
