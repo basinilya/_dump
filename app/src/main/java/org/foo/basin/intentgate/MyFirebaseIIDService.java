@@ -16,8 +16,7 @@ public class MyFirebaseIIDService extends FirebaseInstanceIdService {
 
     @Override
     public void onTokenRefresh() {
-        Intent intent = new Intent("custom-event-name");
-        // You can also include some extra data.
+        Intent intent = new Intent(MainActivity.ON_TOKEN_REFRESH);
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 }

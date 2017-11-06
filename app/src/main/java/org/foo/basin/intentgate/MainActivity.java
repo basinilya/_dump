@@ -107,11 +107,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public static final String ON_TOKEN_REFRESH = "onTokenRefresh";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter("custom-event-name"));
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                mMessageReceiver, new IntentFilter(ON_TOKEN_REFRESH));
 
         FirebaseMessaging.getInstance().subscribeToTopic("news");
 

@@ -31,7 +31,7 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
 
 
         PreferenceManager prefMgr = getPreferenceManager();
-        prefMgr.setSharedPreferencesName(getKnownIntentsPreferencesName(getActivity()));
+        prefMgr.setSharedPreferencesName(MyFirebaseMsgService.getKnownIntentsPreferencesName(getActivity()));
         prefMgr.setSharedPreferencesMode(Context.MODE_PRIVATE);
         addPreferencesFromResource(R.xml.prefs_known_intents);
 
@@ -58,11 +58,6 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         }
 
     }
-
-    public static String getKnownIntentsPreferencesName(Context context) {
-        return context.getPackageName() + "_known_intents";
-    }
-
 
     @Override
     public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
