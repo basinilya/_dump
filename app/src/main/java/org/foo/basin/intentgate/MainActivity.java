@@ -1,72 +1,60 @@
 package org.foo.basin.intentgate;
 
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SwitchCompat;
-import android.support.v7.widget.Toolbar;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.widget.ListView;
-import android.widget.Switch;
+import android.preference.CheckBoxPreference;
+import android.preference.Preference;
+import android.preference.PreferenceActivity;
+import android.preference.PreferenceCategory;
+import android.preference.PreferenceManager;
+import android.preference.PreferenceScreen;
+import android.util.Log;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends PreferenceActivity {
+
+    private static final String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        PreferenceManager prefMgr = getPreferenceManager();
+        prefMgr.setSharedPreferencesName(getKnownIntentsPreferencesName());
+        prefMgr.setSharedPreferencesMode(MODE_PRIVATE);
+        addPreferencesFromResource(R.xml.preferences);
+        PreferenceScreen screen = getPreferenceScreen();
+        int count = screen.getPreferenceCount();
+        Log.d(TAG, "preference count: " + count);
+        for (int i = 0 ; i < count; i++) {
+            //
+            Preference preference = screen.getPreference(i);
+            Log.d(TAG, "preference class: " + preference.getClass().getSimpleName());
+            Log.d(TAG, "preference key: " + preference.getKey() );
+        }
+        PreferenceCategory targetCategory = (PreferenceCategory)findPreference("known_intents");
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-        ListView list = findViewById(R.id.knownIntents);
-        EnabledIntentsAdapter adapter = new EnabledIntentsAdapter(this, R.layout.simple_list_item_1);
-        list.setAdapter(adapter);
-        Map<String, Boolean> knownIntents = new TreeMap<>();
+        Map<String, ?> knownIntents = prefMgr.getSharedPreferences().getAll();
+        for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
+            CheckBoxPreference checkBoxPreference = new CheckBoxPreference(this);
+            String key = x.getKey();
+            checkBoxPreference.setKey(key);
+            checkBoxPreference.setTitle(key);
+            targetCategory.addPreference(checkBoxPreference);
+        }
 
-        knownIntents.put("aaa", Boolean.FALSE);
-        knownIntents.put("bbb", Boolean.TRUE);
-
-
-
+/*
+*/
+        //Map<String, ?> knownIntents = PreferenceManager.getDefaultSharedPreferences(this).getAll();
+        //getSharedPreferences(getKnownIntentsPreferencesName(), MODE_PRIVATE);
+/*
         for (Map.Entry<String, Boolean> x : knownIntents.entrySet()) {
             adapter.add(x);
         }
+        */
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
+    public String getKnownIntentsPreferencesName() {
+        return getPackageName() + "_knownIntents";
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
 }

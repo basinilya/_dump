@@ -1,0 +1,10 @@
+<PreferenceScreen
+        xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <android.preference.PreferenceCategory
+        android:key="known_intents"
+        android:title="@string/preferences_known_intents">
+
+    </android.preference.PreferenceCategory>
+
+</PreferenceScreen>
