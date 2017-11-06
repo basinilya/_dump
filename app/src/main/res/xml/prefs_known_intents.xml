@@ -3,7 +3,7 @@
 
     <android.preference.PreferenceCategory
         android:key="known_intents"
-        android:title="@string/preferences_known_intents">
+        android:title="@string/prefs_known_intents">
 
     </android.preference.PreferenceCategory>
 
