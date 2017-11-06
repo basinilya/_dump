@@ -1,5 +1,8 @@
 package org.foo.basin.intentgate;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -33,6 +36,7 @@ import android.widget.Toast;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.messaging.FirebaseMessaging;
 
+import java.lang.reflect.Method;
 import java.util.Date;
 import java.util.Map;
 
@@ -45,31 +49,37 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.menu_item_unreg:
-                    new AsyncTask<Void, Void, Exception>() {
-                        @Override
-                        protected Exception doInBackground(Void... voids) {
-                            try {
-                                FirebaseInstanceId.getInstance().deleteInstanceId();
-                            } catch (Exception e) {
-                                Log.e(TAG, "", e);
-                                return e;
-                            }
-                            return null;
-                        }
-
-                        @Override
-                        protected void onPostExecute(Exception e) {
-                            String s = e == null ? "unregistered" : e.getLocalizedMessage();
-                            Toast.makeText(MainActivity.this, s, Toast.LENGTH_LONG).show();
-                            if (e == null) {
-                                onTokenRefresh();
-                            }
-                        }
-                    }.execute();
+                unreg();
+                return true;
+            case R.id.menu_item_test:
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private void unreg() {
+        new AsyncTask<Void, Void, Exception>() {
+            @Override
+            protected Exception doInBackground(Void... voids) {
+                try {
+                    FirebaseInstanceId.getInstance().deleteInstanceId();
+                } catch (Exception e) {
+                    Log.e(TAG, "", e);
+                    return e;
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Exception e) {
+                String s = e == null ? "unregistered" : e.getLocalizedMessage();
+                Toast.makeText(MainActivity.this, s, Toast.LENGTH_LONG).show();
+                if (e == null) {
+                    onTokenRefresh();
+                }
+            }
+        }.execute();
     }
 
     @Override
@@ -109,9 +119,13 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String ON_TOKEN_REFRESH = "onTokenRefresh";
 
+    private NotificationManager nm;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(
                 mMessageReceiver, new IntentFilter(ON_TOKEN_REFRESH));
@@ -129,4 +143,15 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Intent intent = getIntent();
+        String ser = null;
+        if (intent != null) {
+            ser = intent.getExtras().getString(MyFirebaseMsgService.KEY_WHOLE);
+        }
+        if (ser == null) return;
+        //
+    }
 }
