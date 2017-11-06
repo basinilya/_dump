@@ -1,5 +1,6 @@
 package org.foo.basin.intentgate;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
@@ -9,10 +10,15 @@ import android.preference.PreferenceCategory;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.util.Log;
+import android.view.Menu;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.util.Date;
 import java.util.Map;
@@ -23,10 +29,26 @@ public class MainActivity extends PreferenceActivity implements AdapterView.OnIt
     private PreferenceCategory targetCategory;
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Default FirebaseApp is not initialized in this process org.foo.basin.intentgate. Make sure to call FirebaseApp.initializeApp(Context) first.
+        //        at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:2325)
+        //FirebaseApp.initializeApp(this);
+
+        String refreshedToken = MyFirebaseIIDService.logToken(this);
+        if (refreshedToken == null) {
+            FirebaseMessaging.getInstance().subscribeToTopic("news");
+        }
+
         PreferenceManager prefMgr = getPreferenceManager();
-        prefMgr.setSharedPreferencesName(getKnownIntentsPreferencesName());
+        prefMgr.setSharedPreferencesName(getKnownIntentsPreferencesName(this));
         prefMgr.setSharedPreferencesMode(MODE_PRIVATE);
         addPreferencesFromResource(R.xml.prefs_known_intents);
 
@@ -54,8 +76,8 @@ public class MainActivity extends PreferenceActivity implements AdapterView.OnIt
         }
     }
 
-    public String getKnownIntentsPreferencesName() {
-        return getPackageName() + "_known_intents";
+    public static String getKnownIntentsPreferencesName(Context context) {
+        return context.getPackageName() + "_known_intents";
     }
 
     @Override
