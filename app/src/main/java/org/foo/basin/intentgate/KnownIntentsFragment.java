@@ -44,9 +44,11 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         targetCategory.setTitle(R.string.prefs_known_intents);
         screen.addPreference(targetCategory);
 
-        SharedPreferences.Editor editor = prefMgr.getSharedPreferences().edit();
-        editor.putBoolean(new Date().toString(), false);
-        editor.apply();
+        if (false) {
+            SharedPreferences.Editor editor = prefMgr.getSharedPreferences().edit();
+            editor.putBoolean(new Date().toString(), false);
+            editor.apply();
+        }
 
         TreeMap<String, Object> knownIntents = new TreeMap<>(prefMgr.getSharedPreferences().getAll());
         for (Map.Entry<String, ?> x : knownIntents.entrySet()) {

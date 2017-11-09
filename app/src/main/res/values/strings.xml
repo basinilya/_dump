@@ -5,6 +5,8 @@
 
     <string name="prefs_known_intents">Known intents</string>
 
+    <string name="title_unknown_intent">Unknown intent</string>
+
     <!-- Strings related to Settings -->
 
     <!-- Example General settings -->

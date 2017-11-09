@@ -149,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = getIntent();
         String ser = null;
         if (intent != null) {
-            ser = intent.getExtras().getString(MyFirebaseMsgService.KEY_WHOLE);
+            ser = intent.getStringExtra(MyFirebaseMsgService.KEY_WHOLE);
         }
         if (ser == null) return;
         //
