@@ -52,6 +52,13 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
     public void onMessageReceived(RemoteMessage remoteMessage) {
         Log.d(TAG, "From: " + remoteMessage.getFrom());
 
+        // block broadcast messages
+        String from = remoteMessage.getFrom();
+        if (from == null || from.startsWith("/")) {
+            Log.d(TAG, "blocked");
+            return;
+        }
+
         // Check if message contains a data payload.
         if (remoteMessage.getData().size() > 0) {
             Map<String, String> allProps = remoteMessage.getData();
