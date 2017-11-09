@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import android.util.JsonWriter;
@@ -20,6 +21,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -54,9 +56,21 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
         if (remoteMessage.getData().size() > 0) {
             Map<String, String> allProps = remoteMessage.getData();
             Log.d(TAG, "Message data payload: " + allProps);
+
+            Intent intent = new Intent();
+
             TreeMap<String, String> keyProps = new TreeMap<>(remoteMessage.getData());
-            keyProps.remove(KEY_DATA);
             keyProps.remove(KEY_EXTRA);
+
+            String sUri = allProps.get(KEY_DATA);
+            if (sUri != null) {
+                Uri uri = Uri.parse(sUri);
+                intent.setData(uri);
+
+                String scheme = uri.getScheme();
+                keyProps.put(KEY_DATA, scheme + ":");
+            }
+
             StringWriter wr = new StringWriter();
             try {
                 JsonWriter jsonw = new JsonWriter(wr);
@@ -71,22 +85,19 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 //
             }
             String ser = wr.toString();
+            String key = encode(ser);
 
-            if (prefs.getBoolean(ser, false)) {
+            if (prefs.getBoolean(key, false)) {
                 Log.d(TAG, "enabled");
+                Object o = Intent.ACTION_VIEW;
 
-                Intent intent = new Intent();
+                int flags = Intent.FLAG_ACTIVITY_NEW_TASK;
+                intent.setFlags(flags);
+
                 intent.setAction(allProps.get(KEY_ACTION));
-                String sUri = allProps.get(KEY_DATA);
-                if (sUri != null) {
-                    intent.setData(Uri.parse(sUri));
-                }
                 String sExtra = allProps.get(KEY_EXTRA);
                 if (sExtra != null) {
-                    Bundle extra = intent.getExtras();
-                    if (extra == null) {
-                        intent.putExtras(extra = new Bundle());
-                    }
+                    Bundle extra = new Bundle();
                     JsonReader jsonr = new JsonReader(new StringReader(sExtra));
                     try {
                         jsonr.beginObject();
@@ -96,16 +107,18 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                         Log.e(TAG, "", e);
                         return;
                     }
+                    intent.putExtras(extra);
                 }
                 startActivity(intent);
 
-            } else if (!prefs.contains(ser)) {
+            } else if (!prefs.contains(key)) {
                 Log.d(TAG, "unknown");
+                Map<String, ?> all = prefs.getAll();
 
-                Intent intent = new Intent(getApplicationContext(), MainActivity.class);
-                intent.putExtra(KEY_WHOLE, ser);
+                Intent notifIntent = new Intent(getApplicationContext(), MainActivity.class);
+                notifIntent.putExtra(KEY_WHOLE, ser);
                 PendingIntent pe = PendingIntent.getActivity(
-                        getApplicationContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                        getApplicationContext(), 0, notifIntent, PendingIntent.FLAG_UPDATE_CURRENT);
                 Notification notif = new Notification.Builder(this)
                         .setWhen(System.currentTimeMillis())
                         .setContentIntent(pe)
@@ -122,6 +135,27 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
         // Check if message contains a notification payload.
         if (remoteMessage.getNotification() != null) {
             Log.d(TAG, "Message Notification Body: " + remoteMessage.getNotification().getBody());
+        }
+    }
+
+    public static String encode(String title) {
+        try {
+            String key = new String(Base64.encode(
+                    title.getBytes("UTF-8"), Base64.URL_SAFE | Base64.NO_WRAP)
+                    , "UTF-8");
+            return key;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String decode(String key) {
+        try {
+            String title = new String(Base64.decode(
+                    key.getBytes("UTF-8"), Base64.URL_SAFE), "UTF-8");
+            return title;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
         }
     }
 

@@ -11,6 +11,7 @@ import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.util.AttributeSet;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,6 +19,7 @@ import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -43,7 +45,8 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         SharedPreferences prefs = prefMgr.getSharedPreferences();
         if (ser != null && !prefs.contains(ser)) {
             SharedPreferences.Editor editor = prefs.edit();
-            editor.putBoolean(ser, false);
+            String key = MyFirebaseMsgService.encode(ser);
+            editor.putBoolean(key, false);
             editor.apply();
             targetCategory.removeAll();
         }
@@ -55,12 +58,13 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
             for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
                 CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
                 String key = x.getKey();
-                if (key.equals(ser)) {
+                String title = MyFirebaseMsgService.decode(key);
+                if (title.equals(ser)) {
                     checkBoxPreference.setSummary("new");
                     scrollTo = i;
                 }
+                checkBoxPreference.setTitle(title);
                 checkBoxPreference.setKey(key);
-                checkBoxPreference.setTitle(key);
                 targetCategory.addPreference(checkBoxPreference);
                 i++;
             }
