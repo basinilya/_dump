@@ -1,7 +1,5 @@
 package org.foo.basin.intentgate;
 
-import static android.util.JsonToken.*;
-
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -22,7 +20,6 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -68,6 +65,7 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 for (Map.Entry<String, String> keyProp : keyProps.entrySet()) {
                     jsonw.name(keyProp.getKey()).value(keyProp.getValue());
                 }
+                jsonw.endObject();
                 jsonw.close();
             } catch (IOException e) {
                 //
@@ -86,22 +84,26 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 String sExtra = allProps.get(KEY_EXTRA);
                 if (sExtra != null) {
                     Bundle extra = intent.getExtras();
+                    if (extra == null) {
+                        intent.putExtras(extra = new Bundle());
+                    }
                     JsonReader jsonr = new JsonReader(new StringReader(sExtra));
                     try {
                         jsonr.beginObject();
-                        aaa(jsonr, extra);
+                        convObj(jsonr, extra);
                         jsonr.endObject();
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         Log.e(TAG, "", e);
+                        return;
                     }
                 }
-
+                startActivity(intent);
 
             } else if (!prefs.contains(ser)) {
                 Log.d(TAG, "unknown");
 
                 Intent intent = new Intent(getApplicationContext(), MainActivity.class);
-                intent.getExtras().putString(KEY_WHOLE, ser);
+                intent.putExtra(KEY_WHOLE, ser);
                 PendingIntent pe = PendingIntent.getActivity(
                         getApplicationContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
                 Notification notif = new Notification.Builder(this)
@@ -123,36 +125,46 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
         }
     }
 
-    private static void aaa(JsonReader jsonr, Bundle extra) throws IOException {
+    private static void convObj(JsonReader jsonr, Bundle bundle) throws IOException {
         while(jsonr.hasNext()) {
-            String key = jsonr.nextName();
-            JsonToken poke = jsonr.peek();
-            switch (poke) {
-                case BEGIN_ARRAY:
-                    jsonr.beginArray();
-                    ArrayList<Object> list = new ArrayList<Object>();
-                    jsonr.endArray();
-                    break;
-                case BEGIN_OBJECT: break;
-                case STRING:
-                    String sVal = jsonr.nextString();
-                    extra.putString(key, sVal);
-                    break;
-                case NUMBER:
-                    double dVal = jsonr.nextDouble();
-                    extra.putDouble(key, dVal);
-                    break;
-                case BOOLEAN:
-                    boolean bVal = jsonr.nextBoolean();
-                    extra.putBoolean(key, bVal);
-                    break;
-                case NULL: break;
-                default:
-                    throw new IllegalStateException("unexpected " + poke);
-            }
-
+            convField(jsonr, bundle);
         }
     }
+
+    private static void convField(JsonReader jsonr, Bundle bundle) throws IOException {
+        String key = jsonr.nextName();
+        JsonToken poke = jsonr.peek();
+        switch (poke) {
+            case BEGIN_OBJECT:
+                jsonr.beginObject();
+
+                Bundle bundleVal = new Bundle();
+
+                convObj(jsonr, bundleVal);
+
+                bundle.putBundle(key, bundleVal);
+                jsonr.endObject();
+                break;
+            case STRING:
+                String sVal = jsonr.nextString();
+                bundle.putString(key, sVal);
+                break;
+            case NUMBER:
+                double dVal = jsonr.nextDouble();
+                bundle.putDouble(key, dVal);
+                break;
+            case BOOLEAN:
+                boolean bVal = jsonr.nextBoolean();
+                bundle.putBoolean(key, bVal);
+                break;
+            case NULL:
+                bundle.putString(key, jsonr.nextString());
+                break;
+            default:
+                throw new IllegalStateException("unexpected " + poke);
+        }
+    }
+
 
     public static String getKnownIntentsPreferencesName(Context context) {
         return context.getPackageName() + "_known_intents";

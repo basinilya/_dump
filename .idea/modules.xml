@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/IntentGate.iml" filepath="$PROJECT_DIR$/IntentGate.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/intentgate.iml" filepath="$PROJECT_DIR$/intentgate.iml" />
     </modules>
   </component>
 </project>

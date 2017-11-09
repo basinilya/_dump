@@ -142,16 +142,4 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
         super.onDestroy();
     }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        Intent intent = getIntent();
-        String ser = null;
-        if (intent != null) {
-            ser = intent.getStringExtra(MyFirebaseMsgService.KEY_WHOLE);
-        }
-        if (ser == null) return;
-        //
-    }
 }

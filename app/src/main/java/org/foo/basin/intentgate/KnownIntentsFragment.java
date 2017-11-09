@@ -1,6 +1,7 @@
 package org.foo.basin.intentgate;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
@@ -17,7 +18,6 @@ import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
-import java.util.Date;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -25,10 +25,55 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
 
     private static final String TAG = "KnownIntentsFragment";
     private PreferenceCategory targetCategory;
+    private int scrollTo;
+    private ListView currentListView;
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        Intent intent = getActivity().getIntent();
+        String ser = null;
+        if (intent != null) {
+            ser = intent.getStringExtra(MyFirebaseMsgService.KEY_WHOLE);
+        }
+
+        PreferenceManager prefMgr = getPreferenceManager();
+
+        SharedPreferences prefs = prefMgr.getSharedPreferences();
+        if (ser != null && !prefs.contains(ser)) {
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putBoolean(ser, false);
+            editor.apply();
+            targetCategory.removeAll();
+        }
+
+        if (targetCategory.getPreferenceCount() == 0) {
+            TreeMap<String, Object> knownIntents = new TreeMap<>(prefMgr.getSharedPreferences().getAll());
+            scrollTo = -1;
+            int i = 0;
+            for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
+                CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
+                String key = x.getKey();
+                if (key.equals(ser)) {
+                    checkBoxPreference.setSummary("new");
+                    scrollTo = i;
+                }
+                checkBoxPreference.setKey(key);
+                checkBoxPreference.setTitle(key);
+                targetCategory.addPreference(checkBoxPreference);
+                i++;
+            }
+        }
+
+        if (currentListView != null && scrollTo != -1) {
+            currentListView.smoothScrollToPosition(scrollTo);
+            scrollTo = -1;
+        }
+    }
 
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
 
         PreferenceManager prefMgr = getPreferenceManager();
         prefMgr.setSharedPreferencesName(MyFirebaseMsgService.getKnownIntentsPreferencesName(getActivity()));
@@ -43,22 +88,6 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         targetCategory = new CustomPreferenceCategory(getActivity());
         targetCategory.setTitle(R.string.prefs_known_intents);
         screen.addPreference(targetCategory);
-
-        if (false) {
-            SharedPreferences.Editor editor = prefMgr.getSharedPreferences().edit();
-            editor.putBoolean(new Date().toString(), false);
-            editor.apply();
-        }
-
-        TreeMap<String, Object> knownIntents = new TreeMap<>(prefMgr.getSharedPreferences().getAll());
-        for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
-            CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
-            String key = x.getKey();
-            checkBoxPreference.setKey(key);
-            checkBoxPreference.setTitle(key);
-            targetCategory.addPreference(checkBoxPreference);
-        }
-
     }
 
     @Override
@@ -88,9 +117,14 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
 
         @Override
         protected View onCreateView(ViewGroup parent) {
-            ListView listView = (ListView)parent;
-            listView.setOnItemLongClickListener(KnownIntentsFragment.this);
-            return super.onCreateView(parent);
+            currentListView = (ListView)parent;
+            currentListView.setOnItemLongClickListener(KnownIntentsFragment.this);
+            View res = super.onCreateView(parent);;
+            if (scrollTo != -1) {
+                currentListView.smoothScrollToPosition(scrollTo);
+                scrollTo = -1;
+            }
+            return res;
         }
     }
 
