@@ -3,6 +3,7 @@ package org.foo.basin.intentgate;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -34,6 +35,8 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
     private static final String KEY_ACTION = "action";
 
     private static final String KEY_PACKAGE = "package";
+
+    private static final String KEY_COMPONENT_NAME = "component";
 
     private static final String KEY_DATA = "data";
 
@@ -103,6 +106,10 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK;
                 intent.setFlags(flags);
 
+                String componentName = allProps.get(KEY_COMPONENT_NAME);
+                if (componentName != null) {
+                    intent.setComponent(ComponentName.unflattenFromString(componentName));
+                }
                 intent.setPackage(allProps.get(KEY_PACKAGE));
                 intent.setAction(allProps.get(KEY_ACTION));
                 String sExtra = allProps.get(KEY_EXTRA);
@@ -119,7 +126,12 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                     }
                     intent.putExtras(extra);
                 }
-                startActivity(intent);
+                try {
+                    startActivity(intent);
+                } catch (SecurityException e) {
+                    Log.e(TAG, "", e);
+                    return;
+                }
 
             } else if (!prefs.contains(key)) {
                 Log.d(TAG, "unknown");
