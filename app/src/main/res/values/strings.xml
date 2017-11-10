@@ -10,6 +10,6 @@
     <string name="title_unknown_intent">Unknown intent</string>
 
     <string name="unregistered">unregistered</string>
-    <string name="share">Share</string>
+    <string name="share">Share Instance ID</string>
     <string name="unregister">Unregister</string>
 </resources>

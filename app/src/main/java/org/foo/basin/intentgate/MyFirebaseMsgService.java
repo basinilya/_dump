@@ -33,6 +33,8 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
 
     private static final String KEY_ACTION = "action";
 
+    private static final String KEY_PACKAGE = "package";
+
     private static final String KEY_DATA = "data";
 
     private static final String KEY_EXTRA = "extra";
@@ -101,6 +103,7 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK;
                 intent.setFlags(flags);
 
+                intent.setPackage(allProps.get(KEY_PACKAGE));
                 intent.setAction(allProps.get(KEY_ACTION));
                 String sExtra = allProps.get(KEY_EXTRA);
                 if (sExtra != null) {
