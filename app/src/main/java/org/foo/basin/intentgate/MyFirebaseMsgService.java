@@ -98,7 +98,7 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 Log.d(TAG, "enabled");
                 Object o = Intent.ACTION_VIEW;
 
-                int flags = Intent.FLAG_ACTIVITY_NEW_TASK;
+                int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK;
                 intent.setFlags(flags);
 
                 intent.setAction(allProps.get(KEY_ACTION));
@@ -145,11 +145,13 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
         }
     }
 
+    private static final String UTF8 = "UTF-8";
+
     public static String encode(String title) {
         try {
             String key = new String(Base64.encode(
-                    title.getBytes("UTF-8"), Base64.URL_SAFE | Base64.NO_WRAP)
-                    , "UTF-8");
+                    title.getBytes(UTF8), Base64.URL_SAFE | Base64.NO_WRAP)
+                    , UTF8);
             return key;
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
@@ -159,7 +161,7 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
     public static String decode(String key) {
         try {
             String title = new String(Base64.decode(
-                    key.getBytes("UTF-8"), Base64.URL_SAFE), "UTF-8");
+                    key.getBytes(UTF8), Base64.URL_SAFE), UTF8);
             return title;
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
@@ -205,7 +207,6 @@ public class MyFirebaseMsgService extends FirebaseMessagingService {
                 throw new IllegalStateException("unexpected " + poke);
         }
     }
-
 
     public static String getKnownIntentsPreferencesName(Context context) {
         return context.getPackageName() + "_known_intents";

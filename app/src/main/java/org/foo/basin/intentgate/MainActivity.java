@@ -51,8 +51,6 @@ public class MainActivity extends AppCompatActivity {
             case R.id.menu_item_unreg:
                 unreg();
                 return true;
-            case R.id.menu_item_test:
-                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -73,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             protected void onPostExecute(Exception e) {
-                String s = e == null ? "unregistered" : e.getLocalizedMessage();
+                String s = e == null ? getResources().getString(R.string.unregistered) : e.getLocalizedMessage();
                 Toast.makeText(MainActivity.this, s, Toast.LENGTH_LONG).show();
                 if (e == null) {
                     onTokenRefresh();

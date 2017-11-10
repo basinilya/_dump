@@ -60,7 +60,7 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
                 String key = x.getKey();
                 String title = MyFirebaseMsgService.decode(key);
                 if (title.equals(ser)) {
-                    checkBoxPreference.setSummary("new");
+                    checkBoxPreference.setSummary(R.string.pref_summary_new);
                     scrollTo = i;
                 }
                 checkBoxPreference.setTitle(title);
