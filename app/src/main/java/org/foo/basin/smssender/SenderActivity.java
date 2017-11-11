@@ -2,6 +2,7 @@ package org.foo.basin.smssender;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -65,6 +66,11 @@ public class SenderActivity extends Activity {
         SmsManager smsMgr = SmsManager.getDefault();
         try {
             smsMgr.sendTextMessage(phoneNumber, null, message, null, null);
+
+            ContentValues values = new ContentValues();
+            values.put("address", phoneNumber);
+            values.put("body", message);
+            getContentResolver().insert(Uri.parse("content://sms/sent"), values);
         } catch (Exception e) {
             Log.e(TAG, "", e);
             Toast.makeText(this, e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
