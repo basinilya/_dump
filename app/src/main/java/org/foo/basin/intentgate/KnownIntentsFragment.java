@@ -43,12 +43,15 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         PreferenceManager prefMgr = getPreferenceManager();
 
         SharedPreferences prefs = prefMgr.getSharedPreferences();
-        if (ser != null && !prefs.contains(ser)) {
-            SharedPreferences.Editor editor = prefs.edit();
-            String key = MyFirebaseMsgService.encode(ser);
-            editor.putBoolean(key, false);
-            editor.apply();
-            targetCategory.removeAll();
+        String key;
+        if (ser != null) {
+            key = MyFirebaseMsgService.encode(ser);
+            if (!prefs.contains(key)) {
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putBoolean(key, false);
+                editor.apply();
+                targetCategory.removeAll();
+            }
         }
 
         if (targetCategory.getPreferenceCount() == 0) {
@@ -57,7 +60,7 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
             int i = 0;
             for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
                 CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
-                String key = x.getKey();
+                key = x.getKey();
                 String title = MyFirebaseMsgService.decode(key);
                 if (title.equals(ser)) {
                     checkBoxPreference.setSummary(R.string.pref_summary_new);
