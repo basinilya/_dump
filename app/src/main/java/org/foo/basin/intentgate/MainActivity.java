@@ -80,9 +80,18 @@ public class MainActivity extends AppCompatActivity {
         }.execute();
     }
 
+    private static final String MANUF_HUAWEI = "huawei";
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
+
+        if(MANUF_HUAWEI.equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+            menu.add(R.string.protect).setVisible(false);
+        }
+
+
+
         MenuItem shareItem = menu.findItem(R.id.menu_item_share);
         mShareActionProvider = (ShareActionProvider)MenuItemCompat.getActionProvider(shareItem);
 
