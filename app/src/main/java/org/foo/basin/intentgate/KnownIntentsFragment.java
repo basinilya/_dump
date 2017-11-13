@@ -11,7 +11,6 @@ import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.util.AttributeSet;
-import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,7 +18,6 @@ import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -65,6 +63,7 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
             int i = 0;
             for (Map.Entry<String, String> x : knownIntents.entrySet()) {
                 CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
+                checkBoxPreference.setLayoutResource(R.layout.preference_wrapping);
                 String title = x.getKey();
                 key = x.getValue();
                 if (title.equals(ser)) {
