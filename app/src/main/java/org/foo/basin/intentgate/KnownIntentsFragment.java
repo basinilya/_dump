@@ -11,7 +11,6 @@ import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.util.AttributeSet;
-import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,7 +18,6 @@ import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -60,6 +58,26 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
             int i = 0;
             for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
                 CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
+                /*
+                {
+                    @Override
+                    protected View onCreateView(ViewGroup parent) {
+                        View res = super.onCreateView(parent);
+                        LayoutParams newLP = new LayoutParams(LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                        LayoutParams oldLP = res.getLayoutParams();
+                        //res.setLayoutParams(newLP);
+                        ViewGroup vg = (ViewGroup)res;
+                        for (int i = 0, sz = vg.getChildCount(); i < sz; i++) {
+                            View ch = vg.getChildAt(i);
+                            oldLP = ch.getLayoutParams();
+                            //ch.setLayoutParams(newLP);
+                        }
+
+                        return res;
+                    }
+                };
+*/
+                checkBoxPreference.setWidgetLayoutResource(R.layout.pref_item_checkbox_widget);
                 key = x.getKey();
                 String title = MyFirebaseMsgService.decode(key);
                 if (title.equals(ser)) {
