@@ -12,5 +12,5 @@
     <string name="unregistered">unregistered</string>
     <string name="share">Share Instance ID</string>
     <string name="unregister">Unregister</string>
-    <string name="protect">Allow run in background</string>
+    <string name="protect_app">Allow run in background</string>
 </resources>

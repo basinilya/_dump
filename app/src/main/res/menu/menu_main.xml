@@ -7,8 +7,9 @@
         android:title="@string/share" />
 
     <item
-        android:id="@+id/menu_item_protect"
-        android:title="@string/protect" />
+        android:id="@+id/menu_item_protect_app"
+        android:visible="false"
+        android:title="@string/protect_app" />
 
     <item
         android:id="@+id/menu_item_unreg"

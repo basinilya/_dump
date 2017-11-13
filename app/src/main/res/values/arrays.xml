@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="dont_show_again">
+        <item>Don\'t show me this again</item>
+    </string-array>
+</resources>
