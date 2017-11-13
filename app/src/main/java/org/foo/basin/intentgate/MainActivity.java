@@ -35,8 +35,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String PROTECTED_APP = "protected";
 
-    private static final String MANUF_HUAWEI = "huawei";
-
     private ShareActionProvider mShareActionProvider;
 
     private SharedPreferences sp;
@@ -130,10 +128,7 @@ public class MainActivity extends AppCompatActivity {
 
         PackageManager pm = getPackageManager();
         List<ResolveInfo> infos = pm.queryIntentActivities(intent, 0);
-        // return infos != null && infos.size() != 0);
-
-        return MANUF_HUAWEI.equalsIgnoreCase(android.os.Build.MANUFACTURER)
-                || "unknown".equalsIgnoreCase(android.os.Build.MANUFACTURER);
+        return infos != null && infos.size() != 0;
     }
 
     @Override
