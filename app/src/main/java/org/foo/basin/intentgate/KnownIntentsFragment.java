@@ -55,13 +55,18 @@ public class KnownIntentsFragment extends PreferenceFragment implements AdapterV
         }
 
         if (targetCategory.getPreferenceCount() == 0) {
-            TreeMap<String, Object> knownIntents = new TreeMap<>(prefMgr.getSharedPreferences().getAll());
+            TreeMap<String, String> knownIntents = new TreeMap<>();
+            for (String key2 : prefs.getAll().keySet()) {
+                String title = MyFirebaseMsgService.decode(key2);
+                knownIntents.put(title, key2);
+            }
+
             scrollTo = -1;
             int i = 0;
-            for (Map.Entry<String, ?> x : knownIntents.entrySet()) {
+            for (Map.Entry<String, String> x : knownIntents.entrySet()) {
                 CheckBoxPreference checkBoxPreference = new CheckBoxPreference(getActivity());
-                key = x.getKey();
-                String title = MyFirebaseMsgService.decode(key);
+                String title = x.getKey();
+                key = x.getValue();
                 if (title.equals(ser)) {
                     checkBoxPreference.setSummary(R.string.pref_summary_new);
                     scrollTo = i;
