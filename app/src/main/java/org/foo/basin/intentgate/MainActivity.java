@@ -147,7 +147,9 @@ public class MainActivity extends AppCompatActivity {
         MenuItem shareItem = menu.findItem(R.id.menu_item_share);
         mShareActionProvider = (ShareActionProvider)MenuItemCompat.getActionProvider(shareItem);
 
-        onTokenRefresh();
+        if (mustShowInstanceId) {
+            onTokenRefresh();
+        }
         return true;
     }
 
@@ -178,9 +180,13 @@ public class MainActivity extends AppCompatActivity {
 
     private NotificationManager nm;
 
+    private boolean mustShowInstanceId;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        mustShowInstanceId = savedInstanceState == null;
 
         sp = PreferenceManager.getDefaultSharedPreferences(this);
         nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
