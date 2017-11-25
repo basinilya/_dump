@@ -14,7 +14,7 @@ import android.widget.Toast;
 
 public class SenderActivity extends Activity {
 
-    private static final String TAG = "KnownIntentsFragment";
+    private static final String TAG = "SenderActivity";
 
     private static final String SMSTO = "smsto";
     private static final String SMS_BODY = "sms_body";
