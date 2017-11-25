@@ -67,10 +67,14 @@ public class SenderActivity extends Activity {
         try {
             smsMgr.sendTextMessage(phoneNumber, null, message, null, null);
 
-            ContentValues values = new ContentValues();
-            values.put("address", phoneNumber);
-            values.put("body", message);
-            getContentResolver().insert(Uri.parse("content://sms/sent"), values);
+            if (false) {
+                /* this doesn't work since KitKat */
+                /* <uses-permission android:name="android.permission.WRITE_SMS" /> */
+                ContentValues values = new ContentValues();
+                values.put("address", phoneNumber);
+                values.put("body", message);
+                getContentResolver().insert(Uri.parse("content://sms/sent"), values);
+            }
         } catch (Exception e) {
             Log.e(TAG, "", e);
             Toast.makeText(this, e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
