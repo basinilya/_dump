@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Discard file data, but keep the apparent file size.
+# Also mark the file executable, so mod_rewrite RewriteCond can tell such files from others
+
+set -e
+p=${1:?}
+sz=`stat -c%s -- "${p:?}"`
+
+#truncate -s 0 -- "${p:?}"
+>"${p:?}"
+
+truncate -s ${sz:?} -- "${p:?}"
+chmod 755 -- "${p:?}"
