@@ -40,6 +40,10 @@ while [ $# != 0 ]; do
     lockdir=x
     shift
     ;;
+    --rmfilecmd)
+    rmfilecmd=${2:?}
+    shift 2
+    ;;
     --clobber)
     rmfilecmd=clobber
     shift

@@ -46,7 +46,11 @@ fm_ffmpeg_watchdog() {
 
     cd "$watchdir"
     while true; do
-        "$THISDIR/cleandisk" --dir .. --lockdir --minfree "$minfree" >/dev/null
+        # cleanup only files that are not executable (for httpd RewriteCond)
+        "$THISDIR/cleandisk" --dir .. --lockdir --minfree "$minfree" \
+	    --rmfilecmd "$THISDIR/zerofile" \
+	    --findargs ! -perm /111 --findargs-end \
+	    >/dev/null
         mkdir -p "`date --date=tomorrow +%Y%m%d`"
         newstate=`du -ksx .`
         #newstate="y"
