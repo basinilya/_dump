@@ -17,7 +17,7 @@
 	var currImgEl = null;
 	var nextPlayButton = null;
 
-	listingplayer.addEventListener("ended", function () {
+	listingplayer.addEventListener("ended", function() {
 		if (nextPlayButton != null) {
 			nextPlayButton.onclick();
 		}
@@ -48,7 +48,11 @@
 
 		var imgEl;
 		imgEl = document.createElement("img");
-		imgEl.src = imgplay;
+		var isPlaying = listingplayer.src == clipUrl && !listingplayer.paused;
+		if (isPlaying) {
+			currImgEl = imgEl;
+		}
+		imgEl.src = isPlaying ? imgpause : imgplay;
 		playButton.appendChild(imgEl);
 	
 		playButton.preloadClip = function() {
@@ -78,6 +82,22 @@
 		return playButton;
 	}
 
+	var myConfig = { childList: true };
+
+	var myObserver = new MutationObserver(function(mutations, myObserver) {
+        mutations.forEach(function(mutation) {
+        	if (mutation.type == "childList") {
+        		console.log(">> mutation");
+        		init();
+        		console.log("<< mutation");
+        	}
+        });
+	});
+
+	var myElem = getListingTbody(document);
+
+	var showPlayer = false;
+
 	function init() {
 		var params = window.location.search.substr(1).split("&");
 		for (var i in params) {
@@ -88,29 +108,45 @@
 			}
 		}
 		
-		var nextPlayButton = null;
+		console.log(">> init");
+		
+		myObserver.disconnect();
+
+		currImgEl = null;
+		nextPlayButton = null;
+
+		var _nextPlayButton = null;
 		var links = document.getElementsByTagName("a");
-		var showPlayer = false;
 		for (var i = links.length-1; i >= 0; i--) {
 			var link = links[i];
 			var href = link.href; 
 			if (typeof href !== 'undefined' && endsWith(href, ".mp3")) {
-				nextPlayButton = createPlayButton(link, href, nextPlayButton);
+				if (listingplayer.src == href) {
+					nextPlayButton = _nextPlayButton;
+				}
+				_nextPlayButton = createPlayButton(link, href, _nextPlayButton);
+				// 
 				showPlayer = true;
 			}
 		}
-
-		if (showPlayer) {
-			listingplayer.setAttribute("controls", "controls");
-
-    		var gapdiv = document.createElement("div");
-    		gapdiv.id = "gapdiv";
-    		gapdiv.className = "gapdiv";
-    		document.body.insertBefore(gapdiv, document.body.firstChild);
-		} else {
-		    listingplayer.removeAttribute("controls");
+		
+		if (myElem) {
+			myObserver.observe(myElem, myConfig);
 		}
+
+		console.log("<< init");
 	}
 
 	init();
+
+	if (showPlayer) {
+		listingplayer.setAttribute("controls", "controls");
+
+		var gapdiv = document.createElement("div");
+		gapdiv.id = "gapdiv";
+		gapdiv.className = "gapdiv";
+		document.body.insertBefore(gapdiv, document.body.firstChild);
+	} else {
+	    listingplayer.removeAttribute("controls");
+	}
 }
