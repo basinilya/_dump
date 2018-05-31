@@ -17,11 +17,13 @@
 	var currImgEl = null;
 	var nextPlayButton = null;
 
-	listingplayer.addEventListener("ended", function() {
+	function ended() {
 		if (nextPlayButton != null) {
 			nextPlayButton.onclick();
 		}
-	}, false);                                                                               
+	}
+	listingplayer.addEventListener("ended", ended, false);
+	preloadplayer.addEventListener("ended", ended, false);
 
 	function insertAfter(newNode, referenceNode) {
 	    referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
@@ -73,8 +75,15 @@
 					listingplayer.pause();
 				}
 			} else {
-				listingplayer.src = clipUrl;
-				play(imgEl, _nextPlayButton);
+				if (preloadplayer.src == clipUrl) {
+					var tmp = listingplayer;
+					listingplayer = preloadplayer;
+					preloadplayer = tmp;
+					playButton.onclick();
+				} else {
+					listingplayer.src = clipUrl;
+					play(imgEl, _nextPlayButton);
+				}
 			}
 			console.log(clipUrl);
 		};
@@ -104,6 +113,7 @@
 			var pair = params[i].split("=");
 			if (pair[0] == "helperframe" && +pair[1]) {
 			    listingplayer.removeAttribute("controls");
+			    preloadplayer.removeAttribute("controls");
 				return;
 			}
 		}
@@ -140,13 +150,13 @@
 	init();
 
 	if (showPlayer) {
-		listingplayer.setAttribute("controls", "controls");
+		//listingplayer.setAttribute("controls", "controls");
 
 		var gapdiv = document.createElement("div");
 		gapdiv.id = "gapdiv";
 		gapdiv.className = "gapdiv";
 		document.body.insertBefore(gapdiv, document.body.firstChild);
 	} else {
-	    listingplayer.removeAttribute("controls");
+	    //listingplayer.removeAttribute("controls");
 	}
 }
