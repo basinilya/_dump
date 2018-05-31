@@ -87,9 +87,9 @@
 	var myObserver = new MutationObserver(function(mutations, myObserver) {
         mutations.forEach(function(mutation) {
         	if (mutation.type == "childList") {
-        		console.log(">> mutation");
+        		// console.log(">> mutation");
         		init();
-        		console.log("<< mutation");
+        		// console.log("<< mutation");
         	}
         });
 	});
@@ -108,7 +108,7 @@
 			}
 		}
 		
-		console.log(">> init");
+		// console.log(">> init");
 		
 		myObserver.disconnect();
 
@@ -134,7 +134,7 @@
 			myObserver.observe(myElem, myConfig);
 		}
 
-		console.log("<< init");
+		// console.log("<< init");
 	}
 
 	init();
