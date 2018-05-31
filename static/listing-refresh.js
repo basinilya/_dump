@@ -39,7 +39,7 @@ function getListingTbody(iframeDoc) {
 	function replaceTbody(replacementHtml) {
 		var mainTbody = getListingTbody(document);
 		if (mainTbody) {
-			mainTbody.innerHTML = replacementHtml;
+			mainTbody.innerHTML = replacementHtml + "<tr><th colspan=\"5\">" + new Date() + "</th></tr>";
 		}
 	}
 

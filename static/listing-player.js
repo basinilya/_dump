@@ -138,6 +138,8 @@
 	}
 
 	init();
+	
+	// console.log("showPlayer: " + showPlayer);
 
 	if (showPlayer) {
 		listingplayer.setAttribute("controls", "controls");
