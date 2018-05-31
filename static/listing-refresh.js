@@ -81,6 +81,6 @@ function getListingTbody(iframeDoc) {
 				}
 			}
 		};
-	}, 2000);
+	}, 120000);
 }
 // console.log("<< init listing-refresh.js");
