@@ -76,7 +76,16 @@
 		return playButton;
 	}
 
-	{
+	function init() {
+		var params = window.location.search.substr(1).split("&");
+		for (var i in params) {
+			var pair = params[i].split("=");
+			if (pair[0] == "helperframe" && +pair[1]) {
+			    listingplayer.removeAttribute("controls");
+				return;
+			}
+		}
+		
 		var nextPlayButton = null;
 		var links = document.getElementsByTagName("a");
 		var showPlayer = false;
@@ -100,4 +109,6 @@
 		    listingplayer.removeAttribute("controls");
 		}
 	}
+
+	init();
 }
