@@ -1,3 +1,4 @@
+// console.log(">> init listing-refresh.js");
 function getListingTbody(iframeDoc) {
 	var links = iframeDoc.getElementsByTagName("a");
 	for (var i = links.length-1; i >= 0; i--) {
@@ -40,6 +41,9 @@ function getListingTbody(iframeDoc) {
 		var mainTbody = getListingTbody(document);
 		if (mainTbody) {
 			mainTbody.innerHTML = replacementHtml + "<tr><th colspan=\"5\">" + new Date() + "</th></tr>";
+			var fallbackMutationEvent = new Event("fallbackMutationEvent");
+			mainTbody.dispatchEvent(fallbackMutationEvent);
+	                // console.log("done dispatch mutation event 4");
 		}
 	}
 
@@ -66,6 +70,7 @@ function getListingTbody(iframeDoc) {
 		ifrm.style.cssText = "width:0;height:0;border:0; border:none;";
 		ifrm.setAttribute("src", thisurlparts[0] + sep + "helperframe=1");
 		document.body.appendChild(ifrm);
+		console.log("helper frame created");
 		ifrm.onload = function(){
 			// console.log("loaded2");
 			if (false) {
@@ -78,3 +83,4 @@ function getListingTbody(iframeDoc) {
 		};
 	}, 2000);
 }
+// console.log("<< init listing-refresh.js");

@@ -1,3 +1,4 @@
+// console.log(">> init listing-player.js 1");
 {
 	function endsWith(str, suffix) {
 	    return str.indexOf(suffix, str.length - suffix.length) !== -1;
@@ -84,21 +85,25 @@
 
 	var myConfig = { childList: true };
 
-	var myObserver = new MutationObserver(function(mutations, myObserver) {
-        mutations.forEach(function(mutation) {
-        	if (mutation.type == "childList") {
-        		// console.log(">> mutation");
-        		init();
-        		// console.log("<< mutation");
-        	}
-        });
-	});
+	if (false) {
+		var myObserver = new MutationObserver(function(mutations, myObserver) {
+	        mutations.forEach(function(mutation) {
+	        	if (mutation.type == "childList") {
+	        		// console.log(">> mutation");
+	        		init();
+	        		// console.log("<< mutation");
+	        	}
+	        });
+		});
+	}
 
 	var myElem = getListingTbody(document);
 
 	var showPlayer = false;
+	
 
 	function init() {
+		// console.log(">> init " + showPlayer);
 		var params = window.location.search.substr(1).split("&");
 		for (var i in params) {
 			var pair = params[i].split("=");
@@ -108,9 +113,8 @@
 			}
 		}
 		
-		// console.log(">> init");
 		
-		myObserver.disconnect();
+		// myObserver.disconnect();
 
 		currImgEl = null;
 		nextPlayButton = null;
@@ -131,11 +135,13 @@
 		}
 		
 		if (myElem) {
-			myObserver.observe(myElem, myConfig);
+			// myObserver.observe(myElem, myConfig);
 		}
 
 		// console.log("<< init");
 	}
+
+	myElem.addEventListener("fallbackMutationEvent", init);
 
 	init();
 	
