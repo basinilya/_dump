@@ -31,7 +31,9 @@
 		listingplayer.play();
 		imgEl.src = imgpause;
 		currImgEl = imgEl;
-		_nextPlayButton.preloadClip();
+		if (_nextPlayButton != null) {
+			_nextPlayButton.preloadClip();
+		}
 		nextPlayButton = _nextPlayButton;
 	}
 
