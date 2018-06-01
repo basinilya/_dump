@@ -1,4 +1,20 @@
 // console.log(">> init listing-refresh.js");
+
+(function () {
+  if ( typeof window.CustomEvent === "function" ) return false; //If not IE
+
+  function CustomEvent ( event, params ) {
+    params = params || { bubbles: false, cancelable: false, detail: undefined };
+    var evt = document.createEvent( 'CustomEvent' );
+    evt.initCustomEvent( event, params.bubbles, params.cancelable, params.detail );
+    return evt;
+   }
+
+  CustomEvent.prototype = window.Event.prototype;
+
+  window.CustomEvent = CustomEvent;
+})();
+
 function getListingTbody(iframeDoc) {
 	var links = iframeDoc.getElementsByTagName("a");
 	for (var i = links.length-1; i >= 0; i--) {
@@ -17,7 +33,7 @@ function getListingTbody(iframeDoc) {
 	return null;
 }
 
-{
+(function () {
 	function escapeHTML(s) {
 	    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 	}
@@ -26,7 +42,7 @@ function getListingTbody(iframeDoc) {
 		var mainTbody = getListingTbody(document);
 		if (mainTbody) {
 			mainTbody.innerHTML = replacementHtml + "<tr><th colspan=\"5\">" + escapeHTML(new Date() + "") + "</th></tr>";
-			var fallbackMutationEvent = new Event("fallbackMutationEvent");
+			var fallbackMutationEvent = new CustomEvent("fallbackMutationEvent");
 			mainTbody.dispatchEvent(fallbackMutationEvent);
 			// console.log("done dispatch mutation event");
 		}
@@ -102,6 +118,6 @@ function getListingTbody(iframeDoc) {
 		if (!refreshSwitch.checked) return;
 
 		createHelperframe();
-	}, 2000);
-}
+	}, 120000);
+})();
 // console.log("<< init listing-refresh.js");

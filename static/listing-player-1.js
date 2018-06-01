@@ -1,5 +1,5 @@
 // console.log(">> init listing-player.js 1");
-{
+(function() {
 	function endsWith(str, suffix) {
 	    return str.indexOf(suffix, str.length - suffix.length) !== -1;
 	}
@@ -157,4 +157,5 @@
 	} else {
 	    listingplayer.removeAttribute("controls");
 	}
-}
+})();
+// console.log("<< init listing-player.js 1");
