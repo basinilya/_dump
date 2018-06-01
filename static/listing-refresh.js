@@ -18,7 +18,23 @@ function getListingTbody(iframeDoc) {
 }
 
 {
+	function escapeHTML(s) {
+	    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+	}
+
+	function replaceTbody(replacementHtml) {
+		var mainTbody = getListingTbody(document);
+		if (mainTbody) {
+			mainTbody.innerHTML = replacementHtml + "<tr><th colspan=\"5\">" + escapeHTML(new Date() + "") + "</th></tr>";
+			var fallbackMutationEvent = new Event("fallbackMutationEvent");
+			mainTbody.dispatchEvent(fallbackMutationEvent);
+			// console.log("done dispatch mutation event");
+		}
+	}
+
+	var ifrm;
 	var isHelperFrame = false;
+
 	{
 		var params = window.location.search.substr(1).split("&");
 		loop1:
@@ -29,7 +45,7 @@ function getListingTbody(iframeDoc) {
 				var mainTbody = getListingTbody(document);
 				if (mainTbody) {
 					var s = mainTbody.innerHTML;
-					targetOrigin = window.location.protocol == "file:" ? "*" : window.location.origin;
+					var targetOrigin = window.location.protocol == "file:" ? "*" : window.location.origin;
 					window.parent.postMessage(s, targetOrigin);
 					break loop1; 
 				}
@@ -37,21 +53,41 @@ function getListingTbody(iframeDoc) {
 		}
 	}
 
-	function replaceTbody(replacementHtml) {
-		var mainTbody = getListingTbody(document);
-		if (mainTbody) {
-			mainTbody.innerHTML = replacementHtml + "<tr><th colspan=\"5\">" + new Date() + "</th></tr>";
-			var fallbackMutationEvent = new Event("fallbackMutationEvent");
-			mainTbody.dispatchEvent(fallbackMutationEvent);
-	                // console.log("done dispatch mutation event 4");
-		}
+	function createHelperframe() {
+		var thisurlparts = window.location.href.split('#');
+		var sep = window.location.search.charAt(0) == "?" ? "&" : "?";
+		ifrm = document.createElement('iframe');
+		ifrm.id = "helperframe";
+		// ifrm.style.cssText = "position:absolute;left:400px;top:10px;width:600px;height:800px;";
+		ifrm.style.cssText = "width:0;height:0;border:0; border:none;";
+		ifrm.setAttribute("src", thisurlparts[0] + sep + "helperframe=1");
+		document.body.appendChild(ifrm);
+		console.log("helper frame created");
 	}
 
 	if (!isHelperFrame) {
+		var refreshSwitch = document.createElement("INPUT");
+		refreshSwitch.id = "refreshSwitch";
+		refreshSwitch.className = "refreshSwitch";
+		refreshSwitch.type = "checkbox";
+		refreshSwitch.checked = true;
+		refreshSwitch.onchange = function() {
+			if (refreshSwitch.checked) {
+				createHelperframe();
+			} else if (ifrm) {
+				document.body.removeChild(ifrm);
+				ifrm = null;
+			}
+		};
+		document.body.appendChild(refreshSwitch);
+		document.body.appendChild(document.createTextNode("Auto refresh"));
+		
 		window.addEventListener("message", function(event) {
 			if (window.location.protocol == "file:" || window.location.origin == event.origin) {
-				var s = event.data;
-				replaceTbody(s);
+				if (refreshSwitch.checked) {
+					var s = event.data;
+					replaceTbody(s);
+				}
 			}
 		});
 	}
@@ -63,24 +99,9 @@ function getListingTbody(iframeDoc) {
 			return;
 		}
 	
-		var thisurlparts = window.location.href.split('#');
-		var sep = window.location.search.charAt(0) == "?" ? "&" : "?";
-		var ifrm = document.createElement('iframe');
-		// ifrm.style.cssText = "position:absolute;left:400px;top:10px;width:600px;height:800px;";
-		ifrm.style.cssText = "width:0;height:0;border:0; border:none;";
-		ifrm.setAttribute("src", thisurlparts[0] + sep + "helperframe=1");
-		document.body.appendChild(ifrm);
-		console.log("helper frame created");
-		ifrm.onload = function(){
-			// console.log("loaded2");
-			if (false) {
-				var iframeDoc = ifrm.contentDocument || ifrm.contentWindow.document;
-				var iframeTbody = getListingTbody(iframeDoc);
-				if (iframeTbody) {
-					replaceTbody(iframeTbody.innerHTML);
-				}
-			}
-		};
-	}, 120000);
+		if (!refreshSwitch.checked) return;
+
+		createHelperframe();
+	}, 2000);
 }
 // console.log("<< init listing-refresh.js");
