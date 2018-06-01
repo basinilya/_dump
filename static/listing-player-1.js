@@ -1,19 +1,24 @@
 // console.log(">> init listing-player.js 1");
 (function() {
+	var listingplayer = document.getElementById("listingplayer");
+	var preloadplayer = document.getElementById("preloadplayer");
+
+	var params = window.location.search.substr(1).split("&");
+	for (var i in params) {
+		var pair = params[i].split("=");
+		if (pair[0] == "helperframe" && +pair[1]) {
+		    listingplayer.removeAttribute("controls");
+			return;
+		}
+	}
+
 	function endsWith(str, suffix) {
 	    return str.indexOf(suffix, str.length - suffix.length) !== -1;
 	}
 
-	function startsWith(str, prefix) {
-	    return str.lastIndexOf(prefix, 0) === 0;
-	}
-	
-	var base = startsWith(window.location.href, "file:") ? "./" : "/";
+	var base = window.location.protocol == "file:" ? "./" : "/";
 	var imgpause = base + "static/pause.png";
 	var imgplay = base + "static/play.png";
-
-	var listingplayer = document.getElementById("listingplayer");
-	var preloadplayer = document.getElementById("preloadplayer");
 
 	var currImgEl = null;
 	var nextPlayButton = null;
@@ -83,38 +88,12 @@
 		return playButton;
 	}
 
-	var myConfig = { childList: true };
-
-	if (false) {
-		var myObserver = new MutationObserver(function(mutations, myObserver) {
-	        mutations.forEach(function(mutation) {
-	        	if (mutation.type == "childList") {
-	        		// console.log(">> mutation");
-	        		init();
-	        		// console.log("<< mutation");
-	        	}
-	        });
-		});
-	}
-
-	var myElem = getListingTbody(document);
+	var listingTbody = getListingTbody(document);
 
 	var showPlayer = false;
-	
 
 	function init() {
 		// console.log(">> init " + showPlayer);
-		var params = window.location.search.substr(1).split("&");
-		for (var i in params) {
-			var pair = params[i].split("=");
-			if (pair[0] == "helperframe" && +pair[1]) {
-			    listingplayer.removeAttribute("controls");
-				return;
-			}
-		}
-		
-		
-		// myObserver.disconnect();
 
 		currImgEl = null;
 		nextPlayButton = null;
@@ -134,14 +113,10 @@
 			}
 		}
 		
-		if (myElem) {
-			// myObserver.observe(myElem, myConfig);
-		}
-
 		// console.log("<< init");
 	}
 
-	myElem.addEventListener("fallbackMutationEvent", init);
+	listingTbody.addEventListener("fallbackMutationEvent", init);
 
 	init();
 	
@@ -157,5 +132,7 @@
 	} else {
 	    listingplayer.removeAttribute("controls");
 	}
+
+	document.body.appendChild(document.createTextNode("x (2)"));
 })();
 // console.log("<< init listing-player.js 1");

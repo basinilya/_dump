@@ -96,7 +96,7 @@ function getListingTbody(iframeDoc) {
 			}
 		};
 		document.body.appendChild(refreshSwitch);
-		document.body.appendChild(document.createTextNode("Auto refresh"));
+		document.body.appendChild(document.createTextNode("Auto refresh (2)"));
 		
 		window.addEventListener("message", function(event) {
 			if (window.location.protocol == "file:" || window.location.origin == event.origin) {
@@ -117,7 +117,9 @@ function getListingTbody(iframeDoc) {
 	
 		if (!refreshSwitch.checked) return;
 
-		createHelperframe();
+		if (!ifrm) {
+			createHelperframe();
+		}
 	}, 120000);
 })();
 // console.log("<< init listing-refresh.js");
