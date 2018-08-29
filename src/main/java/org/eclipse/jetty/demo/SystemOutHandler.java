@@ -20,9 +20,12 @@ package org.eclipse.jetty.demo;
 
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
+import java.util.logging.SimpleFormatter;
 
 public class SystemOutHandler extends Handler
 {
+    private final SimpleFormatter formatter = new SimpleFormatter();
+
     @Override
     public void publish(LogRecord record)
     {
@@ -36,7 +39,7 @@ public class SystemOutHandler extends Handler
         }
         buf.append(logname);
         buf.append(": ");
-        buf.append(record.getMessage());
+        buf.append(formatter.formatMessage( record ) );
 
         System.out.println(buf.toString());
         if (record.getThrown() != null)

@@ -8,6 +8,8 @@
 
   <p>
 <a href="editor/who.jsp">who.jsp</a>
+<br/>
+<a href="editor/test.jsp">test.jsp</a>
   </p>
 
   <p>
