@@ -6,6 +6,7 @@
 --%><%@ page import="java.util.logging.Logger" %><%--
 --%><%@ page import="javax.servlet.*" %><%--
 --%><%@ page import="javax.servlet.http.*" %><%--
+--%><%@ page import="com.google.common.reflect.TypeToken" %><%--
 --%><%@ taglib prefix = "c" uri = "http://java.sun.com/jsp/jstl/core" %><%--
 --%><%@ taglib prefix = "fmt" uri = "http://java.sun.com/jsp/jstl/fmt" %><%--
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
@@ -56,9 +57,54 @@ public static class Editor
 		return pathEntries.isEmpty( ) ? rootObject : pathEntries.get( pathEntries.size(  ) - 1 );
 	}
 
-	public Object getLeafObjectAsText() {
-	    String res = null;
+	public static class PropertyRow {
+	    private String nameAsText;
+	    private String index;
+	    private String type;
+		private String valueAsText;
+
+	    public PropertyRow(String nameAsText, String index, String type,
+				String valueAsText) {
+			super();
+			this.nameAsText = nameAsText;
+			this.index = index;
+			this.type = type;
+			this.valueAsText = valueAsText;
+		}
+
+	    public String getNameAsText() {
+			return nameAsText;
+		}
+		public void setNameAsText(String nameAsText) {
+			this.nameAsText = nameAsText;
+		}
+		public String getIndex() {
+			return index;
+		}
+		public void setIndex(String index) {
+			this.index = index;
+		}
+		public String getType() {
+			return type;
+		}
+		public void setType(String type) {
+			this.type = type;
+		}
+		public String getValueAsText() {
+			return valueAsText;
+		}
+		public void setValueAsText(String valueAsText) {
+			this.valueAsText = valueAsText;
+		}
+	}
+
+	public String getLeafObjectAsText() {
 		Object leafObject = getLeafObject();
+		return toString(leafObject);
+	}
+	
+	private String toString(Object leafObject) {
+	    String res = null;
 		if (leafObject != null) {
 			PropertyEditor editor = PropertyEditorManager.findEditor( leafObject.getClass() );
 			if (editor != null) {
@@ -80,6 +126,93 @@ public static class Editor
 			//
 		}
 		return n;
+	}
+
+	public List<PropertyRow> getProperties() {
+	    ArrayList<PropertyRow> res = new ArrayList<PropertyRow>();
+
+	    Object leafObject = getLeafObject();
+
+		Class<?> propertyType = null;
+		if (leafObject != null) {
+			if (leafObject.getClass().isArray()) {
+				propertyType = leafObject.getClass().getComponentType();
+				String typeName = propertyType.toString();
+			    int sz = Array.getLength(leafObject);
+			    for (int i = 0; i < sz; i++) {
+			        String name = Integer.toString(i);
+			        Object value = Array.get(leafObject, i);
+			        String valueText = toString(value); 
+			        res.add(new PropertyRow(name,name,typeName,valueText));
+			    }
+			} else if (leafObject instanceof List) {
+			    List<?> list = (List<?>)leafObject;
+			    int sz = list.size();
+			    for (int i = 0; i < sz; i++) {
+			        String name = Integer.toString(i);
+				    Object value = list.get(i);
+			        String valueText = toString(value); 
+			        res.add(new PropertyRow(name,name,typeName,valueText));
+			    }
+			} else {
+				if (leafObject instanceof Map) {
+					leafObject = ((Map<?,?>)leafObject).entrySet(  );
+				}
+				if (leafObject instanceof Collection) {
+					int i = toPropertyIndex( propertyName );
+					for(Iterator<?> it = ((Collection<?>)leafObject).iterator(); i > -1; i--) {
+						try {
+							newLeaf = it.next();
+						} catch (NoSuchElementException e) {
+							newLeaf = null;
+							break;
+						}
+					}
+				} else {
+					try {
+						BeanInfo beanInfo = Introspector.getBeanInfo(leafObject.getClass( ));
+						PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
+						for (PropertyDescriptor prop : props) {
+							if (prop.getName().equals(propertyName)) {
+								Method getter = prop.getReadMethod();
+								// TODO: indexed properties should be handled by putting IPD to the stack
+								// TODO: enumerating IPD is calling getter until out of bounds exception
+								if (getter.getParameterCount() == 0) {
+									newLeaf = getter.invoke( leafObject );
+								}
+							}
+						}
+					} catch (IllegalAccessException e) {
+					    //
+					} catch (InvocationTargetException e) {
+					    //
+					} catch (IntrospectionException e) {
+						//
+					}
+				}
+			}
+			//if (propertyType == null && newLeaf ) {
+			//}
+			// 
+		}
+
+	    
+	    try {
+			BeanInfo beanInfo = Introspector.getBeanInfo(leafObject.getClass( ));
+			PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
+			for (PropertyDescriptor prop : props) {
+			}
+	    } catch (IntrospectionException e) {
+	        //
+	    }
+
+	    res.add(new PropertyRow("aaa", "bbb", "ccc", "ddd"));
+	    res.add(new PropertyRow("a", "b", "c", "d"));
+	    // nameAsText
+	    // index
+	    // type
+	    // valueAsText
+	    return res;
 	}
 
 	public void addPathEntry( String propertyName )
@@ -226,5 +359,27 @@ for (int i = 0; i < n; i++) {
 			Value: <c:out value="(${fn:substring(editor.leafObjectAsText,0,100)})"/>
 			</div>
 		</form>
+
+		<table border="1">
+			<thead>
+				<tr>
+					<th>property</th>
+					<th>proptype</th>
+					<th>value</th>
+				</tr>
+			</thead>
+			<tbody>
+
+		<c:forEach items="${editor.properties}" var="row">
+			<tr>
+				<td><c:out value="${fn:substring(row.nameAsText,0,100)}"/></td>
+				<td><c:out value="${fn:substring(row.type,0,100)}"/></td>
+				<td><c:out value="${fn:substring(row.valueAsText,0,100)}"/></td>
+			</tr>
+		</c:forEach>
+
+			</tbody>
+		</table>
+
 	</body>
 </html>
