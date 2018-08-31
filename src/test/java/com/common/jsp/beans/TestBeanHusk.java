@@ -1,43 +1,82 @@
 package com.common.jsp.beans;
 
+import java.beans.Introspector;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
+
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 
 import com.common.test.v24.EspaBus;
 import com.common.test.v24.EtherSerialAdapter;
 import com.common.test.v24.EtherSerialPort;
 import com.common.test.v24.GtwayV24Data;
+import com.common.test.v24.NPortSettings;
+import com.common.test.v24.SerialBus;
 import com.common.test.v24.V24Device;
+import com.google.common.reflect.TypeToken;
 
 import junit.framework.TestCase;
 
 public class TestBeanHusk extends TestCase {
 
+	private static final String IP_ADDR = "192.168.1.2";
+	private static final Integer TCP_PORT = 950;
+	private static final String BUS_ADDR = "9";
+
+	@SuppressWarnings("deprecation")
 	public void testBeanHusk() throws Exception {
 		BeanHusk rootHusk = new BeanHusk();
 		rootHusk.setValue(rootObj);
-		BeanHusk huskNportSettings = rootHusk.getProperties().get("nportSettings");
-		assertEquals(true, huskNportSettings.getProperties().get("discovery").getValue());
-		BeanHusk huskAdaptersByIpStr = rootHusk.getProperties().get("adaptersByIpStr");
+
+		assertEquals(GtwayV24Data.class.getSimpleName(), rootHusk.getTypeName());
+		
+		BeanHusk huskNportSettings = getProp(rootHusk, GtwayV24Data::getNportSettings);
+		assertEquals(NPortSettings.class.getSimpleName(), huskNportSettings.getTypeName());
+
+		BeanHusk huskDiscovery = getProp(huskNportSettings, NPortSettings::getDiscovery);
+		assertEquals(Boolean.class.getSimpleName(), huskDiscovery.getTypeName());
+		assertEquals(true, huskDiscovery.getValue());
+
+		BeanHusk huskAdaptersByIpStr = getProp(rootHusk, GtwayV24Data::getAdaptersByIpStr);
+		assertEquals("Map<String, EtherSerialAdapter>", huskAdaptersByIpStr.getTypeName());
 
 		BeanHusk huskAdapter = huskAdaptersByIpStr.getProperties().get("0");
-		assertEquals("192.168.1.2", huskAdapter.getDisplayName());
+		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskDiscovery.getTypeName());
+		assertEquals(IP_ADDR, huskAdapter.getDisplayName());
+		assertEquals("test adapter", getProp(huskAdapter, EtherSerialAdapter::getName).getValue());
 
-		assertEquals("test adapter", huskAdapter.getProperties().get("name").getValue());
-		rootObj.getAdaptersByIpStr().get("1").getSerialsByTcpServerPort().get("1").getBus();
-		BeanHusk huskSerialsByTcpServerPort = huskAdapter.getProperties().get("serialsByTcpServerPort");
+		BeanHusk huskSerialsByTcpServerPort = getProp(huskAdapter, EtherSerialAdapter::getSerialsByTcpServerPort);
+		assertEquals("Map<Integer, EtherSerialPort>", huskSerialsByTcpServerPort.getTypeName());
 
 		BeanHusk huskPortObj = huskSerialsByTcpServerPort.getProperties().get("0");
-		assertEquals(950, huskPortObj.getDisplayName());
-		assertEquals(966, huskPortObj.getProperties().get("nportCommandPort").getValue());
+		assertEquals(EtherSerialPort.class.getSimpleName(), huskPortObj.getTypeName());
+		assertEquals(TCP_PORT, huskPortObj.getDisplayName());
+		assertEquals(966, getProp(huskPortObj, EtherSerialPort::getNportCommandPort).getValue());
 
-		BeanHusk huskBus = huskPortObj.getProperties().get("bus");
-		assertEquals(9600, huskBus.getProperties().get("baudRate").getValue());
-		assertEquals('2', huskBus.getProperties().get("ourAddress").getValue());
+		BeanHusk huskBus = getProp(huskPortObj, EtherSerialPort::getBus);
+		SerialBus<?> bus = rootObj.getAdaptersByIpStr().get(IP_ADDR)
+				.getSerialsByTcpServerPort().get(TCP_PORT)
+				.getBus();
+		assertEquals("SerialBus<?>", huskBus.getTypeName());
+		assertEquals(9600, getProp(huskBus, SerialBus::getBaudRate).getValue());
+		assertEquals('2', getProp(huskBus, EspaBus::getOurAddress).getValue());
 
-		BeanHusk huskEndpointsByBusAddr = huskBus.getProperties().get("endpointsByBusAddr");
+		BeanHusk huskEndpointsByBusAddr = getProp(huskBus, EspaBus::getEndpointsByBusAddr);
+		
+		Map<String, ? extends V24Device> endpoints = bus.getEndpointsByBusAddr();
+		assertEquals("Map<String, ? extends V24Device>", huskEndpointsByBusAddr.getTypeName());
+
 		BeanHusk huskEndpoint = huskEndpointsByBusAddr.getProperties().get("0");
-		assertEquals("9", huskEndpoint.getDisplayName());
-		assertEquals(1001, huskEndpoint.getProperties().get("v24DeviceId").getValue());
+		V24Device dev = endpoints.get(BUS_ADDR);
+		assertEquals(V24Device.class.getSimpleName(), huskPortObj.getTypeName());
+		assertEquals(BUS_ADDR, huskEndpoint.getDisplayName());
+		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
 	}
 
 	private GtwayV24Data rootObj;
@@ -49,20 +88,87 @@ public class TestBeanHusk extends TestCase {
 		rootObj = new GtwayV24Data();
 		Map<String, EtherSerialAdapter> adaptersByIpStr = rootObj.getAdaptersByIpStr();
 		EtherSerialAdapter adapter = new EtherSerialAdapter();
-		adapter.putToMap(adaptersByIpStr, "192.168.1.2");
-		// adaptersByIpStr.put("192.168.1.2", adapter);
+		adapter.putToMap(adaptersByIpStr, IP_ADDR);
+		// adaptersByIpStr.put(IP_ADDR, adapter);
 		adapter.setName("test adapter");
 		Map<Integer, EtherSerialPort> serialsByTcpServerPort = adapter.getSerialsByTcpServerPort();
 		EtherSerialPort portObj = new EtherSerialPort();
-		serialsByTcpServerPort.put(950, portObj);
+		serialsByTcpServerPort.put(TCP_PORT, portObj);
 		portObj.setNportCommandPort(966);
 		EspaBus bus = new EspaBus();
 		portObj.setBus(bus);
 		bus.setBaudRate(9600);
 		bus.setOurAddress('2');
 		V24Device endpoint = new V24Device();
-		bus.getEndpointsByBusAddr().put("9", endpoint);
+		bus.getEndpointsByBusAddr().put(BUS_ADDR, endpoint);
 		endpoint.setV24DeviceId(1001);
 	}
 
+	private interface GetterGtwayV24Data extends Function<GtwayV24Data, Object> {}
+	private interface GetterNPortSettings extends Function<NPortSettings, Object> {}
+	private interface GetterEtherSerialAdapter extends Function<EtherSerialAdapter, Object> {}
+	private interface GetterEtherSerialPort extends Function<EtherSerialPort, Object> {}
+	private interface GetterEspaBus extends Function<EspaBus, Object> {}
+
+	private interface GetterV24Device extends Function<V24Device, Object> {}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterV24Device getter) {
+		return getProp0(husk, getter);
+	}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterEspaBus getter) {
+		return getProp0(husk, getter);
+	}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterEtherSerialPort getter) {
+		return getProp0(husk, getter);
+	}
+	
+	private static BeanHusk getProp(BeanHusk husk, GetterEtherSerialAdapter getter) {
+		return getProp0(husk, getter);
+	}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterNPortSettings getter) {
+		return getProp0(husk, getter);
+	}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterGtwayV24Data getter) {
+		return getProp0(husk, getter);
+	}
+
+	private static <T> BeanHusk getProp0(BeanHusk husk, final Function<T, ?> getter) {
+		return husk.getProperties().get(getPropName0(getter));
+	}
+
+	private static <T> String getPropName0(final Function<T, ?> getter) {
+		String mname = getMethodName0(getter);
+		String base;
+		if (mname.startsWith("get")) {
+			base = mname.substring(3);
+		} else if (mname.startsWith("is")) {
+			base = mname.substring(2);
+		} else {
+			throw new IllegalArgumentException("Not a getter: " + mname);
+		}
+		return Introspector.decapitalize(base);
+	}
+
+	private static <T> String getMethodName0(final Function<T, ?> getter) {
+		@SuppressWarnings("unchecked")
+		Class<Function<T, ?>> getterClazz = (Class<Function<T, ?>>)getter.getClass();
+		TypeToken<Function<T, ?>> tt = TypeToken.of(getterClazz);
+		TypeToken<? super Function<T, ?>> ft = tt.getSupertype(Function.class);
+		@SuppressWarnings("unchecked")
+		Class<T> beanClazz = (Class<T>)((ParameterizedType)ft.getType()).getActualTypeArguments()[0];
+		return getMethodName(beanClazz, getter);
+	}
+
+	private static <T> String getMethodName(final Class<T> clazz, final Function<T, ?> getter) {
+		final Method[] method = new Method[1];
+		T mock = Mockito.mock(clazz, Mockito.withSettings().invocationListeners(methodInvocationReport -> {
+			method[0] = ((InvocationOnMock) methodInvocationReport.getInvocation()).getMethod();
+		}));
+		getter.apply(mock);
+		return method[0].getName();
+	}
 }

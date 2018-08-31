@@ -1,5 +1,6 @@
 package com.common.jsp.beans;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.google.common.reflect.TypeToken;
@@ -12,7 +13,6 @@ public class BeanHusk {
 	// private String key;
 	private String displayName; // parent map key, otherwise same as key
 	private TypeToken type; // resolved generic value type
-	private String typeName; // resolved generic value type
 	// combination of this bean properties and this array indexes or Iterable offsets
 	private Map<String, BeanHusk> properties;
 
@@ -46,26 +46,30 @@ public class BeanHusk {
 	}
 
 	public TypeToken getType() {
+		if (type == null) {
+			if (parent == null) {
+				if (value == null) {
+					type = TypeToken.of(Object.class);
+				} else {
+					type = TypeToken.of(value.getClass());
+				}
+			} else {
+				throw new UnsupportedOperationException("not yet");
+			}
+		}
 		return type;
 	}
 
-	public void setType(TypeToken type) {
-		this.type = type;
-	}
-
 	public String getTypeName() {
-		return typeName;
-	}
-
-	public void setTypeName(String typeName) {
-		this.typeName = typeName;
+		String fullName = getType().toString();
+		String simpleName = fullName.replaceAll("[a-zA-Z0-9.]*[.]", "");
+		return simpleName;
 	}
 
 	public Map<String, BeanHusk> getProperties() {
+		if (properties == null) {
+			properties = new LinkedHashMap<>();
+		}
 		return properties;
-	}
-
-	public void setProperties(Map<String, BeanHusk> properties) {
-		this.properties = properties;
 	}
 }
