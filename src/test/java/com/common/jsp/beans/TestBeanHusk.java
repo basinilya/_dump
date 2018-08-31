@@ -31,8 +31,7 @@ public class TestBeanHusk extends TestCase {
 
 	@SuppressWarnings("deprecation")
 	public void testBeanHusk() throws Exception {
-		BeanHusk rootHusk = new BeanHusk();
-		rootHusk.setValue(rootObj);
+		BeanHusk rootHusk = new BeanHusk(rootObj);
 
 		assertEquals(GtwayV24Data.class.getSimpleName(), rootHusk.getTypeName());
 		
@@ -74,6 +73,7 @@ public class TestBeanHusk extends TestCase {
 
 		BeanHusk huskEndpoint = huskEndpointsByBusAddr.getProperties().get("0");
 		V24Device dev = endpoints.get(BUS_ADDR);
+		dev.toString();
 		assertEquals(V24Device.class.getSimpleName(), huskPortObj.getTypeName());
 		assertEquals(BUS_ADDR, huskEndpoint.getDisplayName());
 		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
