@@ -145,7 +145,7 @@ public class BeanHusk {
 	public String getTypeName() {
 		String fullName = getType().toString();
 		String simpleName = fullName.replaceAll("[a-zA-Z0-9.]*[.]", "")
-				.replaceAll("capture#1-of ", "")
+				.replaceAll("capture#[0-9][0-9]*-of ", "")
 				.replaceAll(" extends class ", " extends ");
 		return simpleName;
 	}
@@ -159,12 +159,17 @@ public class BeanHusk {
 				try {
 					//Class rawType = getType().getRawType();
 					BeanInfo beanInfo = Introspector.getBeanInfo(_value.getClass());
-					for (PropertyDescriptor prop : beanInfo.getPropertyDescriptors()) {
-						Method getter = prop.getReadMethod();
-						if (getter != null && getter.getParameterTypes().length == 0) {
-							String name = prop.getName();
-							PropHusk propHusk = new PropHusk(this, prop);
-							properties.put(name, propHusk);
+					PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
+					for (int i = 0; i < 2; i++) {
+						for (PropertyDescriptor prop : props) {
+							Method getter = prop.getReadMethod();
+							if (getter != null && getter.getParameterTypes().length == 0) {
+								String name = prop.getName();
+								if (i != 0 ^ "class".equals(name) ) {
+									PropHusk propHusk = new PropHusk(this, prop);
+									properties.put(name, propHusk);
+								}
+							}
 						}
 					}
 				} catch (IntrospectionException e) {
@@ -275,7 +280,7 @@ public class BeanHusk {
 		
 		@Override
 		protected Object getValue0() {
-			return Array.get(parent, index);
+			return Array.get(parent.getValue(), index);
 		}
 
 		@Override
@@ -312,6 +317,11 @@ public class BeanHusk {
 
 		private final PropertyDescriptor thisProperty;
 		
+		@Override
+		public String getDisplayName() {
+			return thisProperty.getName();
+		}
+
 		@Override
 		protected PropertyEditor getPropertyEditor() {
 			if (editor == null) {

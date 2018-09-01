@@ -6,297 +6,13 @@
 --%><%@ page import="java.util.logging.Logger" %><%--
 --%><%@ page import="javax.servlet.*" %><%--
 --%><%@ page import="javax.servlet.http.*" %><%--
+--%><%@ page import="com.common.jsp.beans.TestService" %><%--
 --%><%@ page import="com.google.common.reflect.TypeToken" %><%--
 --%><%@ taglib prefix = "c" uri = "http://java.sun.com/jsp/jstl/core" %><%--
 --%><%@ taglib prefix = "fmt" uri = "http://java.sun.com/jsp/jstl/fmt" %><%--
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
 --%><%--
 --%><%!
-
-public static class Editor
-{
-	private Object rootObject;
-
-	private ArrayList<String> pathEntryNames = new ArrayList<>();
-	private ArrayList<Object> pathEntries = new ArrayList<>();
-
-	public ArrayList<Object> getPathEntries()
-	{
-		return pathEntries;
-	}
-
-	public void setPathEntries( ArrayList<Object> pathEntries )
-	{
-		this.pathEntries = pathEntries;
-	}
-
-	public ArrayList<String> getPathEntryNames()
-	{
-		return pathEntryNames;
-	}
-
-	public void setPathEntryNames( ArrayList<String> pathEntryNames )
-	{
-		this.pathEntryNames = pathEntryNames;
-	}
-
-	public Object getRootObject()
-	{
-		return rootObject;
-	}
-
-	public void setRootObject( Object rootPojo )
-	{
-		LOGGER.log( Level.INFO, "> setRootObject {0}" , new Object[] { rootPojo } );
-		this.rootObject = rootPojo;
-		pathEntryNames.clear();
-		pathEntries.clear();
-	}
-
-	public Object getLeafObject() {
-		return pathEntries.isEmpty( ) ? rootObject : pathEntries.get( pathEntries.size(  ) - 1 );
-	}
-
-	public static class PropertyRow {
-	    private String nameAsText;
-	    private String index;
-	    private String type;
-		private String valueAsText;
-
-	    public PropertyRow(String nameAsText, String index, String type,
-				String valueAsText) {
-			super();
-			this.nameAsText = nameAsText;
-			this.index = index;
-			this.type = type;
-			this.valueAsText = valueAsText;
-		}
-
-	    public String getNameAsText() {
-			return nameAsText;
-		}
-		public void setNameAsText(String nameAsText) {
-			this.nameAsText = nameAsText;
-		}
-		public String getIndex() {
-			return index;
-		}
-		public void setIndex(String index) {
-			this.index = index;
-		}
-		public String getType() {
-			return type;
-		}
-		public void setType(String type) {
-			this.type = type;
-		}
-		public String getValueAsText() {
-			return valueAsText;
-		}
-		public void setValueAsText(String valueAsText) {
-			this.valueAsText = valueAsText;
-		}
-	}
-
-	public String getLeafObjectAsText() {
-		Object leafObject = getLeafObject();
-		return toString(leafObject);
-	}
-	
-	private String toString(Object leafObject) {
-	    String res = null;
-		if (leafObject != null) {
-			PropertyEditor editor = PropertyEditorManager.findEditor( leafObject.getClass() );
-			if (editor != null) {
-				editor.setValue( leafObject );
-				res = editor.getAsText( );
-			}
-			if (res == null) {
-				res = leafObject.toString( );
-			}
-	    }
-		return res;
-	}
-
-	public static int toPropertyIndex(String propertyName) {
-		int n = -1;
-		try {
-			n = Integer.parseInt( propertyName );
-		} catch (NumberFormatException e) {
-			//
-		}
-		return n;
-	}
-
-	public List<PropertyRow> getProperties() {
-	    ArrayList<PropertyRow> res = new ArrayList<PropertyRow>();
-
-	    Object leafObject = getLeafObject();
-
-		Class<?> propertyType = null;
-		if (leafObject != null) {
-			if (leafObject.getClass().isArray()) {
-				propertyType = leafObject.getClass().getComponentType();
-				String typeName = propertyType.toString();
-			    int sz = Array.getLength(leafObject);
-			    for (int i = 0; i < sz; i++) {
-			        String name = Integer.toString(i);
-			        Object value = Array.get(leafObject, i);
-			        String valueText = toString(value); 
-			        res.add(new PropertyRow(name,name,typeName,valueText));
-			    }
-			} else if (leafObject instanceof List) {
-			    List<?> list = (List<?>)leafObject;
-			    int sz = list.size();
-			    for (int i = 0; i < sz; i++) {
-			        String name = Integer.toString(i);
-				    Object value = list.get(i);
-			        String valueText = toString(value); 
-			        res.add(new PropertyRow(name,name,typeName,valueText));
-			    }
-			} else {
-				if (leafObject instanceof Map) {
-					leafObject = ((Map<?,?>)leafObject).entrySet(  );
-				}
-				if (leafObject instanceof Collection) {
-					int i = toPropertyIndex( propertyName );
-					for(Iterator<?> it = ((Collection<?>)leafObject).iterator(); i > -1; i--) {
-						try {
-							newLeaf = it.next();
-						} catch (NoSuchElementException e) {
-							newLeaf = null;
-							break;
-						}
-					}
-				} else {
-					try {
-						BeanInfo beanInfo = Introspector.getBeanInfo(leafObject.getClass( ));
-						PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
-						for (PropertyDescriptor prop : props) {
-							if (prop.getName().equals(propertyName)) {
-								Method getter = prop.getReadMethod();
-								// TODO: indexed properties should be handled by putting IPD to the stack
-								// TODO: enumerating IPD is calling getter until out of bounds exception
-								if (getter.getParameterCount() == 0) {
-									newLeaf = getter.invoke( leafObject );
-								}
-							}
-						}
-					} catch (IllegalAccessException e) {
-					    //
-					} catch (InvocationTargetException e) {
-					    //
-					} catch (IntrospectionException e) {
-						//
-					}
-				}
-			}
-			//if (propertyType == null && newLeaf ) {
-			//}
-			// 
-		}
-
-	    
-	    try {
-			BeanInfo beanInfo = Introspector.getBeanInfo(leafObject.getClass( ));
-			PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
-			for (PropertyDescriptor prop : props) {
-			}
-	    } catch (IntrospectionException e) {
-	        //
-	    }
-
-	    res.add(new PropertyRow("aaa", "bbb", "ccc", "ddd"));
-	    res.add(new PropertyRow("a", "b", "c", "d"));
-	    // nameAsText
-	    // index
-	    // type
-	    // valueAsText
-	    return res;
-	}
-
-	public void addPathEntry( String propertyName )
-	{
-		LOGGER.log( Level.INFO, "> addPathEntry {0}" , new Object[] { propertyName } );
-		//if (rootObject == null) {
-		//	throw new IllegalStateException("root object not set");
-		//}
-		pathEntryNames.add( propertyName );
-		Object newLeaf = null;
-		Object leafObject = getLeafObject();
-		Class<?> propertyType = null;
-		if (leafObject != null) {
-			if (leafObject.getClass().isArray()) {
-				propertyType = leafObject.getClass().getComponentType();
-				int i = toPropertyIndex( propertyName );
-				if (i > -1) {
-					try {
-						newLeaf = Array.get( leafObject, i );
-					} catch (ArrayIndexOutOfBoundsException e) {
-						//
-					}
-				}
-			} else if (leafObject instanceof List) {
-				int i = toPropertyIndex( propertyName );
-				try {
-					newLeaf = ((List<?>)leafObject).get( i );
-				} catch (IndexOutOfBoundsException e) {
-					//
-				}
-			} else {
-				if (leafObject instanceof Map) {
-					leafObject = ((Map<?,?>)leafObject).entrySet(  );
-				}
-				if (leafObject instanceof Collection) {
-					int i = toPropertyIndex( propertyName );
-					for(Iterator<?> it = ((Collection<?>)leafObject).iterator(); i > -1; i--) {
-						try {
-							newLeaf = it.next();
-						} catch (NoSuchElementException e) {
-							newLeaf = null;
-							break;
-						}
-					}
-				} else {
-					try {
-						BeanInfo beanInfo = Introspector.getBeanInfo(leafObject.getClass( ));
-						PropertyDescriptor[] props = beanInfo.getPropertyDescriptors();
-						for (PropertyDescriptor prop : props) {
-							if (prop.getName().equals(propertyName)) {
-								Method getter = prop.getReadMethod();
-								// TODO: indexed properties should be handled by putting IPD to the stack
-								// TODO: enumerating IPD is calling getter until out of bounds exception
-								if (getter.getParameterCount() == 0) {
-									newLeaf = getter.invoke( leafObject );
-								}
-							}
-						}
-					} catch (IllegalAccessException e) {
-					    //
-					} catch (InvocationTargetException e) {
-					    //
-					} catch (IntrospectionException e) {
-						//
-					}
-				}
-			}
-			//if (propertyType == null && newLeaf ) {
-			//}
-			// 
-		}
-		pathEntries.add( newLeaf );
-		//PropertyEditorManager.findEditor( targetType )
-		//java.beans.Beans x = null;
-		//BeanInfo y = null;
-		//PropertyEditor z = null;
-		//z.setAsText( "" );
-		//z.getas
-		//y.getPropertyDescriptors()[0].getWriteMethod(  );
-	}
-
-	private static final Logger LOGGER = Logger.getLogger( Editor.class.getName() );
-}
-
 
 %><%--
 --%><%--
@@ -306,47 +22,38 @@ public static class Editor
 
 Object rootPojo = request.getSession( ).getAttribute( "rootPojo" );
 if (rootPojo == null) {
-	rootPojo = new com.common.test.v24.GtwayV24Data();
+	rootPojo = TestService.getGtwayV24Data();
 	request.getSession( ).setAttribute( "rootPojo", rootPojo );
 }
-
-Editor editor = new Editor();
-request.setAttribute("editor", editor);
-
-editor.setRootObject( rootPojo );
-
-int n = 0;
-try {
-	n = Byte.parseByte( request.getParameter( "n" ) );
-} catch (NumberFormatException e) {
-	//
-}
-
-for (int i = 0; i < n; i++) {
-	String pathEntryName = request.getParameter( "p" + i );
-	editor.addPathEntry( pathEntryName );
-}
-
-
 
 %><%--
 --%><%--
 --%><html>
 	<head></head>
 	<body>
+		<jsp:useBean id="rootHusk" scope="request" class="com.common.jsp.beans.BeanHusk"/>
+		<c:set target="${rootHusk}" property="value" value="${rootPojo}" />
+		<c:set var="leafHusk" value="${rootHusk}" />
 		<h1>
 		<c:set var="lastPathEntry" value="(root)"/>
-		<c:forEach begin="1" end="${fn:length(editor.pathEntryNames)}" step="1" var="mkUrl_i"><%--
+		<c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_i"><%--
+		--%><%--
+		--%><%--
 		--%><c:url var="url" value=""><%--
 			--%><c:param name="n" value="${mkUrl_i-1}"/><%--
 			--%><c:forEach begin="1" end="${mkUrl_i-1}" step="1" var="mkUrl_j"><%--
-				--%><c:param name="p${mkUrl_j-1}" value="${editor.pathEntryNames[mkUrl_j-1]}"/><%--
+				--%><%--
+				--%><c:set var="paramName" value="p${mkUrl_j-1}" /><%--
+				--%><c:param name="${paramName}" value="${param[paramName]}"/><%--
 			--%></c:forEach><%--
 		--%></c:url><%--
 		--%><a href="${url}"><c:out value="${lastPathEntry}"/></a>.<%--
 		--%><%--
 		--%><%--
-		--%><c:set var="lastPathEntry" value="${editor.pathEntryNames[mkUrl_i-1]}"/><%--
+		--%><%--
+		--%><c:set var="paramName" value="p${mkUrl_i-1}" /><%--
+		--%><c:set var="lastPathEntry" value="${param[paramName]}"/><%--
+		--%><c:set var="leafHusk" value="${leafHusk.properties[lastPathEntry]}" /><%--
 		--%></c:forEach><%--
 		--%><c:out value="${lastPathEntry}"/>
 		</h1>
@@ -356,7 +63,7 @@ for (int i = 0; i < n; i++) {
 			<input type="submit" name="assign" value="create/assign" <c:if test="${true}">disabled="disabled"</c:if> />
 			</div>
 			<div>
-			Value: <c:out value="(${fn:substring(editor.leafObjectAsText,0,100)})"/>
+			Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
 			</div>
 		</form>
 
@@ -370,11 +77,41 @@ for (int i = 0; i < n; i++) {
 			</thead>
 			<tbody>
 
-		<c:forEach items="${editor.properties}" var="row">
+		<c:forEach items="${leafHusk.properties}" var="rowEntry">
+			<c:set var="row" value="${rowEntry.value}"/>
+			<c:set var="url" value=""/>
+			<c:if test="${row.type.rawType.name != 'java.lang.Class'}">
+				<c:url var="url" value=""><%--
+					--%><c:param name="n" value="${param.n+1}"/><%--
+					--%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_j"><%--
+						--%><%--
+						--%><c:set var="paramName" value="p${mkUrl_j-1}" /><%--
+						--%><c:param name="${paramName}" value="${param[paramName]}"/><%--
+					--%></c:forEach><%--
+					--%><c:param name="p${param.n+0}" value="${rowEntry.key}"/><%--
+			--%></c:url>
+			</c:if>
 			<tr>
-				<td><c:out value="${fn:substring(row.nameAsText,0,100)}"/></td>
-				<td><c:out value="${fn:substring(row.type,0,100)}"/></td>
-				<td><c:out value="${fn:substring(row.valueAsText,0,100)}"/></td>
+				<td>
+					<c:if test="${not empty url}">
+					<a href="${url}">
+					</c:if>
+					<c:out value="${fn:substring(row.displayName,0,100)}"/>
+					<c:if test="${not empty url}">
+					</a>
+					</c:if>
+				</td>
+				<td><c:out value="${fn:substring(row.typeName,0,100)}"/></td>
+				<td>
+					<c:if test="${not empty url}">
+					(<a href="${url}">
+					</c:if>
+					<c:set var="valueAsText" value="${row.valueAsText}"/>
+					<c:out value="${fn:substring((valueAsText == null ? 'null' : valueAsText),0,100)}"/>
+					<c:if test="${not empty url}">
+					</a>)
+					</c:if>
+				</td>
 			</tr>
 		</c:forEach>
 
