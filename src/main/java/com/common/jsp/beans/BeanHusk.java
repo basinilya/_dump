@@ -1,11 +1,16 @@
 package com.common.jsp.beans;
 
+import java.awt.Component;
+import java.awt.Graphics;
+import java.awt.Rectangle;
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
+import java.beans.PropertyChangeListener;
 import java.beans.PropertyDescriptor;
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
+import java.beans.PropertyEditorSupport;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -17,6 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.RandomAccess;
+
+import org.apache.commons.beanutils.ConvertUtils;
+import org.apache.commons.beanutils.ConvertUtilsBean;
+import org.apache.commons.beanutils.ConvertUtilsBean2;
 
 import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;
@@ -52,17 +61,44 @@ public class BeanHusk {
 	private Map<String, BeanHusk> properties;
 
 	public String getValueAsText() {
-		PropertyEditor _editor = getPropertyEditor();
-		_editor.setValue(getValue());
-		return _editor.getAsText();
+		String res = null;
+		Object _value = getValue();
+		if (_value != null) {
+			PropertyEditor _editor = getPropertyEditor();
+			_editor.setValue(_value);
+			res = _editor.getAsText();
+		}
+		return res;
 	}
 	
-	private PropertyEditor editor;
+	protected PropertyEditor editor;
 	
 	protected PropertyEditor getPropertyEditor() {
 		if (editor == null) {
 			Object _value = getValue();
-			editor = PropertyEditorManager.findEditor( _value.getClass() );
+			editor = PropertyEditorManager.findEditor( _value == null ? getType().getRawType() : _value.getClass() );
+			if (editor == null) {
+				editor = new PropertyEditorSupport() {
+
+					@Override
+					public String getAsText() {
+						return ConvertUtils.convert(getValue());
+					}
+
+					@Override
+					public void setAsText(String text) throws IllegalArgumentException {
+						Class rawType = getType().getRawType();
+						Object __value = text;
+						if (rawType != String.class) {
+							__value = ConvertUtils.convert(text, rawType);
+							if (__value instanceof String) {
+								throw new UnsupportedOperationException("Can't convert");
+							}
+						}
+						setValue(__value);
+					}
+				};
+			}
 		}
 		return editor;
 	}
@@ -275,6 +311,14 @@ public class BeanHusk {
 		}
 
 		private final PropertyDescriptor thisProperty;
+		
+		@Override
+		protected PropertyEditor getPropertyEditor() {
+			if (editor == null) {
+				editor = thisProperty.createPropertyEditor(getValue());
+			}
+			return super.getPropertyEditor();
+		}
 		
 		@Override
 		public Object getValue0() {
