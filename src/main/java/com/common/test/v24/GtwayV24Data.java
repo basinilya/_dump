@@ -53,7 +53,6 @@ public class GtwayV24Data implements Serializable {
      * @return the common NPort settings
      */
     public NPortSettings getNportSettings() {
-    	System.out.println("aaa");
         return nportSettings;
     }
 

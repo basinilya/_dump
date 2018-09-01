@@ -40,22 +40,29 @@ public class TestBeanHusk extends TestCase {
 
 		BeanHusk huskDiscovery = getProp(huskNportSettings, NPortSettings::getDiscovery);
 		assertEquals(Boolean.class.getSimpleName(), huskDiscovery.getTypeName());
-		assertEquals(true, huskDiscovery.getValue());
+		assertEquals(null, huskDiscovery.getValue());
 
 		BeanHusk huskAdaptersByIpStr = getProp(rootHusk, GtwayV24Data::getAdaptersByIpStr);
 		assertEquals("Map<String, EtherSerialAdapter>", huskAdaptersByIpStr.getTypeName());
 
-		BeanHusk huskAdapter = huskAdaptersByIpStr.getProperties().get("0");
-		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskDiscovery.getTypeName());
-		assertEquals(IP_ADDR, huskAdapter.getDisplayName());
+		BeanHusk huskEntryAdapter = huskAdaptersByIpStr.getProperties().get("0");
+		assertEquals("Map$Entry<String, EtherSerialAdapter>", huskEntryAdapter.getTypeName());
+		assertEquals(IP_ADDR, huskEntryAdapter.getDisplayName());
+
+		BeanHusk huskAdapter = getProp(huskEntryAdapter, Map.Entry::getValue);
+		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskAdapter.getTypeName());
+
 		assertEquals("test adapter", getProp(huskAdapter, EtherSerialAdapter::getName).getValue());
 
 		BeanHusk huskSerialsByTcpServerPort = getProp(huskAdapter, EtherSerialAdapter::getSerialsByTcpServerPort);
 		assertEquals("Map<Integer, EtherSerialPort>", huskSerialsByTcpServerPort.getTypeName());
 
-		BeanHusk huskPortObj = huskSerialsByTcpServerPort.getProperties().get("0");
+		BeanHusk huskEntryPortObj = huskSerialsByTcpServerPort.getProperties().get("0");
+		assertEquals("Map$Entry<Integer, EtherSerialPort>", huskEntryPortObj.getTypeName());
+		assertEquals(TCP_PORT.toString(), huskEntryPortObj.getDisplayName());
+
+		BeanHusk huskPortObj = getProp(huskEntryPortObj, Map.Entry::getValue);
 		assertEquals(EtherSerialPort.class.getSimpleName(), huskPortObj.getTypeName());
-		assertEquals(TCP_PORT, huskPortObj.getDisplayName());
 		assertEquals(966, getProp(huskPortObj, EtherSerialPort::getNportCommandPort).getValue());
 
 		BeanHusk huskBus = getProp(huskPortObj, EtherSerialPort::getBus);
@@ -71,11 +78,14 @@ public class TestBeanHusk extends TestCase {
 		Map<String, ? extends V24Device> endpoints = bus.getEndpointsByBusAddr();
 		assertEquals("Map<String, ? extends V24Device>", huskEndpointsByBusAddr.getTypeName());
 
-		BeanHusk huskEndpoint = huskEndpointsByBusAddr.getProperties().get("0");
+		BeanHusk huskEntryEndpoint = huskEndpointsByBusAddr.getProperties().get("0");
+		assertEquals("Map$Entry<String, ? extends V24Device>", huskEntryEndpoint.getTypeName());
+		assertEquals(BUS_ADDR, huskEntryEndpoint.getDisplayName());
+
+		BeanHusk huskEndpoint = getProp(huskEntryEndpoint, Map.Entry::getValue);
 		V24Device dev = endpoints.get(BUS_ADDR);
 		dev.toString();
-		assertEquals(V24Device.class.getSimpleName(), huskPortObj.getTypeName());
-		assertEquals(BUS_ADDR, huskEndpoint.getDisplayName());
+		assertEquals("? extends V24Device", huskEndpoint.getTypeName());
 		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
 	}
 
@@ -109,8 +119,12 @@ public class TestBeanHusk extends TestCase {
 	private interface GetterEtherSerialAdapter extends Function<EtherSerialAdapter, Object> {}
 	private interface GetterEtherSerialPort extends Function<EtherSerialPort, Object> {}
 	private interface GetterEspaBus extends Function<EspaBus, Object> {}
-
 	private interface GetterV24Device extends Function<V24Device, Object> {}
+	private interface GetterMapEntry extends Function<Map.Entry, Object> {}
+
+	private static BeanHusk getProp(BeanHusk husk, GetterMapEntry getter) {
+		return getProp0(husk, getter);
+	}
 
 	private static BeanHusk getProp(BeanHusk husk, GetterV24Device getter) {
 		return getProp0(husk, getter);
