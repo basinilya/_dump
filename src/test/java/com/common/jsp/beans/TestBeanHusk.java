@@ -5,6 +5,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
@@ -23,6 +24,7 @@ import com.common.test.v24.V24ProtocolEm;
 import com.google.common.reflect.TypeToken;
 
 import org.junit.Assert;
+
 import junit.framework.TestCase;
 import static com.common.jsp.beans.TestService.*;
 
@@ -101,6 +103,12 @@ public class TestBeanHusk extends TestCase {
 		assertEquals("? extends V24Device", huskEndpoint.getTypeName());
 		assertTrue(huskEndpoint.getValueAsText().matches(".*[.]"+V24Device.class.getSimpleName()+".*"));
 		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
+
+		Map.Entry x = null;
+		AbstractMap.SimpleEntry y = null;
+		// y.s
+		huskNportSettings.getClass();
+		huskDiscovery.getClass();
 	}
 
 	private GtwayV24Data rootObj;

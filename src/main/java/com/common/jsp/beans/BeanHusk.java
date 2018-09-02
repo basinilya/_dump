@@ -16,6 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -150,11 +151,161 @@ public class BeanHusk {
 		return simpleName;
 	}
 
+	public boolean isSetValueSupported() {
+		return true;
+	}
+	
+	private static class NewListElement extends ListElement /* for getType & setIndex */ {
+
+		NewListElement(BeanHusk parent, int defaultIndex) {
+			super(parent, defaultIndex);
+		}
+
+		@Override
+		public void setValue(Object value) {
+			List ourList = (List)parent.getValue();
+			ourList.add(index, value);
+		}
+		
+		@Override
+		public Object getValue0() {
+			return null;
+		}
+		
+		public int getIndex() {
+			return index;
+		}
+
+		public void setIndex(int index) {
+			if (index < 0) {
+				throw new IllegalArgumentException("negative index");
+			}
+			this.index = index;
+		}
+
+	}
+
+	private static class NewArrayElement extends ArrayElement /* for getType & setIndex */ {
+
+		NewArrayElement(BeanHusk parent, int defaultIndex) {
+			super(parent, defaultIndex);
+		}
+		
+		@Override
+		public void setValue(Object value) {
+			Object ourArray = parent.getValue();
+			int sz = Array.getLength(ourArray);
+			int newSz = Math.max(index, sz) + 1;
+			Object newArray = Array.newInstance(getType().getRawType(), newSz);
+			System.arraycopy(ourArray, 0, newArray, 0, Math.min(sz, index));
+			Array.set(newArray, index, value);
+			if (sz > index) {
+				System.arraycopy(ourArray, index, newArray, index + 1, sz - index);
+			}
+			parent.setValue(newArray);
+		}
+
+		@Override
+		protected Object getValue0() {
+			return null;
+		}
+		
+		public int getIndex() {
+			return index;
+		}
+
+		public void setIndex(int index) {
+			if (index < 0) {
+				throw new IllegalArgumentException("negative index");
+			}
+			this.index = index;
+		}
+	}
+
+	private static class NewMapElement extends MapElement /* for getType & setIndex */ {
+
+		NewMapElement(BeanHusk parent) {
+			super(parent, null);
+		}
+		
+		@Override
+		public String getDisplayName() {
+			return null;
+		}
+
+		@Override
+		public void setValue(Object value) {
+			Map.Entry entry = (Map.Entry)value;
+			Map ourCol = (Map)parent.getValue();
+			ourCol.put(entry.getKey(), entry.getValue());
+		}
+		
+		@Override
+		public boolean isSetValueSupported() {
+			return true;
+		}
+		
+		@Override
+		public Object getValue0() {
+			return null;
+		}
+
+	}
+
+	private static final String PROPNAME_NEW = "-1";
+
+	private static class NewCollectionElement extends ChildHusk /* for getType & setIndex */ {
+
+		NewCollectionElement(BeanHusk parent) {
+			super(parent, true, null);
+		}
+
+		@Override
+		public void setValue(Object value) {
+			Collection ourCol = (Collection)parent.getValue();
+			ourCol.add(value);
+		}
+		
+		@Override
+		public boolean isSetValueSupported() {
+			return true;
+		}
+		
+		@Override
+		public Object getValue0() {
+			return null;
+		}
+	}
+
+	
 	public Map<String, BeanHusk> getProperties() {
 		if (properties == null) {
 			properties = new LinkedHashMap<>();
 			Object _value = getValue();
 			if (_value != null) {
+
+				if (_value.getClass().isArray()) {
+				    int sz = Array.getLength(_value);
+					if (isSetValueSupported()) {
+						NewArrayElement elem = new NewArrayElement(this, sz);
+						properties.put(PROPNAME_NEW, elem);
+					}
+				} else if (_value instanceof List) {
+				    List list = (List)_value;
+				    int sz = list.size();
+				    NewListElement elem = new NewListElement(this, sz);
+					properties.put(PROPNAME_NEW, elem);
+				} else {
+					if (_value instanceof Map) {
+						NewMapElement elem = new NewMapElement(this);
+						properties.put(PROPNAME_NEW, elem);
+					} else if (_value instanceof Collection) {
+						NewCollectionElement elem = new NewCollectionElement(this);
+						properties.put(PROPNAME_NEW, elem);
+					}
+				}
+				
+				
 				// bean properties first
 				try {
 					//Class rawType = getType().getRawType();
@@ -236,21 +387,11 @@ public class BeanHusk {
 				} catch (NoSuchMethodException e) {
 					throw new RuntimeException(e);
 				}
-				
-				//TypeToken resolvedMapType = parent.getType().getSupertype(Map.class);
-				//Type[] mapArgs = ((ParameterizedType)resolvedMapType.getType()).getActualTypeArguments();
-				//type = entryToken(TypeToken.of(mapArgs[0]),TypeToken.of(mapArgs[1]));
 			}
 			return type;
 		}
 
 	}
-
-	private static <K, V> TypeToken<Map.Entry<K, V>> entryToken(TypeToken<K> keyToken, TypeToken<V> valueToken) {
-		  return new TypeToken<Map.Entry<K, V>>() {}
-		    .where(new TypeParameter<K>() {}, keyToken)
-		    .where(new TypeParameter<V>() {}, valueToken);
-		}
 
 	private static class IterableElement extends ChildHusk {
 
@@ -295,8 +436,8 @@ public class BeanHusk {
 
 	private static class IndexedElement extends ChildHusk {
 		
-		protected final int index;
-		
+		protected int index;
+
 		IndexedElement(BeanHusk parent, int index, boolean valueSet, Object value) {
 			super(parent, valueSet, value);
 			this.index = index;
@@ -305,6 +446,11 @@ public class BeanHusk {
 		@Override
 		public String getDisplayName() {
 			return Integer.toString(index);
+		}
+		
+		@Override
+		public boolean isSetValueSupported() {
+			return true;
 		}
 	}
 
@@ -320,6 +466,11 @@ public class BeanHusk {
 		@Override
 		public String getDisplayName() {
 			return thisProperty.getName();
+		}
+
+		@Override
+		public boolean isSetValueSupported() {
+			return thisProperty.getWriteMethod() != null;
 		}
 
 		@Override
@@ -351,7 +502,7 @@ public class BeanHusk {
 		}
 	}
 
-	private static class ChildHusk extends BeanHusk {
+	private static abstract class ChildHusk extends BeanHusk {
 		
 		ChildHusk(BeanHusk parent, boolean valueSet, Object value) {
 			super(valueSet, value);
@@ -368,6 +519,11 @@ public class BeanHusk {
 		@Override
 		public void setValue(Object value) {
 			throw new UnsupportedOperationException("Not implemented yet");
+		}
+		
+		@Override
+		public boolean isSetValueSupported() {
+			return false;
 		}
 
 		@Override
