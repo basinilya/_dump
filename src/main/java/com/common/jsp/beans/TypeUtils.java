@@ -46,9 +46,9 @@ public class TypeUtils
         }
     }
 
-    public static Set<Class<?>> findImplementations( ClassPath classPath, String prefix, TypeToken<?> resolved )
+    public static Set<Class<?>> findImplementations( ClassPath classPath, String prefix, TypeToken<?> resolved, Class<?> restrict )
     {
-        Class<?> clazz = resolved.getRawType();
+        Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
         Set<Class<?>> actual = new HashSet<>();
 
         for ( ClassInfo classInfo : classPath.getAllClasses() )

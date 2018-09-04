@@ -32,7 +32,7 @@ import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;
 
 @SuppressWarnings("rawtypes")
-public class BeanHusk {
+public class BeanHusk extends FactoryProvider {
 
 	/**
 	 * For {@code <jsp:useBean>}
@@ -132,6 +132,7 @@ public class BeanHusk {
 		return null;
 	}
 
+	@Override
 	public TypeToken getType() {
 		if (type == null) {
 			if (value == null) {

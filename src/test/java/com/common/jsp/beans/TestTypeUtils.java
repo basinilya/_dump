@@ -82,7 +82,7 @@ public class TestTypeUtils
 
         Set<Class<?>> expected =
             new HashSet<>( Arrays.asList( MyCollection2.class, MyCollection3.class, MyCollection4.class ) );
-        Set<Class<?>> actual = TypeUtils.findImplementations( classPath, prefix, resolved );
+        Set<Class<?>> actual = TypeUtils.findImplementations( classPath, prefix, resolved, null );
         assertEquals( expected, actual );
     }
 
