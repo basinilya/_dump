@@ -33,24 +33,13 @@ if (rootPojo == null) {
 if ("POST".equals(request.getMethod())) {
 	%><jsp:include page="heading.jsp"/><%
 	BeanHusk leafHusk = (BeanHusk)request.getAttribute("leafHusk");
-	/*
-	BeanHusk rootHusk = new BeanHusk(rootPojo);
-	BeanHusk leafHusk = rootHusk;
-	int n = 0;
-	try {
-		n = Integer.parseInt(request.getParameter("n"));
-	} catch (Exception e) {
-	}
-	for (int i = 0; i < n; i++) {
-		leafHusk = leafHusk.getProperties().get(request.getParameter("p" + i));
-	}
-	*/
 
 	String url = request.getRequestURI() + "?" + request.getQueryString();
 
 	if (!isBlank(request.getParameter("remove"))) {
 		url = request.getRequestURI() + (String)request.getAttribute("url");
 		leafHusk.remove();
+	} else if (!isBlank(request.getParameter("assign"))) {
 	}
 	response.sendRedirect(url);
 	return;
@@ -69,13 +58,14 @@ if ("POST".equals(request.getMethod())) {
 			<input type="submit" name="remove" value="remove element" <c:if test="${!leafHusk.removeSupported}">disabled="disabled"</c:if> />
 			<input type="submit" name="assign" value="create/assign" <c:if test="${!leafHusk.setValueSupported}">disabled="disabled"</c:if> />
 			</div>
-			<fieldset <c:if test="${false && !leafHusk.setValueSupported}">disabled="disabled"</c:if> >
+			<fieldset<c:if test="${false && !leafHusk.setValueSupported}"> disabled="disabled"</c:if>>
 				<div>
 				Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
 				</div>
 				<label for="index">Index:</label>
-				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> />
-				<c:set scope="request" var="factoryProvider" value="${leafHusk}"/>
+				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> /><%--
+				--%><c:set scope="request" var="factoryProvider" value="${leafHusk}"/><%--
+				--%><c:set scope="request" var="legend" value="New value"/>
 				<jsp:include page="node.jsp"/>
 			</fieldset>
 		</form>
