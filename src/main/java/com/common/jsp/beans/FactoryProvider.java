@@ -12,8 +12,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.Set;
 
 import com.common.test.v24.V24ProtocolEm;
@@ -22,7 +24,7 @@ import com.google.common.reflect.TypeToken;
 
 public abstract class FactoryProvider {
 	
-	//private static final MyLazyMap myLazyMap = new MyLazyMap();
+	private static final HashMap<Map.Entry<TypeToken, Class<?>> ,Set<Class<?>>> AAA = new HashMap<>();
 
 	private final MyLazyMap myLazyMap = new MyLazyMap();
 	private final Map<String, List<Factory>> factories = Collections.unmodifiableMap(myLazyMap);
@@ -41,48 +43,62 @@ public abstract class FactoryProvider {
 			}
 			List<Factory> res = super.get(key);
 			if (res == null && key instanceof String) {
-				String clazzName = (String)key;
+				String restrictString = (String)key;
 				res = new ArrayList<>();
 				try {
 					TypeToken tt = getType();
 					Class<?> propClazz = tt.getRawType();
 					ClassLoader loader = Thread.currentThread().getContextClassLoader();
+					// TODO: restrictString can contain number of elements and array class
 					Class<?> restrictClazz = 
-							clazzName.isEmpty()
+							restrictString.isEmpty()
 							? (propClazz.isPrimitive() ? propClazz : Object.class)
-							: Class.forName(clazzName, true, loader );
+							: Class.forName(restrictString, true, loader );
 					if (restrictClazz.isAssignableFrom(propClazz)) {
 						restrictClazz = propClazz;
 					}
 					if (propClazz.isAssignableFrom(restrictClazz)) {
-						Set<Class<?>> candidates;
-						if (Modifier.isFinal( restrictClazz.getModifiers() )) {
-							candidates = new HashSet<>();
-						} else {
-					        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
-					        candidates = TypeUtils.findImplementations(classPath, "", tt, restrictClazz);
+						Map.Entry<TypeToken, Class<?>> ck = new AbstractMap.SimpleEntry<>(tt, restrictClazz);
+						Set<Class<?>> candidates = AAA.get(ck);
+						boolean found = candidates != null;
+						if (!found) {
+							if (Modifier.isFinal( restrictClazz.getModifiers() )) {
+								candidates = new HashSet<>();
+							} else {
+						        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
+						        candidates = TypeUtils.findImplementations(classPath, "", tt, restrictClazz);
+							}
+							candidates.add(restrictClazz);
 						}
-						candidates.add(restrictClazz);
-						for (Class<?> candidate : candidates) {
+						for (Iterator<Class<?>> it = candidates.iterator();it.hasNext();) {
+							boolean good = false;
+							Class<?> candidate = it.next();
 							PropertyEditor editor = PropertyEditorManager.findEditor(candidate);
 							if (editor != null) {
+								good = true;
 								// TODO: this is thread-insafe instance of PE
 								res.add(new EditorBasedFactory(editor));
 							}
 							for (Constructor<?> cons : candidate.getConstructors()) {
-								if (cons.isAccessible()) {
+								if (Modifier.isPublic(cons.getModifiers())) {
+									good = true;
 									res.add(new ConstructorFactory(cons));
 								}
 							}
+							if (!good) {
+								it.remove();
+							}
 						}
-						// restrictClazz.get
+						if (!found) {
+							AAA.put(ck, candidates);
+						}
 					}
 				} catch (ClassNotFoundException e) {
 					// ignore
 				} catch (IOException e) {
 					// ignore
 				}
-				put(clazzName, res);
+				put(restrictString, res);
 			}
 			return res;
 		}
@@ -107,6 +123,11 @@ public abstract class FactoryProvider {
 			res.add(new SompleFactoryProvider(TypeToken.of( String.class)));
 			return res;
 		}
+
+		@Override
+		public String[] getTags() {
+			return editor.getTags();
+		}
 	}
 	
 	private static class SompleFactoryProvider extends FactoryProvider {
@@ -127,6 +148,9 @@ public abstract class FactoryProvider {
 		private final Constructor<?> cons;
 
 		ConstructorFactory(Constructor<?> cons) {
+			if (cons == null) {
+				throw new NullPointerException();
+			}
 			this.cons = cons;
 		}
 		
@@ -135,16 +159,52 @@ public abstract class FactoryProvider {
 			return cons.newInstance(params);
 		}
 		
+		private TypeToken getContext() {
+			TypeToken context = getType();
+			context = context.getSubtype(cons.getDeclaringClass());
+			return context;
+		}
+
 		@Override
 		public List<FactoryProvider> getParamsProviders() {
 			List<FactoryProvider> res = new ArrayList<>();
-			TypeToken context = getType();
-			context = context.getSubtype(cons.getDeclaringClass());
+			TypeToken context = getContext();
 			for (Type paramType : cons.getGenericParameterTypes()) {
 				TypeToken resolved = context.resolveType(paramType);
 				res.add(new SompleFactoryProvider(resolved));
 			}
 			return res;
+		}
+		
+		@Override
+		public String toString() {
+			StringBuilder sb = new StringBuilder("new ");
+			// String name = cons.getDeclaringClass().getName();
+			String name;
+			try {
+				name = getContext().toString();
+				//Type context = getContext().getType();
+				//if (!(context instanceof Class)) {
+				//	name = context.toString();
+				//}
+			} catch (Exception e) {
+				name = "<error>";
+			}
+			
+			sb.append(name).append('(');
+			
+			try {
+				String comma = "";
+				for (FactoryProvider x : getParamsProviders()) {
+					sb.append(comma).append(x.getType().toString());
+					comma = ", ";
+				}
+			} catch (Exception e) {
+				sb.append("<error>");
+			}
+
+			sb.append(')');
+			return sb.toString();
 		}
 	}
 	

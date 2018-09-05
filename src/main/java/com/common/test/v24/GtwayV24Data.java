@@ -14,6 +14,8 @@ import javax.persistence.Embedded;
  */
 @Embeddable
 public class GtwayV24Data implements Serializable {
+	public GtwayV24Data() {
+	}
 
     private static final long serialVersionUID = 1L;
 

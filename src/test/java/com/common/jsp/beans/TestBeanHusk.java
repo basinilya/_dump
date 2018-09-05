@@ -7,6 +7,7 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -30,17 +31,27 @@ import static com.common.jsp.beans.TestService.*;
 
 public class TestBeanHusk extends TestCase {
 
+	static boolean skipThis = true;
 
 	@SuppressWarnings("deprecation")
 	public void testBeanHusk() throws Exception {
+		rootObj.getAdaptersByIpStr();
+		rootObj.getNportSettings();
+		rootObj.getV24EndpointSeq();
+		
 		BeanHusk rootHusk = new BeanHusk(rootObj);
+		
 
 		assertEquals(GtwayV24Data.class.getSimpleName(), rootHusk.getTypeName());
 		assertTrue(rootHusk.getValueAsText().matches(".*[.]"+GtwayV24Data.class.getSimpleName()+".*"));
 		
+		BeanHusk huskV24EndpointSeq = getProp(rootHusk, GtwayV24Data::getV24EndpointSeq);
+
+
 		BeanHusk huskNportSettings = getProp(rootHusk, GtwayV24Data::getNportSettings);
 		assertEquals(NPortSettings.class.getSimpleName(), huskNportSettings.getTypeName());
 		assertTrue(huskNportSettings.getValueAsText().matches(".*[.]"+NPortSettings.class.getSimpleName()+".*"));
+
 
 		BeanHusk huskDiscovery = getProp(huskNportSettings, NPortSettings::getDiscovery);
 		assertEquals(Boolean.class.getSimpleName(), huskDiscovery.getTypeName());
@@ -104,11 +115,86 @@ public class TestBeanHusk extends TestCase {
 		assertTrue(huskEndpoint.getValueAsText().matches(".*[.]"+V24Device.class.getSimpleName()+".*"));
 		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
 
-		Map.Entry x = null;
-		AbstractMap.SimpleEntry y = null;
-		// y.s
-		huskNportSettings.getClass();
-		huskDiscovery.getClass();
+		if (!skipThis) {
+			assertTrue(huskDiscovery.isSetValueSupported());
+			Map<String, List<Factory>> factories = huskDiscovery.getFactories();
+			assertEquals(0, factories.get(String.class.getName()).size());
+			List<Factory> factoriesRestricted = factories.get(Boolean.class.getName());
+			assertTrue(factoriesRestricted.size() > 1);
+
+			List<Factory> factoriesAll = factories.get(null);
+			assertTrue(factoriesAll.size() > 1);
+			
+			Factory factory = factoriesAll.get(0);
+			Object option = factory.getTags()[0];
+			Object newVal = factoriesAll.get(0).getInstance(new Object[] { option } );
+			huskDiscovery.setValue(newVal);
+			assertSame(newVal, rootObj.getNportSettings().getDiscovery());
+
+			String xxx = "new java.lang.Boolean(boolean)";
+			for (int i = 1;; i++) {
+				if (i >= factoriesAll.size()) {
+					fail();
+				}
+				factory = factoriesAll.get(i);
+				String name = factory.toString();
+				if (xxx.equals(name)) {
+					FactoryProvider arg0 = factory.getParamsProviders().get(0);
+					Object arg0val = arg0.getFactories().get(null).get(0).getInstance(new Object[] { Boolean.TRUE.toString() });
+					factory.getInstance(new Object[] { arg0val });
+					break;
+				}
+			}
+		}
+
+		if (!skipThis) {
+			assertTrue(huskNportSettings.isSetValueSupported());
+			Map<String, List<Factory>> factories = huskNportSettings.getFactories();
+			assertEquals(0, factories.get(String.class.getName()).size());
+			List<Factory> factoriesRestricted = factories.get(NPortSettings.class.getName());
+			assertEquals(1, factoriesRestricted.size());
+
+			List<Factory> factoriesAll = factories.get(null);
+			assertEquals(1, factoriesAll.size());
+			Object newVal = factoriesAll.get(0).getInstance(new Object[] { } );
+			huskNportSettings.setValue(newVal);
+
+			assertSame(newVal, rootObj.getNportSettings());
+		}
+
+		if (!skipThis) {
+			assertTrue(huskV24EndpointSeq.isSetValueSupported());
+			Map<String, List<Factory>> v24EndpointSeqFactories = huskV24EndpointSeq.getFactories();
+			assertEquals(0, v24EndpointSeqFactories.get(String.class.getName()).size());
+			List<Factory> factoriesRestricted = v24EndpointSeqFactories.get(int.class.getName());
+			assertEquals(0, factoriesRestricted.size());
+
+			List<Factory> factoriesAll = v24EndpointSeqFactories.get(null);
+			assertEquals(1, factoriesAll.size());
+			int i = 42;
+			Object newVal = factoriesAll.get(0).getInstance(new Object[] { Integer.toString(i) } );
+			try {
+				huskV24EndpointSeq.setValue(null);
+				fail();
+			} catch (Exception e) {
+				// expected
+			}
+			huskV24EndpointSeq.setValue(newVal);
+
+			assertEquals(newVal, rootObj.getV24EndpointSeq());
+		}
+		
+		if (!skipThis) {
+			assertTrue(rootHusk.isSetValueSupported());
+			Map<String, List<Factory>> rootFactories = rootHusk.getFactories();
+			assertEquals(0, rootFactories.get(String.class.getName()).size());
+			List<Factory> rootFactoriesAll = rootFactories.get(null);
+			assertEquals(1, rootFactoriesAll.size());
+			List<Factory> rootFactoriesRestricted = rootFactories.get(GtwayV24Data.class.getName());
+			assertEquals(1, rootFactoriesRestricted.size());
+			rootFactoriesRestricted.get(0).getInstance(new Object[0]);
+		}
+
 	}
 
 	private GtwayV24Data rootObj;

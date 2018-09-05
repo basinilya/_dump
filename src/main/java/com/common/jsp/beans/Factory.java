@@ -7,5 +7,6 @@ public abstract class Factory {
 	public abstract Object getInstance(Object[] params) throws Exception;
 	
 	public abstract List<FactoryProvider> getParamsProviders();
-	//public static 
+
+	public Object[] getTags() { return null; };
 }

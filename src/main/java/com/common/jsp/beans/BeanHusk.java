@@ -475,6 +475,17 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
+		public void setValue(Object value) {
+			try {
+				thisProperty.getWriteMethod().invoke(parent.getValue(), value);
+			} catch (IllegalAccessException e) {
+				throw new RuntimeException(e);
+			} catch (InvocationTargetException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		@Override
 		protected PropertyEditor getPropertyEditor() {
 			if (editor == null) {
 				editor = thisProperty.createPropertyEditor(getValue());
