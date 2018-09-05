@@ -1,3 +1,5 @@
+<%@page import="java.net.URLEncoder"%>
+<%@page import="com.common.jsp.beans.BeanHusk"%>
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%><%--
 --%><%@page import="java.beans.*"%><%--
 --%><%@ page import="java.util.*" %><%--
@@ -13,7 +15,9 @@
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
 --%><%--
 --%><%!
-
+	private static boolean isBlank(String s) {
+		return s == null || s.isEmpty();
+	}
 %><%--
 --%><%--
 --%><%--
@@ -26,45 +30,54 @@ if (rootPojo == null) {
 	request.getSession( ).setAttribute( "rootPojo", rootPojo );
 }
 
+if ("POST".equals(request.getMethod())) {
+	%><jsp:include page="heading.jsp"/><%
+	BeanHusk leafHusk = (BeanHusk)request.getAttribute("leafHusk");
+	/*
+	BeanHusk rootHusk = new BeanHusk(rootPojo);
+	BeanHusk leafHusk = rootHusk;
+	int n = 0;
+	try {
+		n = Integer.parseInt(request.getParameter("n"));
+	} catch (Exception e) {
+	}
+	for (int i = 0; i < n; i++) {
+		leafHusk = leafHusk.getProperties().get(request.getParameter("p" + i));
+	}
+	*/
+
+	String url = request.getRequestURI() + "?" + request.getQueryString();
+
+	if (!isBlank(request.getParameter("remove"))) {
+		url = request.getRequestURI() + (String)request.getAttribute("url");
+		leafHusk.remove();
+	}
+	response.sendRedirect(url);
+	return;
+}
+
 %><%--
 --%><%--
 --%><html>
 	<head></head>
 	<body>
-		<jsp:useBean id="rootHusk" scope="request" class="com.common.jsp.beans.BeanHusk"/>
-		<c:set target="${rootHusk}" property="value" value="${rootPojo}" />
-		<c:set var="leafHusk" value="${rootHusk}" />
 		<h1>
-		<c:set var="lastPathEntry" value="(root)"/>
-		<c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_i"><%--
-		--%><%--
-		--%><%--
-		--%><c:url var="url" value=""><%--
-			--%><c:param name="n" value="${mkUrl_i-1}"/><%--
-			--%><c:forEach begin="1" end="${mkUrl_i-1}" step="1" var="mkUrl_j"><%--
-				--%><%--
-				--%><c:set var="paramName" value="p${mkUrl_j-1}" /><%--
-				--%><c:param name="${paramName}" value="${param[paramName]}"/><%--
-			--%></c:forEach><%--
-		--%></c:url><%--
-		--%><a href="${url}"><c:out value="${lastPathEntry}"/></a>.<%--
-		--%><%--
-		--%><%--
-		--%><%--
-		--%><c:set var="paramName" value="p${mkUrl_i-1}" /><%--
-		--%><c:set var="lastPathEntry" value="${param[paramName]}"/><%--
-		--%><c:set var="leafHusk" value="${leafHusk.properties[lastPathEntry]}" /><%--
-		--%></c:forEach><%--
-		--%><c:out value="${lastPathEntry}"/>
+			<jsp:include page="heading.jsp"/>
 		</h1>
 		<form method="post">
 			<div>
-			<input type="submit" name="remove" value="remove element" <c:if test="${true}">disabled="disabled"</c:if> />
-			<input type="submit" name="assign" value="create/assign" <c:if test="${true}">disabled="disabled"</c:if> />
+			<input type="submit" name="remove" value="remove element" <c:if test="${!leafHusk.removeSupported}">disabled="disabled"</c:if> />
+			<input type="submit" name="assign" value="create/assign" <c:if test="${!leafHusk.setValueSupported}">disabled="disabled"</c:if> />
 			</div>
-			<div>
-			Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
-			</div>
+			<fieldset <c:if test="${false && !leafHusk.setValueSupported}">disabled="disabled"</c:if> >
+				<div>
+				Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
+				</div>
+				<label for="index">Index:</label>
+				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> />
+				<c:set scope="request" var="factoryProvider" value="${leafHusk}"/>
+				<jsp:include page="node.jsp"/>
+			</fieldset>
 		</form>
 
 		<table border="1">
@@ -96,13 +109,14 @@ if (rootPojo == null) {
 					<c:if test="${not empty url}">
 					<a href="${url}">
 					</c:if>
-					<c:out value="${fn:substring(row.displayName,0,100)}"/>
+					<c:out value="${rowEntry.key == '-1' ? 'new...' : fn:substring(row.displayName,0,100)}"/>
 					<c:if test="${not empty url}">
 					</a>
 					</c:if>
 				</td>
 				<td><c:out value="${fn:substring(row.typeName,0,100)}"/></td>
 				<td>
+					<c:if test="${rowEntry.key != '-1'}">
 					<c:if test="${not empty url}">
 					(<a href="${url}">
 					</c:if>
@@ -110,6 +124,7 @@ if (rootPojo == null) {
 					<c:out value="${fn:substring((valueAsText == null ? 'null' : valueAsText),0,100)}"/>
 					<c:if test="${not empty url}">
 					</a>)
+					</c:if>
 					</c:if>
 				</td>
 			</tr>

@@ -1,8 +1,12 @@
 package com.common.test.v24;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+
 import javax.persistence.Embeddable;
 import javax.persistence.Embedded;
 
@@ -14,8 +18,6 @@ import javax.persistence.Embedded;
  */
 @Embeddable
 public class GtwayV24Data implements Serializable {
-	public GtwayV24Data() {
-	}
 
     private static final long serialVersionUID = 1L;
 
@@ -61,4 +63,24 @@ public class GtwayV24Data implements Serializable {
     public void setNportSettings(NPortSettings nportSettings) {
         this.nportSettings = nportSettings;
     }
+
+    private String[] testArray = new String[] { "a", "b", "c" };
+
+    public String[] getTestArray() {
+		return testArray;
+	}
+
+	public void setTestArray(String[] testArray) {
+		this.testArray = testArray;
+	}
+
+	public Iterable<String> getTestList() {
+		return testList;
+	}
+
+	public void setTestList(Iterable<String> testList) {
+		this.testList = testList;
+	}
+
+	private Iterable<String> testList = new HashSet<>(Arrays.asList(testArray));
 }

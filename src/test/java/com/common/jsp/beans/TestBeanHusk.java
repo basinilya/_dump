@@ -193,7 +193,7 @@ public class TestBeanHusk extends TestCase {
 			List<Factory> rootFactoriesRestricted = rootFactories.get(GtwayV24Data.class.getName());
 			assertEquals(1, rootFactoriesRestricted.size());
 			rootFactoriesRestricted.get(0).getInstance(new Object[0]);
-		}
+		}rootHusk.getType().isPrimitive();
 
 	}
 

@@ -152,8 +152,20 @@ public class BeanHusk extends FactoryProvider {
 		return simpleName;
 	}
 
+	public Integer getIndex() {
+		return null;
+	}
+
 	public boolean isSetValueSupported() {
 		return true;
+	}
+	
+	public boolean isRemoveSupported() {
+		return false;
+	}
+	
+	public void remove() {
+		throw new UnsupportedOperationException();
 	}
 	
 	private static class NewListElement extends ListElement /* for getType & setIndex */ {
@@ -173,8 +185,14 @@ public class BeanHusk extends FactoryProvider {
 			return null;
 		}
 		
-		public int getIndex() {
+		@Override
+		public Integer getIndex() {
 			return index;
+		}
+
+		@Override
+		public boolean isRemoveSupported() {
+			return false;
 		}
 
 		public void setIndex(int index) {
@@ -211,8 +229,14 @@ public class BeanHusk extends FactoryProvider {
 			return null;
 		}
 		
-		public int getIndex() {
+		@Override
+		public Integer getIndex() {
 			return index;
+		}
+
+		@Override
+		public boolean isRemoveSupported() {
+			return false;
 		}
 
 		public void setIndex(int index) {
@@ -244,6 +268,11 @@ public class BeanHusk extends FactoryProvider {
 		@Override
 		public boolean isSetValueSupported() {
 			return true;
+		}
+
+		@Override
+		public boolean isRemoveSupported() {
+			return false;
 		}
 		
 		@Override
@@ -352,7 +381,7 @@ public class BeanHusk extends FactoryProvider {
 					} else if (_value instanceof Iterable) {
 						int i = 0;
 						for (Object o : (Iterable)_value) {
-							IterableElement elem = new IterableElement(this, o);
+							IterableElement elem = new IterableElement(this, true, o);
 							properties.put(Integer.toString(i), elem);
 							i++;
 						}
@@ -366,7 +395,7 @@ public class BeanHusk extends FactoryProvider {
 	private static class MapElement extends IterableElement {
 
 		MapElement(BeanHusk parent, Map.Entry value) {
-			super(parent, value);
+			super(parent, true, value);
 		}
 		
 		@Override
@@ -392,14 +421,37 @@ public class BeanHusk extends FactoryProvider {
 			return type;
 		}
 
+		@Override
+		public void remove() {
+			Object key = ((Map.Entry)getValue()).getKey();
+			((Map)parent.getValue()).remove(key);
+		}
 	}
 
 	private static class IterableElement extends ChildHusk {
 
-		IterableElement(BeanHusk parent, Object value) {
-			super(parent, true, value);
+		IterableElement(BeanHusk parent, boolean valueSet, Object value) {
+			super(parent, valueSet, value);
+		}
+		
+		@Override
+		public void remove() {
+			for (Entry<String, BeanHusk> x : parent.getProperties().entrySet()) {
+				if (x.getValue() == this) {
+					Iterator it = ((Iterable)parent.getValue()).iterator();
+					for (int index = Integer.parseInt(x.getKey());index >= 0;index--) {
+						it.next();
+					}
+					it.remove();
+					break;
+				}
+			}
 		}
 
+		@Override
+		public boolean isRemoveSupported() {
+			return true;
+		}
 	}
 
 	private static class ListElement extends IndexedElement {
@@ -410,7 +462,17 @@ public class BeanHusk extends FactoryProvider {
 		
 		@Override
 		public Object getValue0() {
-			return ((List)parent).get(index);
+			return ((List)parent.getValue()).get(index);
+		}
+		
+		@Override
+		public void setValue(Object value) {
+			((List)parent.getValue()).set(index, value);
+		}
+		
+		@Override
+		public void remove() {
+			((List)parent.getValue()).remove(index);
 		}
 	}
 
@@ -426,6 +488,33 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
+		public boolean isRemoveSupported() {
+			return parent.isSetValueSupported();
+		}
+		
+		@Override
+		public void setValue(Object value) {
+			Object ourArray = parent.getValue();
+			Array.set(ourArray, index, value);
+			if (parent.isSetValueSupported()) {
+				parent.setValue(ourArray);
+			}
+		}
+
+		@Override
+		public void remove() {
+			Object ourArray = parent.getValue();
+			int sz = Array.getLength(ourArray);
+			int newSz = sz - 1;
+			Object newArray = Array.newInstance(getType().getRawType(), newSz);
+			System.arraycopy(ourArray, 0, newArray, 0, Math.min(newSz, index));
+			if (newSz > index) {
+				System.arraycopy(ourArray, index + 1, newArray, index, newSz - index);
+			}
+			parent.setValue(newArray);
+		}
+
+		@Override
 		public TypeToken getType() {
 			if (type == null) {
 				type = parent.getType().getComponentType();
@@ -435,7 +524,7 @@ public class BeanHusk extends FactoryProvider {
 
 	}
 
-	private static class IndexedElement extends ChildHusk {
+	private static class IndexedElement extends IterableElement {
 		
 		protected int index;
 
