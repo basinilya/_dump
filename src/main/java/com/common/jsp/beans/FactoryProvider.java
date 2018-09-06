@@ -122,6 +122,7 @@ public abstract class FactoryProvider {
 			}
 			x = pf.getProvider();
 		}
+		// factory.getParamsProviders().get(0).getFactories()
 		res.add(factory);
 	}
 

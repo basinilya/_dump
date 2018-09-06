@@ -1,5 +1,3 @@
-<%@page import="java.net.URLEncoder"%>
-<%@page import="com.common.jsp.beans.BeanHusk"%>
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%><%--
 --%><%@page import="java.beans.*"%><%--
 --%><%@ page import="java.util.*" %><%--
@@ -8,7 +6,8 @@
 --%><%@ page import="java.util.logging.Logger" %><%--
 --%><%@ page import="javax.servlet.*" %><%--
 --%><%@ page import="javax.servlet.http.*" %><%--
---%><%@ page import="com.common.jsp.beans.TestService" %><%--
+--%><%@ page import="com.common.jsp.beans.*" %><%--
+--%><%@ page import="java.net.URLEncoder" %><%--
 --%><%@ page import="com.google.common.reflect.TypeToken" %><%--
 --%><%@ taglib prefix = "c" uri = "http://java.sun.com/jsp/jstl/core" %><%--
 --%><%@ taglib prefix = "fmt" uri = "http://java.sun.com/jsp/jstl/fmt" %><%--
@@ -17,6 +16,46 @@
 --%><%!
 	private static boolean isBlank(String s) {
 		return s == null || s.isEmpty();
+	}
+
+	private static Object mkNewValue(HttpServletRequest request, FactoryProvider factoryProvider, String prefix) throws Exception {
+		String oldRestrict = request.getParameter(prefix + "oldRestrict");
+		List<Factory> factoryList = factoryProvider.getFactories().get(oldRestrict);
+		Factory factory = factoryList.get(toInt(request.getParameter(prefix + "iFactory")));
+		List<FactoryProvider> paramsProviders = factory.getParamsProviders();
+		if (factoryProvider.getType().getType() == String.class
+				&& paramsProviders.size() == 1
+				&& paramsProviders.get(0).getType().getType() == String.class) {
+		}
+		boolean isNull = Boolean.TRUE.toString().equals(request.getParameter(prefix + "null"));
+		Object[] tags = factory.getTags();
+		String value = request.getParameter(prefix + "value");
+		Object result = null;
+		System.out.println("prefix:"+prefix+",value:"+value+",");
+		if (isNull) {
+			result = null;
+		} else if (tags != null) {
+			Object tag = tags[toInt(request.getParameter(prefix + "iTag"))];
+			result = factory.getInstance(new Object[] { tag });
+		} else if (factoryProvider.getType().getType() == String.class
+				&& paramsProviders.size() == 1
+				&& paramsProviders.get(0).getType().getType() == String.class
+				)
+		{
+			result = factory.getInstance(new Object[] { value });
+		} else {
+			Object[] constructorParams = new Object[paramsProviders.size()];
+			for (int i = 0; i < paramsProviders.size(); i++) {
+				constructorParams[i] = mkNewValue(request, paramsProviders.get(i) , prefix + "arg" + i + "-" );
+			}
+			result = factory.getInstance(constructorParams);
+		}
+		System.out.println(result);
+		return result;
+	}
+
+	private static int toInt(String s) {
+		return s == null ? 0 : Integer.parseInt(s);
 	}
 %><%--
 --%><%--
@@ -31,7 +70,7 @@ if (rootPojo == null) {
 }
 
 if ("POST".equals(request.getMethod())) {
-	%><jsp:include page="heading.jsp"/><%
+	%><c:set scope="request" var="mute" value="bbb"/><jsp:include page="heading.jsp"/><c:set scope="request" var="mute" value=""/><%
 	BeanHusk leafHusk = (BeanHusk)request.getAttribute("leafHusk");
 
 	String url = request.getRequestURI() + "?" + request.getQueryString();
@@ -39,7 +78,18 @@ if ("POST".equals(request.getMethod())) {
 	if (!isBlank(request.getParameter("remove"))) {
 		url = request.getRequestURI() + (String)request.getAttribute("url");
 		leafHusk.remove();
+		response.sendRedirect(url);
+		return;
 	} else if (!isBlank(request.getParameter("assign"))) {
+		String prefix = "";
+		FactoryProvider factoryProvider = leafHusk;
+		try {
+			Object newVal = mkNewValue(request, factoryProvider, prefix);
+			leafHusk.setValue(newVal);
+		} catch (Exception e) {
+			request.setAttribute("infoMessage", "Failed");
+		}
+		// request.setAttribute("infoMessage", "Parameters changed");
 	}
 	//response.sendRedirect(url);
 	//return;
@@ -63,11 +113,13 @@ if ("POST".equals(request.getMethod())) {
 				Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
 				</div>
 				<label for="index">Index:</label>
-				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> /><%--
+				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> />
+				<span><b><c:out value="${infoMessage}" /></b></span>
+				<%--
 				--%><c:set scope="request" var="factoryProvider" value="${leafHusk}"/><%--
 				--%><c:set scope="request" var="prefix" value=""/><%--
 				--%><c:set scope="request" var="depth" value="0"/><%--
-				--%><c:set scope="request" var="legend" value="New value"/>
+				--%><c:set scope="request" var="legend" value="${leafHusk.type} New value"/>
 				<jsp:include page="node.jsp"/>
 			</fieldset>
 		</form>

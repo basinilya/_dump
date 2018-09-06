@@ -24,11 +24,11 @@
 			--%><c:param name="${paramName}" value="${param[paramName]}"/><%--
 		--%></c:forEach><%--
 	--%></c:url><%--
-	--%><a href="${url}"><c:out value="${lastPathEntry}"/></a>.<%--
+	--%><c:if test="${empty mute}"><a href="${url}"><c:out value="${lastPathEntry}"/></a>.</c:if><%--
 	--%><%--
 	--%><%--
 	--%><c:set var="paramName" value="p${mkUrl_i-1}" /><%--
 	--%><c:set scope="request" var="lastPathEntry" value="${param[paramName]}"/><%--
 	--%><c:set scope="request" var="leafHusk" value="${leafHusk.properties[lastPathEntry]}" /><%--
 	--%></c:forEach><%--
---%><c:out value="${lastPathEntry}"/>
+--%><c:if test="${empty mute}"><c:out value="${lastPathEntry}"/></c:if>
