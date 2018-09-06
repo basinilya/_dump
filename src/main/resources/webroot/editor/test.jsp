@@ -41,8 +41,8 @@ if ("POST".equals(request.getMethod())) {
 		leafHusk.remove();
 	} else if (!isBlank(request.getParameter("assign"))) {
 	}
-	response.sendRedirect(url);
-	return;
+	//response.sendRedirect(url);
+	//return;
 }
 
 %><%--
@@ -65,6 +65,7 @@ if ("POST".equals(request.getMethod())) {
 				<label for="index">Index:</label>
 				<input type="text" name="index" id="index" value="${leafHusk.index}" <c:if test="${lastPathEntry != '-1'}">disabled="disabled"</c:if> /><%--
 				--%><c:set scope="request" var="factoryProvider" value="${leafHusk}"/><%--
+				--%><c:set scope="request" var="prefix" value=""/><%--
 				--%><c:set scope="request" var="depth" value="0"/><%--
 				--%><c:set scope="request" var="legend" value="New value"/>
 				<jsp:include page="node.jsp"/>

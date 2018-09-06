@@ -33,7 +33,6 @@ public abstract class FactoryProvider {
 	public abstract TypeToken getType();
 	
 	public Map<String, List<Factory>> getFactories() {
-		System.out.println("    " + this);
 		return factories;
 	}
 	
