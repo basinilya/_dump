@@ -9,4 +9,6 @@ public abstract class Factory {
 	public abstract List<FactoryProvider> getParamsProviders();
 
 	public Object[] getTags() { return null; };
+
+	abstract FactoryProvider getProvider();
 }

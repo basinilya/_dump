@@ -31,7 +31,7 @@ import static com.common.jsp.beans.TestService.*;
 
 public class TestBeanHusk extends TestCase {
 
-	static boolean skipThis = true;
+	static boolean skipThis = false;
 
 	@SuppressWarnings("deprecation")
 	public void testBeanHusk() throws Exception {

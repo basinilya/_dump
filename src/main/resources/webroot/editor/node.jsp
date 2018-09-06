@@ -9,6 +9,8 @@
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
 --%><%--
 			--%><fieldset>
+					<% System.out.println(); %>
+					<% System.out.println(request.getAttribute("factoryProvider") ); %>
 					<legend><c:out value="${legend}"/></legend>
 					<div>
 					<c:set var="nullable" value="${!factoryProvider.type.primitive}" />
@@ -23,7 +25,7 @@
 					</div>
 					<div>
 					<c:set var="restrict" value="${empty param.restrict ? '' : param.restrict}"/>
-					<c:set var="factories" value="${leafHusk.factories[restrict]}"/>
+					<c:set var="factories" value="${factoryProvider.factories[restrict]}"/>
 					<br/>
 					<label>
 						Factory:
@@ -55,14 +57,18 @@
 							</c:forEach>
 						</c:when>
 						<c:otherwise>
-							<c:set var="paramsProviders" value="${factory.paramsProviders}"/>
-							<c:forEach var="i" begin="1" end="${fn:length(paramsProviders)}" step="1">
-								<c:set scope="request" var="factoryProvider" value="${paramsProviders[i-1]}"/>
-								<c:set scope="request" var="legend" value="arg${i-1}"/>
-<%-- TODO: protect recursion!
-								<jsp:include page="node.jsp"/>
- --%>
-							</c:forEach>
+							<c:choose>
+								<c:when test="${depth gt 20}">error</c:when>
+								<c:otherwise>
+									<c:set var="paramsProviders" value="${factory.paramsProviders}"/>
+									<c:forEach var="i" begin="1" end="${fn:length(paramsProviders)}" step="1">
+										<c:set scope="request" var="factoryProvider" value="${paramsProviders[i-1]}"/><%--
+										--%><c:set scope="request" var="depth" value="${depth+1}"/><%--
+										--%><c:set scope="request" var="legend" value="${paramsProviders[i-1].type} arg${i-1}"/>
+										<jsp:include page="node.jsp"/>
+									</c:forEach>
+								</c:otherwise>
+							</c:choose>
 						</c:otherwise>
 					</c:choose>
 				</fieldset>
