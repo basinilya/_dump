@@ -2,7 +2,9 @@ package com.common.jsp.beans;
 
 import java.util.List;
 
-public abstract class Factory {
+import com.google.common.reflect.TypeToken;
+
+public abstract class Factory implements Comparable<Factory> {
 	
 	public abstract Object getInstance(Object[] params) throws Exception;
 	
@@ -11,4 +13,17 @@ public abstract class Factory {
 	public Object[] getTags() { return null; };
 
 	abstract FactoryProvider getProvider();
+
+	TypeToken getContext() { return null; } ;
+	
+	@Override
+	public int compareTo(Factory o) {
+		if (o == null) {
+			return 1;
+		}
+		if (this.equals(o)) {
+			return 0;
+		}
+		return ClassComparator.INSTANCE.compare(this.getClass(), o.getClass());
+	}
 }

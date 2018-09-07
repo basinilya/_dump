@@ -10,93 +10,80 @@ import java.lang.reflect.WildcardType;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
 import com.google.common.reflect.ClassPath.ClassInfo;
 
-public class TypeUtils
-{
-    public static boolean isAssignable( TypeToken<?> resolved, Class<?> implClass )
-    {
-        return resolved.isSupertypeOf( implClass ) || isAnySupertypeAssignable( resolved, implClass );
-    }
+public class TypeUtils {
+	public static TypeToken<?> getUncheckedSubtype(TypeToken<?> resolved, Class<?> implClass) {
+		try {
+			return resolved.getSubtype(implClass);
+		} catch (IllegalArgumentException ex) {
+			// ;
+			return isAnySupertypeAssignable(resolved, implClass) ? TypeToken.of(implClass) : null;
+		}
+	}
 
-    public static boolean isAnySupertypeAssignable( TypeToken<?> resolved, Class<?> implClass )
-    {
-        return TypeToken.of( implClass ).getTypes().stream().anyMatch( supertype -> isUncheckedSupertype( resolved,
-                                                                                                          supertype ) );
-    }
+	public static boolean isAnySupertypeAssignable(TypeToken<?> resolved, Class<?> implClass) {
+		return TypeToken.of(implClass).getTypes().stream()
+				.anyMatch(supertype -> null != getUncheckedRawSubtype(resolved, supertype));
+	}
 
-    public static boolean isUncheckedSupertype( TypeToken<?> resolved, TypeToken<?> implTypeToken )
-    {
-        if ( implTypeToken.getType() instanceof ParameterizedType )
-        {
-            return false; // this prevents assignments of Collection<Integer> to Collection<Timestamp>
-        }
-        try
-        {
-            resolved.getSubtype( implTypeToken.getRawType() );
-            return true;
-        }
-        catch ( IllegalArgumentException ex )
-        {
-            return false;
-        }
-    }
+	public static TypeToken<?> getUncheckedRawSubtype(TypeToken<?> resolved, TypeToken<?> implTypeToken) {
+		if (implTypeToken.getType() instanceof ParameterizedType) {
+			return null; // this prevents assignments of Collection<Integer> to Collection<Timestamp>
+		}
+		try {
+			return resolved.getSubtype(implTypeToken.getRawType());
+		} catch (IllegalArgumentException ex) {
+			return null;
+		}
+	}
 
-    public static Set<Class<?>> findImplementations( ClassPath classPath, String prefix, TypeToken<?> resolved, Class<?> restrict )
-    {
-        Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
-        Set<Class<?>> actual = new HashSet<>();
+	public static Set<TypeToken<?>> findImplementations(ClassPath classPath, String prefix, TypeToken<?> resolved,
+			Class<?> restrict) {
+		Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
+		Set<TypeToken<?>> actual = new HashSet<>();
 
-        for ( ClassInfo classInfo : classPath.getAllClasses() )
-        {
-            if ( !classInfo.getName().startsWith( prefix ) )
-            {
-                continue;
-            }
-            final Class<?> candidate;
-            try
-            {
-                Class<?> tmp = (Class<?>) classInfo.load();
-                candidate = tmp;
-            }
-            catch ( Throwable e )
-            {
-                continue;
-            }
-            if ( clazz.isAssignableFrom( candidate ) && Modifier.isPublic( candidate.getModifiers() )
-                && ( Modifier.isStatic( candidate.getModifiers() ) || candidate.getEnclosingClass() == null )
-                && !Modifier.isAbstract( candidate.getModifiers() ) && !Modifier.isInterface( candidate.getModifiers() ) )
-            {
-                if ( TypeUtils.isAssignable( resolved, candidate ) )
-                {
-                    actual.add( candidate );
-                }
-            }
-        }
-        return actual;
-    }
+		for (ClassInfo classInfo : classPath.getAllClasses()) {
+			if (!classInfo.getName().startsWith(prefix)) {
+				continue;
+			}
+			final Class<?> candidate;
+			try {
+				Class<?> tmp = (Class<?>) classInfo.load();
+				candidate = tmp;
+			} catch (Throwable e) {
+				continue;
+			}
+			if (clazz.isAssignableFrom(candidate) && Modifier.isPublic(candidate.getModifiers())
+					&& (Modifier.isStatic(candidate.getModifiers()) || candidate.getEnclosingClass() == null)
+					&& !Modifier.isAbstract(candidate.getModifiers())
+					&& !Modifier.isInterface(candidate.getModifiers())) {
+				TypeToken<?> tt = TypeUtils.getUncheckedSubtype(resolved, candidate);
+				if (tt != null) {
+					actual.add(tt);
+				}
+			}
+		}
+		return actual;
+	}
 
-    public static ClassLoader mkScannableClassLoader( ClassLoader parent )
-    {
-        if ( Object.class.getClassLoader() == null )
-        {
-            try
-            {
-                URL url = Object.class.getResource( "Object.class" );
-                String s = url.toString().replaceFirst( "^jar:(.*)![^!]*$", "$1" );
-                url = new URL( s );
-                URLClassLoader ucl = new URLClassLoader( new URL[] { url }, parent );
-                return ucl;
-            }
-            catch ( Throwable e )
-            {
-                //
-            }
-        }
-        return parent;
-    }
+	public static ClassLoader mkScannableClassLoader(ClassLoader parent) {
+		if (Object.class.getClassLoader() == null) {
+			try {
+				URL url = Object.class.getResource("Object.class");
+				String s = url.toString().replaceFirst("^jar:(.*)![^!]*$", "$1");
+				url = new URL(s);
+				URLClassLoader ucl = new URLClassLoader(new URL[] { url }, parent);
+				return ucl;
+			} catch (Throwable e) {
+				//
+			}
+		}
+		return parent;
+	}
 }

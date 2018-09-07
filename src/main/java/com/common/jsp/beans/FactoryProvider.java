@@ -9,7 +9,9 @@ import java.lang.reflect.Type;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.TreeSet;
 
 import com.common.test.v24.V24ProtocolEm;
 import com.google.common.base.Objects;
@@ -25,7 +28,7 @@ import com.google.common.reflect.TypeToken;
 
 public abstract class FactoryProvider {
 	
-	private static final HashMap<Map.Entry<TypeToken, Class<?>> ,Set<Class<?>>> CACHE = new HashMap<>();
+	private static final HashMap<Map.Entry<TypeToken, Class<?>> ,Set<TypeToken<?>>> CACHE = new HashMap<>();
 
 	private final MyLazyMap myLazyMap = new MyLazyMap();
 	private final Map<String, List<Factory>> factories = Collections.unmodifiableMap(myLazyMap);
@@ -50,10 +53,10 @@ public abstract class FactoryProvider {
 			if (key == null) {
 				key = "";
 			}
-			List<Factory> res = super.get(key);
-			if (res == null && key instanceof String) {
+			List<Factory> res1 = super.get(key);
+			if (res1 == null && key instanceof String) {
 				String restrictString = (String)key;
-				res = new ArrayList<>();
+				TreeSet<Factory> res = new TreeSet<>();
 				try {
 					TypeToken tt = getType();
 					Class<?> propClazz = tt.getRawType();
@@ -68,7 +71,7 @@ public abstract class FactoryProvider {
 					}
 					if (propClazz.isAssignableFrom(restrictClazz)) {
 						Map.Entry<TypeToken, Class<?>> ck = new AbstractMap.SimpleEntry<>(tt, restrictClazz);
-						Set<Class<?>> candidates = CACHE.get(ck);
+						Set<TypeToken<?>> candidates = CACHE.get(ck);
 						boolean found = candidates != null;
 						if (!found) {
 							if (Modifier.isFinal( restrictClazz.getModifiers() )) {
@@ -77,21 +80,27 @@ public abstract class FactoryProvider {
 						        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
 						        candidates = TypeUtils.findImplementations(classPath, "", tt, restrictClazz);
 							}
-							candidates.add(restrictClazz);
+							// TODO: when exactly candidates not already contain it? 
+							TypeToken<?> restrictTt = TypeUtils.getUncheckedSubtype(tt, restrictClazz);
+							if (restrictTt != null) {
+								candidates.add(restrictTt);
+							}
 						}
-						for (Iterator<Class<?>> it = candidates.iterator();it.hasNext();) {
+						for (Iterator<TypeToken<?>> it = candidates.iterator();it.hasNext();) {
 							boolean good = false;
-							Class<?> candidate = it.next();
-							PropertyEditor editor = PropertyEditorManager.findEditor(candidate);
+							TypeToken<?> candidate = it.next();
+							PropertyEditor editor = PropertyEditorManager.findEditor(candidate.getRawType());
 							if (editor != null) {
 								good = true;
 								// TODO: this is thread-unsafe instance of PE
-								tryAdd(res, new EditorBasedFactory(candidate, editor));
+								tryAdd(res, new EditorBasedFactory(candidate.getRawType(), editor));
 							}
-							for (Constructor<?> cons : candidate.getConstructors()) {
+							Constructor<?>[] constructors = candidate.getRawType().getConstructors();
+							for (int i = 0; i < constructors.length; i++) {
+								Constructor<?> cons = constructors[i];
 								if (Modifier.isPublic(cons.getModifiers())) {
 									good = true;
-									tryAdd(res, new ConstructorFactory(cons));
+									tryAdd(res, new ConstructorFactory(candidate, cons, i));
 								}
 							}
 							if (!good) {
@@ -107,13 +116,14 @@ public abstract class FactoryProvider {
 				} catch (IOException e) {
 					// ignore
 				}
-				put(restrictString, res);
+				res1 = new ArrayList<>(res);
+				put(restrictString,  res1);
 			}
-			return res;
+			return res1;
 		}
 	}
 
-	private void tryAdd(final List<Factory> res, final Factory factory) {
+	private void tryAdd(final Collection<Factory> res, final Factory factory) {
 		FactoryProvider x = this;
 		Factory pf;
 		while ((pf = x.getParentFactory()) != null) {
@@ -206,19 +216,19 @@ public abstract class FactoryProvider {
 		}
 	}
 
-	private class ConstructorFactory extends Factory {
+	private class ConstructorFactory extends EditorBasedFactory {
+		private final TypeToken<?> context;
 		private final Constructor<?> cons;
+		private final int iCons;
 
-		@Override
-		FactoryProvider getProvider() {
-			return FactoryProvider.this;
-		}
-
-		ConstructorFactory(Constructor<?> cons) {
-			if (cons == null) {
+		ConstructorFactory(TypeToken<?> context, Constructor<?> cons, int iCons) {
+			super(null, null);
+			if (context == null || cons == null) {
 				throw new NullPointerException();
 			}
+			this.context = context;
 			this.cons = cons;
+			this.iCons = iCons;
 		}
 		
 		@Override
@@ -226,16 +236,31 @@ public abstract class FactoryProvider {
 			final int prime = 31;
 			int result = 1;
 			result = prime * result + ((cons == null) ? 0 : cons.hashCode());
+			result = prime * result + ((context == null) ? 0 : context.hashCode());
+			result = prime * result + iCons;
 			return result;
 		}
 
 		@Override
 		public boolean equals(Object obj) {
-			if (obj != null && this.getClass() == obj.getClass()) {
-				ConstructorFactory other = (ConstructorFactory)obj;
-				return Objects.equal(this.cons, other.cons);
-			}
-			return false;
+			if (this == obj)
+				return true;
+			if (getClass() != obj.getClass())
+				return false;
+			ConstructorFactory other = (ConstructorFactory) obj;
+			if (cons == null) {
+				if (other.cons != null)
+					return false;
+			} else if (!cons.equals(other.cons))
+				return false;
+			if (context == null) {
+				if (other.context != null)
+					return false;
+			} else if (!context.equals(other.context))
+				return false;
+			if (iCons != other.iCons)
+				return false;
+			return true;
 		}
 
 		@Override
@@ -243,9 +268,8 @@ public abstract class FactoryProvider {
 			return cons.newInstance(params);
 		}
 		
-		private TypeToken getContext() {
-			TypeToken context = getType();
-			context = context.getSubtype(cons.getDeclaringClass());
+		@Override
+		TypeToken getContext() {
 			return context;
 		}
 
@@ -290,11 +314,51 @@ public abstract class FactoryProvider {
 			sb.append(')');
 			return sb.toString();
 		}
-	}
-	
-	public static void main(String[] args) {
-		//PropertyEditor editor = PropertyEditorManager.findEditor(byte.class);
-		//System.out.println(editor);
-		//System.out.println(Arrays.asList(editor.getTags()));
+
+		Class<?> getRawType() {
+			return getContext().getRawType();
+		}
+		
+		@Override
+		public String[] getTags() {
+			return null;
+		}
+		
+		@Override
+		public int compareTo(Factory o) {
+			if (this.equals(o)) {
+				return 0;
+			}
+			if ( (this.getRawType() == org.apache.commons.collections.CursorableLinkedList.class
+					&& ((ConstructorFactory)o).getRawType() == java.util.ArrayList.class )
+					|| (this.getRawType() == java.util.ArrayList.class
+					|| ((ConstructorFactory)o).getRawType() == org.apache.commons.collections.CursorableLinkedList.class
+					)
+					) {
+				//System.out.println("x");
+			}
+			int res = super.compareTo(o);
+			if (res != 0) {
+				return res;
+			}
+			
+			ConstructorFactory other = (ConstructorFactory)o;
+			
+			Class<?> thisRawType = this.getRawType();
+			Class<?> otherRawType = other.getRawType();
+
+			res = JavaSEProfile.WHITEBLACK_COMPARATOR.compare(thisRawType, otherRawType);
+			if (res != 0) {
+				return res;
+			}
+			if (this.iCons > other.iCons) {
+				return 1;
+			}
+			if (this.iCons < other.iCons) {
+				return -1;
+			}
+			return 0;
+		}
+
 	}
 }

@@ -30,8 +30,7 @@
 		boolean isNull = Boolean.TRUE.toString().equals(request.getParameter(prefix + "null"));
 		Object[] tags = factory.getTags();
 		String value = request.getParameter(prefix + "value");
-		Object result = null;
-		System.out.println("prefix:"+prefix+",value:"+value+",");
+		Object result;
 		if (isNull) {
 			result = null;
 		} else if (tags != null) {
@@ -50,7 +49,6 @@
 			}
 			result = factory.getInstance(constructorParams);
 		}
-		System.out.println(result);
 		return result;
 	}
 
@@ -70,7 +68,7 @@ if (rootPojo == null) {
 }
 
 if ("POST".equals(request.getMethod())) {
-	%><c:set scope="request" var="mute" value="bbb"/><jsp:include page="heading.jsp"/><c:set scope="request" var="mute" value=""/><%
+	%><c:set scope="request" var="mute" value="x"/><jsp:include page="heading.jsp"/><c:set scope="request" var="mute" value=""/><%
 	BeanHusk leafHusk = (BeanHusk)request.getAttribute("leafHusk");
 
 	String url = request.getRequestURI() + "?" + request.getQueryString();

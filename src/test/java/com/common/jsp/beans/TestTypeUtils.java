@@ -80,15 +80,15 @@ public class TestTypeUtils
         ClassPath classPath = ClassPath.from( Thread.currentThread().getContextClassLoader() );
         String prefix = TestTypeUtils.class.getName() + '$';
 
-        Set<Class<?>> expected =
-            new HashSet<>( Arrays.asList( MyCollection2.class, MyCollection3.class, MyCollection4.class ) );
-        Set<Class<?>> actual = TypeUtils.findImplementations( classPath, prefix, resolved, null );
+        Set<TypeToken<?>> expected =
+            new HashSet<>( Arrays.asList( TypeToken.of(MyCollection2.class), new TypeToken<MyCollection3<Timestamp>>() {}, TypeToken.of(MyCollection4.class) ) );
+        Set<TypeToken<?>> actual = TypeUtils.findImplementations( classPath, prefix, resolved, null );
         assertEquals( expected, actual );
     }
 
     private static boolean checkAssignable( TypeToken<?> resolved, Class<?> implClass )
     {
-        boolean res = TypeUtils.isAssignable( resolved, implClass );
+        boolean res = TypeUtils.getUncheckedSubtype( resolved, implClass ) != null;
         System.out.println( "fld = new " + implClass.getSimpleName() + "() -> " + ( res ? "yes" : "no" ) );
         return res;
     }
