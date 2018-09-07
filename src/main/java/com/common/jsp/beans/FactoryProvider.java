@@ -329,14 +329,6 @@ public abstract class FactoryProvider {
 			if (this.equals(o)) {
 				return 0;
 			}
-			if ( (this.getRawType() == org.apache.commons.collections.CursorableLinkedList.class
-					&& ((ConstructorFactory)o).getRawType() == java.util.ArrayList.class )
-					|| (this.getRawType() == java.util.ArrayList.class
-					|| ((ConstructorFactory)o).getRawType() == org.apache.commons.collections.CursorableLinkedList.class
-					)
-					) {
-				//System.out.println("x");
-			}
 			int res = super.compareTo(o);
 			if (res != 0) {
 				return res;

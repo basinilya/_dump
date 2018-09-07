@@ -83,8 +83,14 @@ if ("POST".equals(request.getMethod())) {
 		FactoryProvider factoryProvider = leafHusk;
 		try {
 			Object newVal = mkNewValue(request, factoryProvider, prefix);
+			String s = request.getParameter("index");
+			if (!isBlank(s)) {
+				// leafHusk.getIndex();
+				leafHusk.setIndex(Integer.parseInt(s));
+			}
 			leafHusk.setValue(newVal);
 		} catch (Exception e) {
+			e.printStackTrace();
 			request.setAttribute("infoMessage", "Failed");
 		}
 		// request.setAttribute("infoMessage", "Parameters changed");

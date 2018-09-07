@@ -156,6 +156,10 @@ public class BeanHusk extends FactoryProvider {
 		return null;
 	}
 
+	public void setIndex(Integer index) {
+		throw new UnsupportedOperationException();
+	}
+
 	public boolean isSetValueSupported() {
 		return true;
 	}
@@ -195,7 +199,8 @@ public class BeanHusk extends FactoryProvider {
 			return false;
 		}
 
-		public void setIndex(int index) {
+		@Override
+		public void setIndex(Integer index) {
 			if (index < 0) {
 				throw new IllegalArgumentException("negative index");
 			}
@@ -239,7 +244,8 @@ public class BeanHusk extends FactoryProvider {
 			return false;
 		}
 
-		public void setIndex(int index) {
+		@Override
+		public void setIndex(Integer index) {
 			if (index < 0) {
 				throw new IllegalArgumentException("negative index");
 			}
