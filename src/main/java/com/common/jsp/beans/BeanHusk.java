@@ -77,7 +77,7 @@ public class BeanHusk extends FactoryProvider {
 	protected PropertyEditor getPropertyEditor() {
 		if (editor == null) {
 			Object _value = getValue();
-			editor = PropertyEditorManager.findEditor( _value == null ? getType().getRawType() : _value.getClass() );
+			editor = PropertyEditorManager.findEditor( _value == null ? getTypeToken().getRawType() : _value.getClass() );
 			if (editor == null) {
 				editor = new PropertyEditorSupport() {
 
@@ -88,7 +88,7 @@ public class BeanHusk extends FactoryProvider {
 
 					@Override
 					public void setAsText(String text) throws IllegalArgumentException {
-						Class rawType = getType().getRawType();
+						Class rawType = getTypeToken().getRawType();
 						Object __value = text;
 						if (rawType != String.class) {
 							__value = ConvertUtils.convert(text, rawType);
@@ -133,7 +133,7 @@ public class BeanHusk extends FactoryProvider {
 	}
 
 	@Override
-	public TypeToken getType() {
+	public TypeToken getTypeToken() {
 		if (type == null) {
 			if (value == null) {
 				type = TypeToken.of(Object.class);
@@ -145,7 +145,7 @@ public class BeanHusk extends FactoryProvider {
 	}
 
 	public String getTypeName() {
-		String fullName = getType().toString();
+		String fullName = getTypeToken().toString();
 		String simpleName = fullName.replaceAll("[a-zA-Z0-9.]*[.]", "")
 				.replaceAll("capture#[0-9][0-9]*-of ", "")
 				.replaceAll(" extends class ", " extends ");
@@ -220,7 +220,7 @@ public class BeanHusk extends FactoryProvider {
 			Object ourArray = parent.getValue();
 			int sz = Array.getLength(ourArray);
 			int newSz = Math.max(index, sz) + 1;
-			Object newArray = Array.newInstance(getType().getRawType(), newSz);
+			Object newArray = Array.newInstance(getTypeToken().getRawType(), newSz);
 			System.arraycopy(ourArray, 0, newArray, 0, Math.min(sz, index));
 			Array.set(newArray, index, value);
 			if (sz > index) {
@@ -410,12 +410,12 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
-		public TypeToken getType() {
+		public TypeToken getTypeToken() {
 			if (type == null) {
 				
 				try {
-					Method entrySet = parent.getType().getRawType().getMethod("entrySet");
-					TypeToken entrySetType = parent.getType().resolveType(entrySet.getGenericReturnType());
+					Method entrySet = parent.getTypeToken().getRawType().getMethod("entrySet");
+					TypeToken entrySetType = parent.getTypeToken().resolveType(entrySet.getGenericReturnType());
 					TypeToken resolvedIterableType = entrySetType.getSupertype(Iterable.class);
 					Type valType = ((ParameterizedType)resolvedIterableType.getType()).getActualTypeArguments()[0];
 					type = TypeToken.of(valType);
@@ -512,7 +512,7 @@ public class BeanHusk extends FactoryProvider {
 			Object ourArray = parent.getValue();
 			int sz = Array.getLength(ourArray);
 			int newSz = sz - 1;
-			Object newArray = Array.newInstance(getType().getRawType(), newSz);
+			Object newArray = Array.newInstance(getTypeToken().getRawType(), newSz);
 			System.arraycopy(ourArray, 0, newArray, 0, Math.min(newSz, index));
 			if (newSz > index) {
 				System.arraycopy(ourArray, index + 1, newArray, index, newSz - index);
@@ -521,9 +521,9 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
-		public TypeToken getType() {
+		public TypeToken getTypeToken() {
 			if (type == null) {
-				type = parent.getType().getComponentType();
+				type = parent.getTypeToken().getComponentType();
 			}
 			return type;
 		}
@@ -600,10 +600,10 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
-		public TypeToken getType() {
+		public TypeToken getTypeToken() {
 			if (type == null) {
 				Type memberType = thisProperty.getReadMethod().getGenericReturnType();
-				type = parent.getType().resolveType(memberType);
+				type = parent.getTypeToken().resolveType(memberType);
 			}
 			return type;
 		}
@@ -634,9 +634,9 @@ public class BeanHusk extends FactoryProvider {
 		}
 
 		@Override
-		public TypeToken getType() {
+		public TypeToken getTypeToken() {
 			if (type == null) {
-				TypeToken resolvedIterableType = parent.getType().getSupertype(Iterable.class);
+				TypeToken resolvedIterableType = parent.getTypeToken().getSupertype(Iterable.class);
 				Type valType = ((ParameterizedType)resolvedIterableType.getType()).getActualTypeArguments()[0];
 				type = TypeToken.of(valType);
 			}

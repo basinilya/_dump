@@ -33,7 +33,7 @@ public abstract class FactoryProvider {
 	private final MyLazyMap myLazyMap = new MyLazyMap();
 	private final Map<String, List<Factory>> factories = Collections.unmodifiableMap(myLazyMap);
 	
-	public abstract TypeToken getType();
+	public abstract TypeToken getTypeToken();
 	
 	public Map<String, List<Factory>> getFactories() {
 		return factories;
@@ -41,10 +41,6 @@ public abstract class FactoryProvider {
 	
 	protected Factory getParentFactory() {
 		return null;
-	}
-	
-	protected boolean aaa() {
-		return false;
 	}
 
 	private class MyLazyMap extends HashMap<String, List<Factory>> {
@@ -58,7 +54,7 @@ public abstract class FactoryProvider {
 				String restrictString = (String)key;
 				TreeSet<Factory> res = new TreeSet<>();
 				try {
-					TypeToken tt = getType();
+					TypeToken tt = getTypeToken();
 					Class<?> propClazz = tt.getRawType();
 					ClassLoader loader = Thread.currentThread().getContextClassLoader();
 					// TODO: restrictString can contain number of elements and array class
@@ -211,7 +207,7 @@ public abstract class FactoryProvider {
 		}
 
 		@Override
-		public TypeToken getType() {
+		public TypeToken getTypeToken() {
 			return tt;
 		}
 	}
@@ -268,7 +264,6 @@ public abstract class FactoryProvider {
 			return cons.newInstance(params);
 		}
 		
-		@Override
 		TypeToken getContext() {
 			return context;
 		}
@@ -304,7 +299,7 @@ public abstract class FactoryProvider {
 			try {
 				String comma = "";
 				for (FactoryProvider x : getParamsProviders()) {
-					sb.append(comma).append(x.getType().toString());
+					sb.append(comma).append(x.getTypeToken().toString());
 					comma = ", ";
 				}
 			} catch (Exception e) {

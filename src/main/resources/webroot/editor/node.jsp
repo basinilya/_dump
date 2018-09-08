@@ -11,7 +11,7 @@
 			--%><fieldset>
 					<legend><c:out value="${legend}"/></legend>
 					<div>
-					<c:set var="nullable" value="${!factoryProvider.type.primitive}" />
+					<c:set var="nullable" value="${!factoryProvider.typeToken.primitive}" />
 					<c:set var="paramName" value="${prefix}null"/>
 					<c:set var="param_null" value="${param[paramName] && nullable}"/>
 					<label>
@@ -61,9 +61,9 @@
 								</label>
 							</c:forEach>
 						</c:when>
-						<c:when test="${factoryProvider.type == 'java.lang.String'
+						<c:when test="${factoryProvider.typeToken == 'java.lang.String'
 							&& fn:length(factory.paramsProviders) == 1
-							&& factory.paramsProviders[0].type == 'java.lang.String'}">
+							&& factory.paramsProviders[0].typeToken == 'java.lang.String'}">
 							<c:set var="paramName" value="${prefix}value"/>
 							<c:set var="param_value" value="${param[paramName]}"/>
 							<label>
@@ -80,7 +80,7 @@
 										<c:set scope="request" var="factoryProvider" value="${paramsProviders[i-1]}"/><%--
 										--%><c:set scope="request" var="depth" value="${depth+1}"/><%--
 										--%><c:set scope="request" var="prefix" value="${prefix}arg${i-1}-"/><%--
-										--%><c:set scope="request" var="legend" value="${paramsProviders[i-1].type} arg${i-1}"/>
+										--%><c:set scope="request" var="legend" value="${paramsProviders[i-1].typeToken} arg${i-1}"/>
 										<jsp:include page="node.jsp"/>
 									</c:forEach>
 								</c:otherwise>

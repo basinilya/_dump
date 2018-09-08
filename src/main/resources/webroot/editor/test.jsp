@@ -23,9 +23,9 @@
 		List<Factory> factoryList = factoryProvider.getFactories().get(oldRestrict);
 		Factory factory = factoryList.get(toInt(request.getParameter(prefix + "iFactory")));
 		List<FactoryProvider> paramsProviders = factory.getParamsProviders();
-		if (factoryProvider.getType().getType() == String.class
+		if (factoryProvider.getTypeToken().getType() == String.class
 				&& paramsProviders.size() == 1
-				&& paramsProviders.get(0).getType().getType() == String.class) {
+				&& paramsProviders.get(0).getTypeToken().getType() == String.class) {
 		}
 		boolean isNull = Boolean.TRUE.toString().equals(request.getParameter(prefix + "null"));
 		Object[] tags = factory.getTags();
@@ -36,9 +36,9 @@
 		} else if (tags != null) {
 			Object tag = tags[toInt(request.getParameter(prefix + "iTag"))];
 			result = factory.getInstance(new Object[] { tag });
-		} else if (factoryProvider.getType().getType() == String.class
+		} else if (factoryProvider.getTypeToken().getType() == String.class
 				&& paramsProviders.size() == 1
-				&& paramsProviders.get(0).getType().getType() == String.class
+				&& paramsProviders.get(0).getTypeToken().getType() == String.class
 				)
 		{
 			result = factory.getInstance(new Object[] { value });
@@ -123,7 +123,7 @@ if ("POST".equals(request.getMethod())) {
 				--%><c:set scope="request" var="factoryProvider" value="${leafHusk}"/><%--
 				--%><c:set scope="request" var="prefix" value=""/><%--
 				--%><c:set scope="request" var="depth" value="0"/><%--
-				--%><c:set scope="request" var="legend" value="${leafHusk.type} New value"/>
+				--%><c:set scope="request" var="legend" value="${leafHusk.typeToken} New value"/>
 				<jsp:include page="node.jsp"/>
 			</fieldset>
 		</form>
@@ -141,7 +141,7 @@ if ("POST".equals(request.getMethod())) {
 		<c:forEach items="${leafHusk.properties}" var="rowEntry">
 			<c:set var="row" value="${rowEntry.value}"/>
 			<c:set var="url" value=""/>
-			<c:if test="${row.type.rawType.name != 'java.lang.Class'}">
+			<c:if test="${row.typeToken.rawType.name != 'java.lang.Class'}">
 				<c:url var="url" value=""><%--
 					--%><c:param name="n" value="${param.n+1}"/><%--
 					--%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_j"><%--
