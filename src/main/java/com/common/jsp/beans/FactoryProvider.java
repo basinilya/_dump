@@ -74,7 +74,7 @@ public abstract class FactoryProvider {
 								candidates = new HashSet<>();
 							} else {
 						        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
-						        candidates = TypeUtils.findImplementations(classPath, "", tt, restrictClazz);
+						        candidates = TypeUtils.findImplementations(classPath, testPrefix, tt, restrictClazz);
 							}
 							// TODO: when exactly candidates not already contain it? 
 							TypeToken<?> restrictTt = TypeUtils.getUncheckedSubtype(tt, restrictClazz);
@@ -252,7 +252,7 @@ public abstract class FactoryProvider {
 			if (context == null) {
 				if (other.context != null)
 					return false;
-			} else if (!context.equals(other.context))
+			} else if (!context.getRawType().equals(other.context.getRawType()))
 				return false;
 			if (iCons != other.iCons)
 				return false;
@@ -348,4 +348,6 @@ public abstract class FactoryProvider {
 		}
 
 	}
+	
+	static String testPrefix = "";
 }
