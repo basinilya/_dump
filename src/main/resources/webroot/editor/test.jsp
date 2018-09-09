@@ -20,40 +20,49 @@
 
 	private static Object mkNewValue(HttpServletRequest request, FactoryProvider factoryProvider, String prefix) throws Exception {
 		String oldRestrict = request.getParameter(prefix + "oldRestrict");
-		List<Factory> factoryList = factoryProvider.getFactories().get(oldRestrict);
-		Factory factory = factoryList.get(toInt(request.getParameter(prefix + "iFactory")));
-		List<FactoryProvider> paramsProviders = factory.getParamsProviders();
-		if (factoryProvider.getTypeToken().getType() == String.class
-				&& paramsProviders.size() == 1
-				&& paramsProviders.get(0).getTypeToken().getType() == String.class) {
+		String restrict = request.getParameter(prefix + "restrict");
+		int oldIFactory = toInt(request.getParameter(prefix + "oldIFactory"));
+		int iFactory = toInt(request.getParameter(prefix + "iFactory"));
+		if (!Objects.equals(oldRestrict, restrict) || oldIFactory != iFactory) {
+			throw new IllegalStateException("review the input");
 		}
+		List<Factory> factoryList = factoryProvider.getFactories().get(restrict);
 		boolean isNull = Boolean.TRUE.toString().equals(request.getParameter(prefix + "null"));
-		Object[] tags = factory.getTags();
-		String value = request.getParameter(prefix + "value");
 		Object result;
+
 		if (isNull) {
 			result = null;
-		} else if (tags != null) {
-			Object tag = tags[toInt(request.getParameter(prefix + "iTag"))];
-			result = factory.getInstance(new Object[] { tag });
-		} else if (factoryProvider.getTypeToken().getType() == String.class
-				&& paramsProviders.size() == 1
-				&& paramsProviders.get(0).getTypeToken().getType() == String.class
-				)
-		{
-			result = factory.getInstance(new Object[] { value });
 		} else {
-			Object[] constructorParams = new Object[paramsProviders.size()];
-			for (int i = 0; i < paramsProviders.size(); i++) {
-				constructorParams[i] = mkNewValue(request, paramsProviders.get(i) , prefix + "arg" + i + "-" );
+			Factory factory = factoryList.get(iFactory);
+			List<FactoryProvider> paramsProviders = factory.getParamsProviders();
+			Object[] tags = factory.getTags();
+			String value = request.getParameter(prefix + "value");
+			if (tags != null) {
+				String s_iTag = request.getParameter(prefix + "iTag");
+				if (isBlank(s_iTag)) {
+					throw new IllegalStateException("select an option");
+				}
+				Object tag = tags[toInt(s_iTag)];
+				result = factory.getInstance(new Object[] { tag });
+			} else if (factoryProvider.getTypeToken().getType() == String.class
+					&& paramsProviders.size() == 1
+					&& paramsProviders.get(0).getTypeToken().getType() == String.class
+					)
+			{
+				result = factory.getInstance(new Object[] { value });
+			} else {
+				Object[] constructorParams = new Object[paramsProviders.size()];
+				for (int i = 0; i < paramsProviders.size(); i++) {
+					constructorParams[i] = mkNewValue(request, paramsProviders.get(i) , prefix + "arg" + i + "-" );
+				}
+				result = factory.getInstance(constructorParams);
 			}
-			result = factory.getInstance(constructorParams);
 		}
 		return result;
 	}
 
 	private static int toInt(String s) {
-		return s == null ? 0 : Integer.parseInt(s);
+		return isBlank(s) ? 0 : Integer.parseInt(s);
 	}
 %><%--
 --%><%--
@@ -91,7 +100,7 @@ if ("POST".equals(request.getMethod())) {
 			leafHusk.setValue(newVal);
 		} catch (Exception e) {
 			e.printStackTrace();
-			request.setAttribute("infoMessage", "Failed");
+			request.setAttribute("infoMessage", "info: " + e.getMessage());
 		}
 		// request.setAttribute("infoMessage", "Parameters changed");
 	}
@@ -111,8 +120,9 @@ if ("POST".equals(request.getMethod())) {
 			<div>
 			<input type="submit" name="remove" value="remove element" <c:if test="${!leafHusk.removeSupported}">disabled="disabled"</c:if> />
 			<input type="submit" name="assign" value="create/assign" <c:if test="${!leafHusk.setValueSupported}">disabled="disabled"</c:if> />
+			<input type="submit" name="refresh" value="refresh"/>
 			</div>
-			<fieldset<c:if test="${false && !leafHusk.setValueSupported}"> disabled="disabled"</c:if>>
+			<fieldset<c:if test="${!leafHusk.setValueSupported}"> disabled="disabled"</c:if>>
 				<div>
 				Value: <c:out value="(${fn:substring(leafHusk.valueAsText,0,100)})"/>
 				</div>

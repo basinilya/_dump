@@ -2,6 +2,7 @@ package com.common.jsp.beans;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
+import java.beans.PropertyEditorSupport;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -20,13 +21,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
+import org.apache.commons.beanutils.ConvertUtils;
+
 import com.common.test.v24.V24ProtocolEm;
-import com.google.common.base.Objects;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
 import com.google.common.reflect.GuavaReflectAccessHelper;
@@ -121,13 +124,32 @@ public abstract class FactoryProvider {
 									candidate = TypeToken.of(pt);
 								}
 							}
-							PropertyEditor editor = PropertyEditorManager.findEditor(candidate.getRawType());
+							Class<?> candidateClazz = candidate.getRawType();
+							PropertyEditor editor = PropertyEditorManager.findEditor(candidateClazz);
+							if (editor == null && (candidateClazz == Character.class || candidateClazz == char.class)) {
+								editor = new PropertyEditorSupport() {
+									@Override
+									public String getAsText() {
+										Object __value = getValue();
+										return __value == null ? null : __value.toString();
+									}
+
+									@Override
+									public void setAsText(String text) throws IllegalArgumentException {
+										Objects.requireNonNull(text);
+										if (text.length() != 1) {
+											throw new IllegalArgumentException("length must be 1");
+										}
+										setValue(text.charAt(0));
+									}
+								};
+							}
 							if (editor != null) {
 								good = true;
 								// TODO: this is thread-unsafe instance of PE
-								tryAdd(res, new EditorBasedFactory(candidate.getRawType(), editor));
+								tryAdd(res, new EditorBasedFactory(candidateClazz, editor));
 							}
-							Constructor<?>[] constructors = candidate.getRawType().getConstructors();
+							Constructor<?>[] constructors = candidateClazz.getConstructors();
 							for (int i = 0; i < constructors.length; i++) {
 								Constructor<?> cons = constructors[i];
 								if (Modifier.isPublic(cons.getModifiers())) {
@@ -183,7 +205,7 @@ public abstract class FactoryProvider {
 				return true;
 			if (obj != null && this.getClass() == obj.getClass()) {
 				EditorBasedFactory other = (EditorBasedFactory)obj;
-				return Objects.equal(this.resultType, other.resultType);
+				return Objects.equals(this.resultType, other.resultType);
 			}
 			return false;
 		};

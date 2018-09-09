@@ -24,7 +24,7 @@
 			--%><c:param name="${paramName}" value="${param[paramName]}"/><%--
 		--%></c:forEach><%--
 	--%></c:url><%--
-	--%><c:if test="${empty mute}"><a href="${url}"><c:out value="${lastPathEntry}"/></a>.</c:if><%--
+	--%><c:if test="${empty mute}"><a href="${url}"><c:out value="${lastPathEntry}"/></a>&#8203;.</c:if><%--
 	--%><%--
 	--%><%--
 	--%><c:set var="paramName" value="p${mkUrl_i-1}" /><%--

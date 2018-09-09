@@ -32,6 +32,7 @@
 					<c:set var="paramName" value="${prefix}iFactory"/>
 					<c:set var="param_iFactory" value="${param[paramName]}"/>
 					<c:set var="param_iFactory" value="${param_iFactory ge fn:length(factories) ? null : param_iFactory}"/>
+					<input type="hidden" name="${prefix}oldIFactory" value="${fn:escapeXml(param_iFactory)}"/>
 					<label>
 						Factory:
 						<select name="${prefix}iFactory">
@@ -43,7 +44,7 @@
 							</c:forEach>
 						</select>
 					</label>
-					<input type="text" readonly="readonly" name="${prefix}oldRestrict" value="${fn:escapeXml(param_restrict)}"/>
+					<input type="hidden" name="${prefix}oldRestrict" value="${fn:escapeXml(param_restrict)}"/>
 					<br/>
 					<label>
 						Restrict:
@@ -76,10 +77,12 @@
 								<c:when test="${depth gt 20}">error</c:when>
 								<c:otherwise>
 									<c:set var="paramsProviders" value="${factory.paramsProviders}"/>
+									<c:set scope="page" var="saveDepth" value="${depth}"/>
+									<c:set scope="page" var="savePrefix" value="${prefix}"/>
 									<c:forEach var="i" begin="1" end="${fn:length(paramsProviders)}" step="1">
+										<c:set scope="request" var="depth" value="${saveDepth+1}"/>
 										<c:set scope="request" var="factoryProvider" value="${paramsProviders[i-1]}"/><%--
-										--%><c:set scope="request" var="depth" value="${depth+1}"/><%--
-										--%><c:set scope="request" var="prefix" value="${prefix}arg${i-1}-"/><%--
+										--%><c:set scope="request" var="prefix" value="${savePrefix}arg${i-1}-"/><%--
 										--%><c:set scope="request" var="legend" value="${paramsProviders[i-1].typeToken} arg${i-1}"/>
 										<jsp:include page="node.jsp"/>
 									</c:forEach>

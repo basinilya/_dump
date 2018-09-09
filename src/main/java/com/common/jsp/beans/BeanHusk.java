@@ -83,7 +83,8 @@ public class BeanHusk extends FactoryProvider {
 
 					@Override
 					public String getAsText() {
-						return ConvertUtils.convert(getValue());
+						Object __value = getValue();
+						return __value == null ? null : __value.toString(); //ConvertUtils.convert(getValue());
 					}
 
 					@Override
