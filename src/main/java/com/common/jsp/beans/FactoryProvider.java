@@ -23,16 +23,18 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import com.common.test.v24.V24ProtocolEm;
 import com.google.common.base.Objects;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
 import com.google.common.reflect.GuavaReflectAccessHelper;
+import com.google.common.reflect.ClassPath.ClassInfo;
 
 public abstract class FactoryProvider {
 	
-	private static final HashMap<Map.Entry<TypeToken, Class<?>> ,Set<TypeToken<?>>> CACHE = new HashMap<>();
+	private static final Map<Map.Entry<TypeToken, Class<?>> ,Set<TypeToken<?>>> CACHE = Collections.synchronizedMap(new HashMap<>());
 
 	private final MyLazyMap myLazyMap = new MyLazyMap();
 	private final Map<String, List<Factory>> factories = Collections.unmodifiableMap(myLazyMap);
@@ -78,7 +80,7 @@ public abstract class FactoryProvider {
 								candidates = new HashSet<>();
 							} else {
 						        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
-						        candidates = TypeUtils.findImplementations(classPath, testPrefix, tt, restrictClazz);
+						        candidates = TypeUtils.findImplementations(classPath, testFilter, tt, restrictClazz);
 							}
 							// TODO: when exactly candidates not already contain it? 
 							TypeToken<?> restrictTt = TypeUtils.getUncheckedSubtype(tt, restrictClazz);
@@ -383,5 +385,5 @@ public abstract class FactoryProvider {
 
 	}
 	
-	static String testPrefix = "";
+	static Predicate<ClassInfo> testFilter = null;
 }

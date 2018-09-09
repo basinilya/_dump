@@ -203,6 +203,13 @@ public class TestBeanHusk extends TestCase {
 	protected void setUp() throws Exception {
 		super.setUp();
 		rootObj = TestService.getGtwayV24Data();
+		FactoryProvider.testFilter = s -> false;
+	}
+
+	@Override
+	protected void tearDown() throws Exception {
+		FactoryProvider.testFilter = null;
+		super.tearDown();
 	}
 
 	private interface GetterGtwayV24Data extends Function<GtwayV24Data, Object> {}
