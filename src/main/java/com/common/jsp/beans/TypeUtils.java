@@ -20,7 +20,46 @@ import com.google.common.reflect.ClassPath.ClassInfo;
 public class TypeUtils {
 	public static TypeToken<?> getUncheckedSubtype(TypeToken<?> resolved, Class<?> implClass) {
 		try {
-			return resolved.getSubtype(implClass);
+			TypeToken res = resolved.getSubtype(implClass);
+			
+			TypeVariable<?>[] tvars = implClass.getTypeParameters();
+			Type resType = res.getType();
+			if (resType instanceof ParameterizedType) {
+				ParameterizedType pt = (ParameterizedType)resType;
+				Type[] targs = pt.getActualTypeArguments();
+				for (int i = 0; i < tvars.length; i++) {
+					TypeVariable<?> tvar = tvars[i];
+					TypeToken<?> tvarTt = TypeToken.of(tvar);
+					if (targs[i] instanceof WildcardType) {
+						WildcardType targ = (WildcardType)targs[i];
+						Type[] ubounds = targ.getUpperBounds();
+						for (int j = 0; j < ubounds.length; j++) {
+							Type ubound = ubounds[j];
+							boolean b3 = tvarTt.isSubtypeOf(ubound);
+							boolean b4 = tvarTt.isSupertypeOf(ubound);
+							if (!b3) {
+								return null;
+							}
+							Boolean.valueOf(b3);
+						}
+						TypeToken<?> targTt = TypeToken.of(targ);
+						boolean b1 = tvarTt.isSupertypeOf(targTt);
+						boolean b2 = tvarTt.isSubtypeOf(targTt);
+						tvar.getBounds();
+					} else {
+						if (!(tvar.getBounds().length == 1 && tvar.getBounds()[0] == Object.class)) {
+							Type targ = targs[i];
+							boolean b4 = tvarTt.isSubtypeOf(targ);
+							boolean b5 = tvarTt.isSupertypeOf(targ);
+							if (!b5) {
+								return null;
+							}
+							Boolean.valueOf(b4);
+						}
+					}
+				}
+			}
+			return res;
 		} catch (IllegalArgumentException ex) {
 			// ;
 			return isAnySupertypeAssignable(resolved, implClass) ? TypeToken.of(implClass) : null;

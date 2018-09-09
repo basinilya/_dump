@@ -5,7 +5,10 @@ import java.beans.PropertyEditorManager;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +28,7 @@ import com.common.test.v24.V24ProtocolEm;
 import com.google.common.base.Objects;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
+import com.google.common.reflect.GuavaReflectAccessHelper;
 
 public abstract class FactoryProvider {
 	
@@ -85,6 +89,36 @@ public abstract class FactoryProvider {
 						for (Iterator<TypeToken<?>> it = candidates.iterator();it.hasNext();) {
 							boolean good = false;
 							TypeToken<?> candidate = it.next();
+							Type ct = candidate.getType();
+							if (ct instanceof ParameterizedType) {
+								ParameterizedType pt = (ParameterizedType)ct;
+								Class<?> ptClazz = ((Class<?>)pt.getRawType());
+								TypeVariable<?>[] tvars = ptClazz.getTypeParameters();
+								Type[] targs = pt.getActualTypeArguments();
+								boolean doIt = false;
+								for (int i = 0; i < targs.length; i++) {
+									if (targs[i] instanceof WildcardType) {
+										WildcardType wt = (WildcardType)targs[i];
+										Type[] wtUbounds = wt.getUpperBounds();
+										Type[] tvarBounds = tvars[i].getBounds();
+										if (wtUbounds.length == 1 && tvarBounds.length == 1) {
+											TypeToken<?> ubound1 = TypeToken.of(wtUbounds[0]);
+											TypeToken<?> ubound2 = TypeToken.of(tvarBounds[0]);
+											if (ubound1.isSubtypeOf(ubound2)) {
+												doIt = true;
+												targs[i] = ubound1.getType();
+											} else if (ubound2.isSubtypeOf(ubound1)) {
+												doIt = true;
+												targs[i] = ubound2.getType();
+											}
+										}
+									}
+								}
+								if (doIt) {
+									pt = GuavaReflectAccessHelper.newParameterizedTypeWithOwner(pt.getOwnerType(), ptClazz, targs);
+									candidate = TypeToken.of(pt);
+								}
+							}
 							PropertyEditor editor = PropertyEditorManager.findEditor(candidate.getRawType());
 							if (editor != null) {
 								good = true;
