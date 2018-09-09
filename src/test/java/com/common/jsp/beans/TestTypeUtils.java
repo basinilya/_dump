@@ -113,6 +113,11 @@ public class TestTypeUtils extends TestCase {
 		TypeToken<?> tt5 = new TypeToken<Map<? extends Throwable, ?>>() {
 		};
 
+		TypeToken<?> tt6 = new TypeToken<List<? extends Number>>() {
+		};
+
+		assertNotNull(TypeUtils.getUncheckedSubtype(tt6, ArrayList.class));
+
 		assertNotNull(TypeUtils.getUncheckedSubtype(tt1, EnumMap.class));
 		assertNotNull(TypeUtils.getUncheckedSubtype(tt2, EnumMap.class));
 		assertNull(TypeUtils.getUncheckedSubtype(tt5, EnumMap.class));
