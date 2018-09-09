@@ -43,7 +43,12 @@ public class TypeUtils {
 							Type ubound = ubounds[j];
 							boolean b3 = tvarTt.isSubtypeOf(ubound);
 							if (!b3) {
-								return null;
+								TypeToken<?> targTt = TypeToken.of(targ);
+								for (Type tvarBound : tvar.getBounds()) {
+									if (!targTt.isSubtypeOf(tvarBound)) {
+										return null;
+									}
+								}
 							}
 						}
 					} else {
