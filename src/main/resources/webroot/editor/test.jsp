@@ -88,7 +88,7 @@ if ("POST".equals(request.getMethod())) {
 	String url = request.getRequestURI() + "?" + request.getQueryString();
 
 	if (!isBlank(request.getParameter("remove"))) {
-		url = request.getRequestURI() + (String)request.getAttribute("url");
+		url = (String)request.getAttribute("url");
 		leafHusk.remove();
 		response.sendRedirect(url);
 		return;
