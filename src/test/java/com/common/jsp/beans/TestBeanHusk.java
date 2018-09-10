@@ -1,6 +1,8 @@
 package com.common.jsp.beans;
 
+import java.beans.BeanInfo;
 import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -68,6 +70,7 @@ public class TestBeanHusk extends TestCase {
 		assertTrue(huskEntryAdapter.getValueAsText().matches(".*[=].*"));
 
 		BeanHusk huskAdapter = getProp(huskEntryAdapter, Map.Entry::getValue);
+		assertTrue(huskAdapter.isSetValueSupported());
 		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskAdapter.getTypeName());
 		assertTrue(huskAdapter.getValueAsText().matches(".*[.]"+EtherSerialAdapter.class.getSimpleName()+".*"));
 

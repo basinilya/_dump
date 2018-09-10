@@ -14,11 +14,19 @@
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
 --%><%--
 --%><%!
+
+	/** Helps when just "?a=b" turns into ";jsessionId=blah?a=b" */
+	public static String getOriginalRequestURI(HttpServletRequest request) {
+		String uri = (String) request.getAttribute("javax.servlet.forward.request_uri");
+		return uri == null ? request.getRequestURI() : uri;
+	}
+
 	private static boolean isBlank(String s) {
 		return s == null || s.isEmpty();
 	}
 
-	private static Object mkNewValue(HttpServletRequest request, FactoryProvider factoryProvider, String prefix) throws Exception {
+	private static Object mkNewValue(HttpServletRequest request, FactoryProvider factoryProvider, String prefix)
+			throws Exception {
 		String oldRestrict = request.getParameter(prefix + "oldRestrict");
 		String restrict = request.getParameter(prefix + "restrict");
 		int oldIFactory = toInt(request.getParameter(prefix + "oldIFactory"));
@@ -44,16 +52,13 @@
 				}
 				Object tag = tags[toInt(s_iTag)];
 				result = factory.getInstance(new Object[] { tag });
-			} else if (factoryProvider.getTypeToken().getType() == String.class
-					&& paramsProviders.size() == 1
-					&& paramsProviders.get(0).getTypeToken().getType() == String.class
-					)
-			{
+			} else if (factoryProvider.getTypeToken().getType() == String.class && paramsProviders.size() == 1
+					&& paramsProviders.get(0).getTypeToken().getType() == String.class) {
 				result = factory.getInstance(new Object[] { value });
 			} else {
 				Object[] constructorParams = new Object[paramsProviders.size()];
 				for (int i = 0; i < paramsProviders.size(); i++) {
-					constructorParams[i] = mkNewValue(request, paramsProviders.get(i) , prefix + "arg" + i + "-" );
+					constructorParams[i] = mkNewValue(request, paramsProviders.get(i), prefix + "arg" + i + "-");
 				}
 				result = factory.getInstance(constructorParams);
 			}
@@ -63,12 +68,12 @@
 
 	private static int toInt(String s) {
 		return isBlank(s) ? 0 : Integer.parseInt(s);
-	}
-%><%--
+	}%><%--
 --%><%--
 --%><%--
 --%><%--
 --%><%
+request.setAttribute("selfPath", getOriginalRequestURI(request));
 
 Object rootPojo = request.getSession( ).getAttribute( "rootPojo" );
 if (rootPojo == null) {
@@ -152,7 +157,7 @@ if ("POST".equals(request.getMethod())) {
 			<c:set var="row" value="${rowEntry.value}"/>
 			<c:set var="url" value=""/>
 			<c:if test="${row.typeToken.rawType.name != 'java.lang.Class'}">
-				<c:url var="url" value=""><%--
+				<c:url var="url" value="${selfPath}"><%--
 					--%><c:param name="n" value="${param.n+1}"/><%--
 					--%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_j"><%--
 						--%><%--
@@ -161,6 +166,7 @@ if ("POST".equals(request.getMethod())) {
 					--%></c:forEach><%--
 					--%><c:param name="p${param.n+0}" value="${rowEntry.key}"/><%--
 			--%></c:url>
+			<% if (false) return; %>
 			</c:if>
 			<tr>
 				<td>

@@ -16,7 +16,7 @@
 --%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_i"><%--
 	--%><%--
 	--%><%--
-	--%><c:url scope="request" var="url" value=""><%--
+	--%><c:url scope="request" var="url" value="${selfPath}"><%--
 		--%><c:param name="n" value="${mkUrl_i-1}"/><%--
 		--%><c:forEach begin="1" end="${mkUrl_i-1}" step="1" var="mkUrl_j"><%--
 			--%><%--

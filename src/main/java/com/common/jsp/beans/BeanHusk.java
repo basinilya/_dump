@@ -354,13 +354,16 @@ public class BeanHusk extends FactoryProvider {
 							if (getter != null && getter.getParameterTypes().length == 0) {
 								String name = prop.getName();
 								if (i != 0 ^ "class".equals(name) ) {
+									if (_value instanceof Map.Entry && "value".equals(name)) {
+										prop.setWriteMethod(_value.getClass().getMethod("setValue", Object.class) );
+									}
 									PropHusk propHusk = new PropHusk(this, prop);
 									properties.put(name, propHusk);
 								}
 							}
 						}
 					}
-				} catch (IntrospectionException e) {
+				} catch (IntrospectionException | NoSuchMethodException e) {
 					//
 				}
 
