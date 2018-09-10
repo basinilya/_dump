@@ -82,13 +82,15 @@ public abstract class FactoryProvider {
 							if (Modifier.isFinal( restrictClazz.getModifiers() )) {
 								candidates = new HashSet<>();
 							} else {
-						        ClassPath classPath = ClassPath.from( TypeUtils.mkScannableClassLoader ( loader )  );
-						        candidates = TypeUtils.findImplementations(classPath, testFilter, tt, restrictClazz);
+								ClassPath classPath = ClassPath.from(TypeUtils.mkScannableClassLoader(loader));
+								candidates = TypeUtils.findImplementations(classPath, testFilter, tt, restrictClazz);
 							}
-							// TODO: when exactly candidates not already contain it? 
-							TypeToken<?> restrictTt = TypeUtils.getUncheckedSubtype(tt, restrictClazz);
-							if (restrictTt != null) {
-								candidates.add(restrictTt);
+							// TODO: maybe Stream.concat
+							if (TypeUtils.bySuperFilter(tt, restrictClazz).test(restrictClazz)) {
+								TypeToken<?> restrictTt = TypeUtils.getUncheckedSubtype(tt, restrictClazz);
+								if (restrictTt != null) {
+									candidates.add(restrictTt);
+								}
 							}
 						}
 						for (Iterator<TypeToken<?>> it = candidates.iterator();it.hasNext();) {
