@@ -35,7 +35,7 @@ public class TestBeanHusk extends TestCase {
 
 	static boolean skipThis = false;
 
-	@SuppressWarnings("deprecation")
+	@SuppressWarnings({ "deprecation", "serial" })
 	public void testBeanHusk() throws Exception {
 		rootObj.getAdaptersByIpStr();
 		rootObj.getNportSettings();
@@ -69,6 +69,9 @@ public class TestBeanHusk extends TestCase {
 		assertEquals(IP_ADDR, huskEntryAdapter.getDisplayName());
 		assertTrue(huskEntryAdapter.getValueAsText().matches(".*[=].*"));
 
+		BeanHusk huskAdapterKey = getProp(huskEntryAdapter, Map.Entry::getKey);
+		assertFalse(huskAdapterKey.isSetValueSupported());
+
 		BeanHusk huskAdapter = getProp(huskEntryAdapter, Map.Entry::getValue);
 		assertTrue(huskAdapter.isSetValueSupported());
 		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskAdapter.getTypeName());
@@ -101,20 +104,25 @@ public class TestBeanHusk extends TestCase {
 		assertEquals(V24ProtocolEm.ESPA, getProp(huskBus, SerialBus::getV24Protocol).getValue());
 
 		BeanHusk huskEndpointsByBusAddr = getProp(huskBus, EspaBus::getEndpointsByBusAddr);
+		TypeToken<?> tt = new TypeToken<Map<String, V24Device>>() {};
+		assertEquals(tt, huskEndpointsByBusAddr.getTypeToken());
 		
 		Map<String, ? extends V24Device> endpoints = bus.getEndpointsByBusAddr();
-		assertEquals("Map<String, ? extends V24Device>", huskEndpointsByBusAddr.getTypeName());
+		assertEquals("Map<String, V24Device>", huskEndpointsByBusAddr.getTypeName());
 		assertTrue(huskEndpointsByBusAddr.getValueAsText().matches("[{].*[=].*[}]"));
 
 		BeanHusk huskEntryEndpoint = huskEndpointsByBusAddr.getProperties().get("0");
-		assertEquals("Map$Entry<String, ? extends V24Device>", huskEntryEndpoint.getTypeName());
+		assertEquals("Map$Entry<String, V24Device>", huskEntryEndpoint.getTypeName());
 		assertTrue(huskEntryEndpoint.getValueAsText().matches(".*[=].*"));
 		assertEquals(BUS_ADDR, huskEntryEndpoint.getDisplayName());
+
+		BeanHusk huskEndpointKey = getProp(huskEntryEndpoint, Map.Entry::getKey);
+		assertFalse(huskEndpointKey.isSetValueSupported());
 
 		BeanHusk huskEndpoint = getProp(huskEntryEndpoint, Map.Entry::getValue);
 		V24Device dev = endpoints.get(BUS_ADDR);
 		dev.toString();
-		assertEquals("? extends V24Device", huskEndpoint.getTypeName());
+		assertEquals(V24Device.class.getSimpleName(), huskEndpoint.getTypeName());
 		assertTrue(huskEndpoint.getValueAsText().matches(".*[.]"+V24Device.class.getSimpleName()+".*"));
 		assertEquals(1001, getProp(huskEndpoint, V24Device::getV24DeviceId).getValue());
 

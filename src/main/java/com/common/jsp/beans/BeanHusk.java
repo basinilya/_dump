@@ -355,7 +355,8 @@ public class BeanHusk extends FactoryProvider {
 								String name = prop.getName();
 								if (i != 0 ^ "class".equals(name) ) {
 									if (_value instanceof Map.Entry && "value".equals(name)) {
-										prop.setWriteMethod(_value.getClass().getMethod("setValue", Object.class) );
+										// TODO: this setting remains in the global cache of Property Descriptors
+										prop.setWriteMethod(Map.Entry.class.getMethod("setValue", Object.class) );
 									}
 									PropHusk propHusk = new PropHusk(this, prop);
 									properties.put(name, propHusk);
@@ -607,7 +608,14 @@ public class BeanHusk extends FactoryProvider {
 		public TypeToken getTypeToken() {
 			if (type == null) {
 				Type memberType = thisProperty.getReadMethod().getGenericReturnType();
-				type = parent.getTypeToken().resolveType(memberType);
+				TypeToken tt = parent.getTypeToken();
+				if (!tt.isPrimitive()) {
+					Object parentVal = parent.getValue();
+					if (parentVal != null) {
+						tt = tt.getSubtype(parentVal.getClass());
+					}
+				}
+				type = tt.resolveType(memberType);
 			}
 			return type;
 		}
