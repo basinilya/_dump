@@ -108,10 +108,11 @@ public class TypeUtils {
 	public static Predicate<? super Class<?>> bySuperFilter(TypeToken<?> resolved, Class<?> restrict) {
 		Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
 		return candidate ->
-		candidate != null && clazz.isAssignableFrom(candidate) && Modifier.isPublic(candidate.getModifiers())
+		candidate != null && ((clazz.isAssignableFrom(candidate) && Modifier.isPublic(candidate.getModifiers())
 					&& (Modifier.isStatic(candidate.getModifiers()) || candidate.getEnclosingClass() == null)
 					&& !Modifier.isAbstract(candidate.getModifiers())
-					&& !Modifier.isInterface(candidate.getModifiers());
+					&& !Modifier.isInterface(candidate.getModifiers()))
+					|| candidate.isPrimitive());
 	}
 
 	public static Set<TypeToken<?>> findImplementations(ClassPath classPath, Predicate<ClassInfo> classInfoFilter, TypeToken<?> resolved,
