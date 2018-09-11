@@ -2,11 +2,15 @@ package com.common.jsp.beans;
 
 import java.util.List;
 
+import com.google.common.reflect.TypeToken;
+
 public abstract class Factory implements Comparable<Factory> {
 	
 	public abstract Object getInstance(Object[] params) throws Exception;
 	
 	public abstract List<FactoryProvider> getParamsProviders();
+
+	public abstract TypeToken getContext();
 
 	public Object[] getTags() { return null; };
 

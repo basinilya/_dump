@@ -70,7 +70,7 @@ public class TestTypeUtils extends TestCase {
 		Set<TypeToken<?>> expected = new HashSet<>(Arrays.asList(TypeToken.of(MyCollection2.class),
 				new TypeToken<MyCollection3<Timestamp>>() {
 				}, TypeToken.of(MyCollection4.class)));
-		Set<TypeToken<?>> actual = TypeUtils.findImplementations2(classPath, prefix, resolved, null);
+		Set<TypeToken<?>> actual = TypeUtils.findImplementations(classPath, s -> s.getName().startsWith(prefix), resolved, null);
 		assertEquals(expected, actual);
 	}
 

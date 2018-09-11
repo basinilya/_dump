@@ -158,14 +158,14 @@ public abstract class FactoryProvider {
 							if (editor != null) {
 								good = true;
 								// TODO: this is thread-unsafe instance of PE
-								tryAdd(res, new EditorBasedFactory(candidateClazz, editor));
+								tryAdd(res, new ZZZEditorBasedFactory(candidateClazz, editor));
 							}
 							Constructor<?>[] constructors = candidateClazz.getConstructors();
 							for (int i = 0; i < constructors.length; i++) {
 								Constructor<?> cons = constructors[i];
 								if (Modifier.isPublic(cons.getModifiers())) {
 									good = true;
-									tryAdd(res, new ConstructorFactory(candidate, cons, i));
+									tryAdd(res, new AAAConstructorFactory(candidate, cons, i));
 								}
 							}
 							if (!good) {
@@ -201,7 +201,7 @@ public abstract class FactoryProvider {
 		res.add(factory);
 	}
 
-	private class EditorBasedFactory extends Factory {
+	private class ZZZEditorBasedFactory extends Factory {
 		private final Class<?> resultType;
 		private final PropertyEditor editor;
 
@@ -215,12 +215,16 @@ public abstract class FactoryProvider {
 			if (this == obj)
 				return true;
 			if (obj != null && this.getClass() == obj.getClass()) {
-				EditorBasedFactory other = (EditorBasedFactory)obj;
+				ZZZEditorBasedFactory other = (ZZZEditorBasedFactory)obj;
 				return Objects.equals(this.resultType, other.resultType);
 			}
 			return false;
 		};
 		
+		@Override
+		public TypeToken getContext() {
+			return getProvider().getTypeToken();
+		}
 
 		@Override
 		public int hashCode() {
@@ -230,7 +234,7 @@ public abstract class FactoryProvider {
 			return result;
 		}
 
-		EditorBasedFactory(Class<?> resultType, PropertyEditor editor) {
+		ZZZEditorBasedFactory(Class<?> resultType, PropertyEditor editor) {
 			this.resultType = resultType;
 			this.editor = editor;
 		}
@@ -281,12 +285,12 @@ public abstract class FactoryProvider {
 		}
 	}
 
-	private class ConstructorFactory extends EditorBasedFactory {
+	private class AAAConstructorFactory extends ZZZEditorBasedFactory {
 		private final TypeToken<?> context;
 		private final Constructor<?> cons;
 		private final int iCons;
 
-		ConstructorFactory(TypeToken<?> context, Constructor<?> cons, int iCons) {
+		AAAConstructorFactory(TypeToken<?> context, Constructor<?> cons, int iCons) {
 			super(null, null);
 			if (context == null || cons == null) {
 				throw new NullPointerException();
@@ -312,7 +316,7 @@ public abstract class FactoryProvider {
 				return true;
 			if (getClass() != obj.getClass())
 				return false;
-			ConstructorFactory other = (ConstructorFactory) obj;
+			AAAConstructorFactory other = (AAAConstructorFactory) obj;
 			if (cons == null) {
 				if (other.cons != null)
 					return false;
@@ -333,7 +337,8 @@ public abstract class FactoryProvider {
 			return cons.newInstance(params);
 		}
 		
-		TypeToken getContext() {
+		@Override
+		public TypeToken getContext() {
 			return context;
 		}
 
@@ -398,7 +403,7 @@ public abstract class FactoryProvider {
 				return res;
 			}
 			
-			ConstructorFactory other = (ConstructorFactory)o;
+			AAAConstructorFactory other = (AAAConstructorFactory)o;
 			
 			Class<?> thisRawType = this.getRawType();
 			Class<?> otherRawType = other.getRawType();

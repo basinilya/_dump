@@ -130,34 +130,6 @@ public class TypeUtils {
 		;
 	}
 
-	public static Set<TypeToken<?>> findImplementations2(ClassPath classPath, String prefix, TypeToken<?> resolved,
-			Class<?> restrict) {
-		Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
-		Set<TypeToken<?>> actual = new HashSet<>();
-
-		for (ClassInfo classInfo : classPath.getAllClasses()) {
-			if (!classInfo.getName().startsWith(prefix)) {
-				continue;
-			}
-			final Class<?> candidate;
-			try {
-				candidate = classInfo.load();
-			} catch (Throwable e) {
-				continue;
-			}
-			if (clazz.isAssignableFrom(candidate) && Modifier.isPublic(candidate.getModifiers())
-					&& (Modifier.isStatic(candidate.getModifiers()) || candidate.getEnclosingClass() == null)
-					&& !Modifier.isAbstract(candidate.getModifiers())
-					&& !Modifier.isInterface(candidate.getModifiers())) {
-				TypeToken<?> tt = TypeUtils.getUncheckedSubtype(resolved, candidate);
-				if (tt != null) {
-					actual.add(tt);
-				}
-			}
-		}
-		return actual;
-	}
-
 	public static ClassLoader mkScannableClassLoader(ClassLoader parent) {
 		if (Object.class.getClassLoader() == null) {
 			try {
