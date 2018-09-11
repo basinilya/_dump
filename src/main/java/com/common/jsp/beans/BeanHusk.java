@@ -49,6 +49,11 @@ public class BeanHusk extends FactoryProvider {
 		this.valueSet = valueSet;
 		this.value = value;
 	}
+	
+	@Override
+	public String toString() {
+		return "<root>";
+	}
 
 	private boolean valueSet;
 
@@ -643,6 +648,15 @@ public class BeanHusk extends FactoryProvider {
 		@Override
 		public boolean isSetValueSupported() {
 			return false;
+		}
+
+		@Override
+		public String toString() {
+			try {
+				return parent.toString() + "." + getDisplayName();
+			} catch (Exception e) {
+				return "<error>";
+			}
 		}
 
 		@Override

@@ -51,6 +51,15 @@ public abstract class FactoryProvider {
 	protected Factory getParentFactory() {
 		return null;
 	}
+	
+	@Override
+	public String toString() {
+		try {
+			return "for " + getTypeToken();
+		} catch (Exception e) {
+			return "<error>";
+		}
+	}
 
 	private class MyLazyMap extends HashMap<String, List<Factory>> {
 		@Override
