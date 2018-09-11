@@ -32,10 +32,15 @@
 					<c:set var="paramName" value="${prefix}iFactory"/>
 					<c:set var="param_iFactory" value="${param[paramName]}"/>
 					<c:set var="param_iFactory" value="${param_iFactory ge fn:length(factories) ? null : param_iFactory}"/>
+					<input type="hidden" name="${prefix}oldRestrict" value="${fn:escapeXml(param_restrict)}"/>
+					<label>
+						Restrict:
+						<input type="text" name="${prefix}restrict" value="${fn:escapeXml(param_restrict)}"/>
+					</label>
 					<input type="hidden" name="${prefix}oldIFactory" value="${fn:escapeXml(param_iFactory)}"/>
 					<label>
 						Factory:
-						<select name="${prefix}iFactory">
+						<select name="${prefix}iFactory" onchange="this.form.submit()" >
 							<c:set var="i" value="0"/>
 							<c:forEach var="i" begin="1" end="${fn:length(factories)}" step="1">
 								<option value="${i - 1}"<c:if test="${param_iFactory == (i-1)}"> selected="selected"</c:if>>
@@ -43,12 +48,6 @@
 								</option>
 							</c:forEach>
 						</select>
-					</label>
-					<input type="hidden" name="${prefix}oldRestrict" value="${fn:escapeXml(param_restrict)}"/>
-					<br/>
-					<label>
-						Restrict:
-						<input type="text" name="${prefix}restrict" value="${fn:escapeXml(param_restrict)}"/>
 					</label>
 					</div>
 					<c:set var="factory" value="${factories[param_iFactory+0]}"/>
