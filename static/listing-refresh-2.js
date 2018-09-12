@@ -33,6 +33,8 @@ function getListingTbody(iframeDoc) {
 	return null;
 }
 
+var listingReload;
+
 (function () {
 	function escapeHTML(s) {
 	    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -81,6 +83,25 @@ function getListingTbody(iframeDoc) {
 		console.log("helper frame created");
 	}
 
+	var intervalId = null;
+	
+	listingReload = function() {
+		
+		if (!refreshSwitch.checked) return;
+
+		if (!ifrm) {
+			createHelperframe();
+		} else {
+			var tmp_src = ifrm.src; ifrm.src = ''; ifrm.src = tmp_src;
+		}
+	};
+	
+	function scheduleReload() {
+		if (intervalId === null) {
+			intervalId = window.setInterval(listingReload, 120000);
+		}
+	}
+
 	if (!isHelperFrame) {
 		var refreshSwitch = document.createElement("INPUT");
 		refreshSwitch.id = "refreshSwitch";
@@ -88,15 +109,24 @@ function getListingTbody(iframeDoc) {
 		refreshSwitch.type = "checkbox";
 		refreshSwitch.checked = true;
 		refreshSwitch.onchange = function() {
-			if (refreshSwitch.checked) {
-				createHelperframe();
-			} else if (ifrm) {
-				document.body.removeChild(ifrm);
-				ifrm = null;
+			try {
+				if (refreshSwitch.checked) {
+					//createHelperframe();
+					scheduleReload();
+				} else if (ifrm) {
+					//document.body.removeChild(ifrm);
+					//ifrm = null;
+					window.clearInterval(intervalId);
+					intervalId = null;
+				}
+			} catch (ex) {
+				console.error('onchange', ex.message);
 			}
 		};
-		document.body.appendChild(refreshSwitch);
-		document.body.appendChild(document.createTextNode("Auto refresh (2)"));
+		var switchLabel = document.createElement("LABEL");
+		switchLabel.appendChild(refreshSwitch);
+		switchLabel.appendChild(document.createTextNode("Auto refresh (3)"));
+		document.body.appendChild(switchLabel);
 		
 		window.addEventListener("message", function(event) {
 			if (window.location.protocol == "file:" || window.location.origin == event.origin) {
@@ -106,20 +136,8 @@ function getListingTbody(iframeDoc) {
 				}
 			}
 		});
-	}
-	
-	//if (false)
-	window.setTimeout(function() {
-		if (isHelperFrame) {
-			location.reload();
-			return;
-		}
-	
-		if (!refreshSwitch.checked) return;
 
-		if (!ifrm) {
-			createHelperframe();
-		}
-	}, 120000);
+		scheduleReload();
+	}
 })();
 // console.log("<< init listing-refresh.js");

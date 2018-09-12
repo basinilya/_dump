@@ -27,6 +27,7 @@
 		if (nextPlayButton != null) {
 			nextPlayButton.onclick();
 		}
+		listingReload();
 	}, false);                                                                               
 
 	function insertAfter(newNode, referenceNode) {
@@ -133,6 +134,6 @@
 	    listingplayer.removeAttribute("controls");
 	}
 
-	document.body.appendChild(document.createTextNode("x (2)"));
+	document.body.appendChild(document.createTextNode("x (3)"));
 })();
 // console.log("<< init listing-player.js 1");
