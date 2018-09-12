@@ -8,6 +8,7 @@
 		var pair = params[i].split("=");
 		if (pair[0] == "helperframe" && +pair[1]) {
 		    listingplayer.removeAttribute("controls");
+		    preloadplayer.removeAttribute("controls");
 			return;
 		}
 	}
@@ -23,18 +24,29 @@
 	var currImgEl = null;
 	var nextPlayButton = null;
 
-	listingplayer.addEventListener("ended", function() {
+	var onEnded = function() {
 		if (nextPlayButton != null) {
 			nextPlayButton.onclick();
 		}
 		listingReload();
-	}, false);                                                                               
+	};
+
+	listingplayer.addEventListener("ended", onEnded, false);
+	preloadplayer.addEventListener("ended", onEnded, false);
+
+	var onPause = function() {
+		window.location.hash = listingplayer.currentTime + "-" + listingplayer.src;
+	};
+
+	listingplayer.addEventListener("pause", onPause, false);
+	preloadplayer.addEventListener("pause", onPause, false);
 
 	function insertAfter(newNode, referenceNode) {
 	    referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
 	}
 
 	function play(imgEl, _nextPlayButton) {
+		onPause();
 		listingplayer.play();
 		imgEl.src = imgpause;
 		currImgEl = imgEl;
@@ -72,6 +84,13 @@
 				currImgEl.src = imgplay;
 				currImgEl = null;
 			}
+			if (clipUrl == preloadplayer.src) {
+				var tmp = preloadplayer;
+				preloadplayer = listingplayer;
+				listingplayer = tmp;
+				listingplayer.setAttribute("controls", "controls");
+				preloadplayer.removeAttribute("controls");
+			}
 			if (clipUrl == listingplayer.src) {
 				// invert
 				if (listingplayer.paused) {
@@ -103,7 +122,7 @@
 		var links = document.getElementsByTagName("a");
 		for (var i = links.length-1; i >= 0; i--) {
 			var link = links[i];
-			var href = link.href; 
+			var href = link.href;
 			if (typeof href !== 'undefined' && endsWith(href, ".mp3")) {
 				if (listingplayer.src == href) {
 					nextPlayButton = _nextPlayButton;
