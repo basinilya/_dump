@@ -26,6 +26,7 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
@@ -98,6 +99,7 @@ public abstract class FactoryProvider {
 								}
 							}
 						}
+						Constructor<?>[] emptyArray = new Constructor<?>[0];
 						for (Iterator<TypeToken<?>> it = candidates.iterator();it.hasNext();) {
 							boolean good = false;
 							TypeToken<?> candidate = it.next();
@@ -127,7 +129,12 @@ public abstract class FactoryProvider {
 								// TODO: this is thread-unsafe instance of PE
 								tryAdd(res, new ZZZEditorBasedFactory(candidateClazz, editor));
 							}
-							Constructor<?>[] constructors = candidateClazz.getConstructors();
+							Constructor<?>[] constructors = emptyArray;
+							try {
+								constructors = candidateClazz.getConstructors();
+							} catch (Throwable err) {
+								//
+							}
 							for (int i = 0; i < constructors.length; i++) {
 								Constructor<?> cons = constructors[i];
 								if (Modifier.isPublic(cons.getModifiers())) {
@@ -148,7 +155,7 @@ public abstract class FactoryProvider {
 				} catch (IOException e) {
 					// ignore
 				}
-				res1 = new ArrayList<>(res);
+				res1 = res.stream().limit(100).collect(Collectors.toList());
 				put(restrictString,  res1);
 			}
 			return res1;
