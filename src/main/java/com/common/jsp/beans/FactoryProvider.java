@@ -27,12 +27,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
-import org.apache.commons.beanutils.ConvertUtils;
-
-import com.common.test.v24.V24ProtocolEm;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.TypeToken;
-import com.google.common.reflect.GuavaReflectAccessHelper;
 import com.google.common.reflect.ClassPath.ClassInfo;
 
 public abstract class FactoryProvider {
@@ -105,36 +101,7 @@ public abstract class FactoryProvider {
 						for (Iterator<TypeToken<?>> it = candidates.iterator();it.hasNext();) {
 							boolean good = false;
 							TypeToken<?> candidate = it.next();
-							Type ct = candidate.getType();
-							if (ct instanceof ParameterizedType) {
-								ParameterizedType pt = (ParameterizedType)ct;
-								Class<?> ptClazz = ((Class<?>)pt.getRawType());
-								TypeVariable<?>[] tvars = ptClazz.getTypeParameters();
-								Type[] targs = pt.getActualTypeArguments();
-								boolean doIt = false;
-								for (int i = 0; i < targs.length; i++) {
-									if (targs[i] instanceof WildcardType) {
-										WildcardType wt = (WildcardType)targs[i];
-										Type[] wtUbounds = wt.getUpperBounds();
-										Type[] tvarBounds = tvars[i].getBounds();
-										if (wtUbounds.length == 1 && tvarBounds.length == 1) {
-											TypeToken<?> ubound1 = TypeToken.of(wtUbounds[0]);
-											TypeToken<?> ubound2 = TypeToken.of(tvarBounds[0]);
-											if (ubound1.isSubtypeOf(ubound2)) {
-												doIt = true;
-												targs[i] = ubound1.getType();
-											} else if (ubound2.isSubtypeOf(ubound1)) {
-												doIt = true;
-												targs[i] = ubound2.getType();
-											}
-										}
-									}
-								}
-								if (doIt) {
-									pt = GuavaReflectAccessHelper.newParameterizedTypeWithOwner(pt.getOwnerType(), ptClazz, targs);
-									candidate = TypeToken.of(pt);
-								}
-							}
+							candidate = resolveConstructorResult(candidate);
 							Class<?> candidateClazz = candidate.getRawType();
 							PropertyEditor editor = PropertyEditorManager.findEditor(candidateClazz);
 							if (editor == null && (candidateClazz == Character.class || candidateClazz == char.class)) {
@@ -188,6 +155,41 @@ public abstract class FactoryProvider {
 		}
 	}
 
+	private static TypeToken<?> resolveConstructorResult(TypeToken<?> candidate) {
+		Type ct = candidate.getType();
+		if (ct instanceof ParameterizedType) {
+			ParameterizedType pt = (ParameterizedType)ct;
+			Class<?> ptClazz = ((Class<?>)pt.getRawType());
+			TypeVariable<?>[] tvars = ptClazz.getTypeParameters();
+			Type[] targs = pt.getActualTypeArguments();
+			boolean doIt = false;
+			for (int i = 0; i < targs.length; i++) {
+				if (targs[i] instanceof WildcardType) {
+					WildcardType wt = (WildcardType)targs[i];
+					Type[] wtUbounds = wt.getUpperBounds();
+					Type[] tvarBounds = tvars[i].getBounds();
+					if (wtUbounds.length == 1 && tvarBounds.length == 1) {
+						TypeToken<?> ubound1 = TypeToken.of(wtUbounds[0]);
+						TypeToken<?> ubound2 = TypeToken.of(tvarBounds[0]);
+						if (ubound1.isSubtypeOf(ubound2)) {
+							doIt = true;
+							targs[i] = ubound1.getType();
+						} else if (ubound2.isSubtypeOf(ubound1)) {
+							doIt = true;
+							targs[i] = ubound2.getType();
+						}
+					}
+				}
+			}
+			if (doIt) {
+				pt = (ParameterizedType)TypeUtils.newParameterizedType(ptClazz, targs);
+				// pt = GuavaReflectAccessHelper.newParameterizedTypeWithOwner(pt.getOwnerType(), ptClazz, targs);
+				candidate = TypeToken.of(pt);
+			}
+		}
+		return candidate;
+	}
+	
 	private void tryAdd(final Collection<Factory> res, final Factory factory) {
 		FactoryProvider x = this;
 		Factory pf;

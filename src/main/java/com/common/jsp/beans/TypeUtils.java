@@ -19,6 +19,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.FluentIterable;
 import com.google.common.reflect.ClassPath;
+import com.google.common.reflect.TypeResolver;
 import com.google.common.reflect.ClassPath.ResourceInfo;
 import com.google.common.reflect.TypeToken;
 import com.google.common.reflect.ClassPath.ClassInfo;
@@ -143,5 +144,19 @@ public class TypeUtils {
 			}
 		}
 		return parent;
+	}
+
+	public static Type newParameterizedType(Class<?> cls, Type... args) {
+		TypeResolver resolver = new TypeResolver();
+		TypeVariable<?>[] tvars = cls.getTypeParameters();
+		for (int i = 0; i < args.length; i++) {
+			resolver = resolver.where(tvars[i], args[i]);
+		}
+		return resolver.resolveType(dumbToGenericType(cls).getType());
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T> TypeToken<? extends T> dumbToGenericType(Class<T> cls) {
+		return (TypeToken<T>)TypeToken.of(Object.class).getSubtype(cls);
 	}
 }
