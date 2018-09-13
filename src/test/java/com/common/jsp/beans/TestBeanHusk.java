@@ -69,10 +69,10 @@ public class TestBeanHusk extends TestCase {
 		assertEquals(IP_ADDR, huskEntryAdapter.getDisplayName());
 		assertTrue(huskEntryAdapter.getValueAsText().matches(".*[=].*"));
 
-		BeanHusk huskAdapterKey = getProp(huskEntryAdapter, Map.Entry::getKey);
+		BeanHusk huskAdapterKey = getPropM(huskEntryAdapter, Map.Entry::getKey);
 		assertFalse(huskAdapterKey.isSetValueSupported());
 
-		BeanHusk huskAdapter = getProp(huskEntryAdapter, Map.Entry::getValue);
+		BeanHusk huskAdapter = getPropM(huskEntryAdapter, Map.Entry::getValue);
 		assertTrue(huskAdapter.isSetValueSupported());
 		assertEquals(EtherSerialAdapter.class.getSimpleName(), huskAdapter.getTypeName());
 		assertTrue(huskAdapter.getValueAsText().matches(".*[.]"+EtherSerialAdapter.class.getSimpleName()+".*"));
@@ -88,7 +88,7 @@ public class TestBeanHusk extends TestCase {
 		assertEquals(TCP_PORT.toString(), huskEntryPortObj.getDisplayName());
 		assertTrue(huskEntryPortObj.getValueAsText().matches(".*[=].*"));
 
-		BeanHusk huskPortObj = getProp(huskEntryPortObj, Map.Entry::getValue);
+		BeanHusk huskPortObj = getPropM(huskEntryPortObj, Map.Entry::getValue);
 		assertEquals(EtherSerialPort.class.getSimpleName(), huskPortObj.getTypeName());
 		assertTrue(huskPortObj.getValueAsText().matches(".*[.]"+EtherSerialPort.class.getSimpleName()+".*"));
 		assertEquals(966, getProp(huskPortObj, EtherSerialPort::getNportCommandPort).getValue());
@@ -99,11 +99,11 @@ public class TestBeanHusk extends TestCase {
 				.getBus();
 		assertEquals("SerialBus<?>", huskBus.getTypeName());
 		assertTrue(huskBus.getValueAsText().matches(".*[.]"+EspaBus.class.getSimpleName()+".*"));
-		assertEquals(9600, getProp(huskBus, SerialBus::getBaudRate).getValue());
-		assertEquals('2', getProp(huskBus, EspaBus::getOurAddress).getValue());
-		assertEquals(V24ProtocolEm.ESPA, getProp(huskBus, SerialBus::getV24Protocol).getValue());
+		assertEquals(9600, getPropE(huskBus, SerialBus::getBaudRate).getValue());
+		assertEquals('2', getPropE(huskBus, EspaBus::getOurAddress).getValue());
+		assertEquals(V24ProtocolEm.ESPA, getPropE(huskBus, SerialBus::getV24Protocol).getValue());
 
-		BeanHusk huskEndpointsByBusAddr = getProp(huskBus, EspaBus::getEndpointsByBusAddr);
+		BeanHusk huskEndpointsByBusAddr = getPropE(huskBus, EspaBus::getEndpointsByBusAddr);
 		TypeToken<?> tt = new TypeToken<Map<String, V24Device>>() {};
 		assertEquals(tt, huskEndpointsByBusAddr.getTypeToken());
 		
@@ -116,10 +116,10 @@ public class TestBeanHusk extends TestCase {
 		assertTrue(huskEntryEndpoint.getValueAsText().matches(".*[=].*"));
 		assertEquals(BUS_ADDR, huskEntryEndpoint.getDisplayName());
 
-		BeanHusk huskEndpointKey = getProp(huskEntryEndpoint, Map.Entry::getKey);
+		BeanHusk huskEndpointKey = getPropM(huskEntryEndpoint, Map.Entry::getKey);
 		assertFalse(huskEndpointKey.isSetValueSupported());
 
-		BeanHusk huskEndpoint = getProp(huskEntryEndpoint, Map.Entry::getValue);
+		BeanHusk huskEndpoint = getPropM(huskEntryEndpoint, Map.Entry::getValue);
 		V24Device dev = endpoints.get(BUS_ADDR);
 		dev.toString();
 		assertEquals(V24Device.class.getSimpleName(), huskEndpoint.getTypeName());
@@ -231,7 +231,7 @@ public class TestBeanHusk extends TestCase {
 	private interface GetterV24Device extends Function<V24Device, Object> {}
 	private interface GetterMapEntry extends Function<Map.Entry, Object> {}
 
-	private static BeanHusk getProp(BeanHusk husk, GetterMapEntry getter) {
+	private static BeanHusk getPropM(BeanHusk husk, GetterMapEntry getter) {
 		return getProp0(husk, getter);
 	}
 
@@ -239,7 +239,7 @@ public class TestBeanHusk extends TestCase {
 		return getProp0(husk, getter);
 	}
 
-	private static BeanHusk getProp(BeanHusk husk, GetterEspaBus getter) {
+	private static BeanHusk getPropE(BeanHusk husk, GetterEspaBus getter) {
 		return getProp0(husk, getter);
 	}
 
