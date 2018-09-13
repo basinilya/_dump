@@ -110,7 +110,7 @@ public class TypeUtils {
 		Class<?> clazz = restrict == null ? resolved.getRawType() : restrict;
 		return candidate ->
 		candidate != null && ((clazz.isAssignableFrom(candidate) && Modifier.isPublic(candidate.getModifiers())
-					&& (Modifier.isStatic(candidate.getModifiers()) || candidate.getEnclosingClass() == null)
+					&& (Modifier.isStatic(candidate.getModifiers()) || candidate.getName().indexOf('$') == -1)
 					&& !Modifier.isAbstract(candidate.getModifiers())
 					&& !Modifier.isInterface(candidate.getModifiers()))
 					|| candidate.isPrimitive());
