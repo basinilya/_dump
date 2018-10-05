@@ -26,7 +26,7 @@
 					<div>
 					<c:set var="paramName" value="${prefix}restrict"/>
 					<c:set var="param_restrict" value="${param[paramName]}"/>
-					<c:set var="param_restrict" value="${empty param_restrict ? '' : param_restrict}"/>
+					<c:set var="param_restrict" value="${param_restrict == null ? '<delete-me-and-press-refresh>' : param_restrict}"/>
 					<c:set var="factories" value="${factoryProvider.factories[param_restrict]}"/>
 					<br/>
 					<c:set var="paramName" value="${prefix}iFactory"/>

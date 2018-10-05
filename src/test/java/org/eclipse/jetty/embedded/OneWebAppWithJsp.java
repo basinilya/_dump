@@ -36,7 +36,7 @@ public class OneWebAppWithJsp
         // a randomly available port will be assigned that you can either look
         // in the logs for the port,
         // or programmatically obtain it for use in test cases.
-        Server server = new Server( 8080 );
+        Server server = new Server( 7080 );
 
         // Setup JMX
         MBeanContainer mbContainer = new MBeanContainer(
