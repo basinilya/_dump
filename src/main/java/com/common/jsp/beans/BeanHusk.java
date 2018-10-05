@@ -55,6 +55,12 @@ public class BeanHusk extends FactoryProvider {
 		return "<root>";
 	}
 
+	private boolean failedGet;
+
+	public boolean isFailedGet() {
+		return failedGet;
+	}
+
 	private boolean valueSet;
 
 	private Object value; // bean or map or collection or array or primitive
@@ -113,7 +119,13 @@ public class BeanHusk extends FactoryProvider {
 	public final Object getValue() {
 		if (!valueSet) {
 			valueSet = true;
-			value = getValue0();
+			failedGet = true;
+			try {
+				value = getValue0();
+				failedGet = false;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
 		return value;
 	}

@@ -186,6 +186,7 @@ if ("POST".equals(request.getMethod())) {
 					</c:if>
 					<c:set var="valueAsText" value="${row.valueAsText}"/>
 					<c:out value="${fn:substring((valueAsText == null ? 'null' : valueAsText),0,100)}"/>
+					<c:if test="${row.failedGet}">*</c:if>
 					<c:if test="${not empty url}">
 					</a>)
 					</c:if>

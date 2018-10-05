@@ -10,7 +10,7 @@
 --%><%--
 --%><jsp:useBean id="tmp" class="com.common.jsp.beans.BeanHusk"/><%--
 --%><c:set var="rootHusk" scope="request" value="${tmp}" /><%--
---%><c:set target="${rootHusk}" property="value" value="${rootPojo}" /><%--
+--%><c:set target="${rootHusk}" property="value" value="${pageContext.request}" /><%--
 --%><c:set scope="request" var="leafHusk" value="${rootHusk}" /><%--
 --%><c:set scope="request" var="lastPathEntry" value="(root)"/><%--
 --%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_i"><%--
