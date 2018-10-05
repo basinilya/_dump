@@ -8,7 +8,7 @@
   <p>
 <a href="who.jsp">who.jsp</a>
 <br/>
-<a href="editor/test.jsp">test.jsp</a>
+<a href="editor/editor.jsp">editor.jsp</a>
   </p>
 </body>
 </html>

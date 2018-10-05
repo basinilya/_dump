@@ -77,8 +77,8 @@ request.setAttribute("selfPath", getOriginalRequestURI(request));
 
 Object rootPojo = request.getSession( ).getAttribute( "rootPojo" );
 if (rootPojo == null) {
-	rootPojo = TestService.getGtwayV24Data();
-	request.getSession( ).setAttribute( "rootPojo", rootPojo );
+	//rootPojo = TestService.getGtwayV24Data();
+	//request.getSession( ).setAttribute( "rootPojo", rootPojo );
 }
 
 if ("POST".equals(request.getMethod())) {
