@@ -8,9 +8,9 @@
 --%><%@ taglib prefix = "fmt" uri = "http://java.sun.com/jsp/jstl/fmt" %><%--
 --%><%@ taglib prefix = "fn" uri = "http://java.sun.com/jsp/jstl/functions" %><%--
 --%><%--
---%><jsp:useBean id="tmp" class="com.common.jsp.beans.BeanHusk"/><%--
+--%><jsp:useBean id="tmp" class="com.common.jsp.beans.SessionHusk"/><%--
 --%><c:set var="rootHusk" scope="request" value="${tmp}" /><%--
---%><c:set target="${rootHusk}" property="value" value="${pageContext.request}" /><%--
+--%><c:set target="${rootHusk}" property="session" value="${pageContext.session}" /><%--
 --%><c:set scope="request" var="leafHusk" value="${rootHusk}" /><%--
 --%><c:set scope="request" var="lastPathEntry" value="(root)"/><%--
 --%><c:forEach begin="1" end="${param.n}" step="1" var="mkUrl_i"><%--
