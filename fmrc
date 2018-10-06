@@ -18,7 +18,7 @@ fm_record_in_empty_dirs() {
 
     while true; do
         echo "writing to $subdir"
-        mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m%d`" "${subdir:?}/`date +%Y%m%d`"
+        mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m/%d`" "${subdir:?}/`date +%Y%m/%d`"
 
         "$@"
         [ x"$rc" = x"0" ] || sleep 10
@@ -51,7 +51,7 @@ fm_ffmpeg_watchdog() {
 	    --rmfilecmd "$THISDIR/zerofile" \
 	    --findargs ! -perm /111 --findargs-end \
 	    >/dev/null
-        mkdir -p "`date --date=tomorrow +%Y%m%d`"
+        mkdir -p "`date --date=tomorrow +%Y%m/%d`"
         newstate=`du -ksx .`
         #newstate="y"
         if [ x"$prevstate" = x"$newstate" ]; then
@@ -116,7 +116,8 @@ fm_rec_echo() {
     local convargs
     #convargs='-c copy'
     convargs='-q:a 9'
-    fm_ffmpeg -loglevel warning -y -i "http://ice912.echo.msk.ru:9120/24.aac" $limit -af volume=10dB $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
+    # -af volume=10dB
+    fm_ffmpeg -loglevel warning -y -i "http://ice912.echo.msk.ru:9120/24.aac" $limit $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m/%d/test-%H-%M-%S.mp3"
 }
 
 fm_rec_roks() {
@@ -130,8 +131,8 @@ fm_rec_roks() {
 	rc=1
         return
     fi
-    #fm_ffmpeg -loglevel warning -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.flv"
-    fm_ffmpeg -loglevel warning -i "${url:?}" $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m%d/test-%H-%M-%S.mp3"
+    #fm_ffmpeg -loglevel warning -i "${url:?}" -map 0 -c copy -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m/%d/test-%H-%M-%S.flv"
+    fm_ffmpeg -loglevel warning -i "${url:?}" $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m/%d/test-%H-%M-%S.mp3"
 }
 
 
@@ -162,7 +163,7 @@ fm_ren() {
             basenum=$i
         fi
         stamp=$(( (i - basenum)*seglen + basestamp ))
-        dir=`printf '%(%Y%m%d)T' $stamp`
+        dir=`printf '%(%Y%m/%d)T' $stamp`
         [ "$lastdir" = "$dir" ] || mkdir -p "$dir"
         lastdir=$dir
         newname=`printf '%s/test-%(%H-%M)T' "$dir" $stamp`.$ext
