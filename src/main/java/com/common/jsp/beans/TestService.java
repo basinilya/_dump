@@ -2,6 +2,8 @@ package com.common.jsp.beans;
 
 import java.util.Map;
 
+import org.apache.commons.beanutils.BeanUtils;
+
 import com.common.test.v24.EspaBus;
 import com.common.test.v24.EtherSerialAdapter;
 import com.common.test.v24.EtherSerialPort;
@@ -22,12 +24,13 @@ public class TestService {
 		value = _value;
 	}
 
-	public static GtwayV24Data getGtwayV24Data() {
+	public static GtwayV24Data getGtwayV24Data() throws Exception {
 		if (!valueSet) {
 			valueSet = true;
 			value = mkGtwayV24Data();
 		}
-		return  deep clone value;
+		GtwayV24Data copy = (GtwayV24Data)BeanUtils.cloneBean(value);
+		return  copy;
 	}
 
 	@SuppressWarnings("deprecation")

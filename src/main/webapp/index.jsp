@@ -23,9 +23,6 @@
 
 GtwayV24Data rootPojo;
 
-Object testObj = Collections.list(request.getSession( ).getAttributeNames());
-System.out.println(testObj);
-
 if (!isBlank(request.getParameter("discard")) || null == request.getSession( ).getAttribute("rootPojoSet")) {
 	rootPojo = TestService.getGtwayV24Data();
 	request.getSession( ).setAttribute( "rootPojoSet", true );
@@ -36,7 +33,6 @@ if (!isBlank(request.getParameter("discard")) || null == request.getSession( ).g
 		TestService.setGtwayV24Data(rootPojo);
 	} else if ("POST".equals(request.getMethod())) {
 		if (!isBlank(request.getParameter("editor"))) {
-			rootPojo = TestService.getGtwayV24Data();
 			request.getSession( ).setAttribute( "rootPojo", rootPojo );
 			request.getSession( ).setAttribute( "back", getOriginalRequestURI(request) );
 			response.sendRedirect("editor/editor.jsp");
