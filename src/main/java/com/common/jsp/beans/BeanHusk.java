@@ -1,12 +1,8 @@
 package com.common.jsp.beans;
 
-import java.awt.Component;
-import java.awt.Graphics;
-import java.awt.Rectangle;
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
-import java.beans.PropertyChangeListener;
 import java.beans.PropertyDescriptor;
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorManager;
@@ -25,10 +21,7 @@ import java.util.Map.Entry;
 import java.util.RandomAccess;
 
 import org.apache.commons.beanutils.ConvertUtils;
-import org.apache.commons.beanutils.ConvertUtilsBean;
-import org.apache.commons.beanutils.ConvertUtilsBean2;
 
-import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;
 
 @SuppressWarnings("rawtypes")
