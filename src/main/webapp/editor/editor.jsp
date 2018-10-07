@@ -17,8 +17,11 @@
 
 	/** Helps when just "?a=b" turns into ";jsessionId=blah?a=b" */
 	public static String getOriginalRequestURI(HttpServletRequest request) {
-		String uri = (String) request.getAttribute("javax.servlet.forward.request_uri");
-		return uri == null ? request.getRequestURI() : uri;
+		String uri = (String) request.getAttribute(RequestDispatcher.FORWARD_SERVLET_PATH);
+		if (uri == null) {
+			uri = request.getServletPath();
+		}
+		return uri;
 	}
 
 	private static boolean isBlank(String s) {
