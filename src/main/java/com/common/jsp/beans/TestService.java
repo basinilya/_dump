@@ -14,8 +14,24 @@ public class TestService {
 	public static final Integer TCP_PORT = 950;
 	public static final String BUS_ADDR = "9";
 
-	@SuppressWarnings("deprecation")
+	private static GtwayV24Data value;
+	private static boolean valueSet;
+	
+	public static void setGtwayV24Data(GtwayV24Data _value) {
+		valueSet = true;
+		value = _value;
+	}
+
 	public static GtwayV24Data getGtwayV24Data() {
+		if (!valueSet) {
+			valueSet = true;
+			value = mkGtwayV24Data();
+		}
+		return  deep clone value;
+	}
+
+	@SuppressWarnings("deprecation")
+	public static GtwayV24Data mkGtwayV24Data() {
 		GtwayV24Data rootObj = new GtwayV24Data();
 		Map<String, EtherSerialAdapter> adaptersByIpStr = rootObj.getAdaptersByIpStr();
 		EtherSerialAdapter adapter = new EtherSerialAdapter();
