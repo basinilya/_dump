@@ -21,11 +21,18 @@
 	</repositories>
 
 	<dependencies>
-	
-			<dependency>
-<groupId>commons-beanutils</groupId><artifactId>commons-beanutils</artifactId><version>1.9.3</version>
+
+		<dependency>
+			<groupId>commons-beanutils</groupId>
+			<artifactId>commons-beanutils</artifactId>
+			<version>1.9.3</version>
 		</dependency>
-		
+
+		<dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>jstl</artifactId>
+			<version>1.2</version>
+		</dependency>
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
@@ -96,25 +103,15 @@
 				<groupId>org.eclipse.jetty</groupId>
 				<artifactId>jetty-maven-plugin</artifactId>
 				<version>${jetty-version}</version>
-            <configuration>
-                <webApp>
-                    <webInfIncludeJarPattern>.*/^(asm-all-repackaged)[^/]*\.jar$</webInfIncludeJarPattern>
-                </webApp>
-            </configuration>
-            <!-- 
-            <dependencies>
-                <dependency>
-                    <groupId>org.ow2.asm</groupId>
-                    <artifactId>asm</artifactId>
-                    <version>5.2</version>
-                </dependency>
-                <dependency>
-                    <groupId>org.ow2.asm</groupId>
-                    <artifactId>asm-commons</artifactId>
-                    <version>5.2</version>
-                </dependency>
-            </dependencies>
- -->
+				<configuration>
+					<webApp>
+						<webInfIncludeJarPattern>.*/^(asm-all-repackaged)[^/]*\.jar$</webInfIncludeJarPattern>
+					</webApp>
+				</configuration>
+				<!-- <dependencies> <dependency> <groupId>org.ow2.asm</groupId> <artifactId>asm</artifactId> 
+					<version>5.2</version> </dependency> <dependency> <groupId>org.ow2.asm</groupId> 
+					<artifactId>asm-commons</artifactId> <version>5.2</version> </dependency> 
+					</dependencies> -->
 			</plugin>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
