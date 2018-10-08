@@ -129,7 +129,7 @@ if ("POST".equals(request.getMethod())) {
 			<input type="submit" name="remove" value="remove element" <c:if test="${!leafHusk.removeSupported}">disabled="disabled"</c:if> />
 			<input type="submit" name="assign" value="create/assign" <c:if test="${!leafHusk.setValueSupported}">disabled="disabled"</c:if> />
 			<input type="submit" name="refresh" value="refresh"/>
-			<a href="${back}">back</a>
+			<c:url var="back_url" value="${back}"/><a href="${back_url}">back</a>
 			</div>
 			<fieldset<c:if test="${!leafHusk.setValueSupported}"> disabled="disabled"</c:if>>
 				<div>
