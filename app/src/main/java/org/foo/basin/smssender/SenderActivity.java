@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.support.annotation.NonNull;
 import android.telephony.SmsManager;
 import android.util.Log;
@@ -29,6 +30,20 @@ public class SenderActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        aaa();
+        finish();
+    }
+
+    private void aaa() {
+        Intent intent = getIntent();
+        Uri uri = intent.getData();
+        if (!getUserInfo().equals(intent.getStringExtra(USER_INFO))) {
+            Log.d(TAG, "bad password");
+            return;
+        }
+        if (uri == null) return;
+
+        if (!Intent.ACTION_SENDTO.equals(intent.getAction()) || !SMSTO.equals(uri.getScheme())) return;
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.SEND_SMS)
@@ -40,7 +55,10 @@ public class SenderActivity extends Activity {
             }
         }
         sendIt();
-        finish();
+    }
+
+    private void subscribe() {
+        //
     }
 
     private void sendIt() {
@@ -49,11 +67,6 @@ public class SenderActivity extends Activity {
 
         Intent intent = getIntent();
         Uri uri = intent.getData();
-        if (uri == null || !SMSTO.equals(uri.getScheme())) return;
-        if (!getUserInfo().equals(intent.getStringExtra(USER_INFO))) {
-            Log.d(TAG, "bad password");
-            return;
-        }
         message = intent.getStringExtra(SMS_BODY);
         phoneNumber = uri.getSchemeSpecificPart();
         if (message == null || phoneNumber == null) return;
@@ -84,7 +97,7 @@ public class SenderActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        sendIt();
+        aaa();
         finish();
     }
 }
