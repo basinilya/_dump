@@ -35,7 +35,13 @@
 	preloadplayer.addEventListener("ended", onEnded, false);
 
 	var onPause = function() {
-		window.location.hash = listingplayer.currentTime + "-" + listingplayer.src;
+		var s = listingplayer.src;
+		var base = window.location.href.split("#")[0]
+		base = base.substring(0, base.lastIndexOf('/')) + '/';
+		if (s != null && s.startsWith(base)) {
+			s = s.substring(base.length);
+		}
+		window.location.hash = listingplayer.currentTime + "-" + s;
 	};
 
 	listingplayer.addEventListener("pause", onPause, false);
