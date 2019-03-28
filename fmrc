@@ -14,7 +14,12 @@ fm_record_in_empty_dirs() {
     station=${1:?}
     shift
 
-    subdir="$station"
+    subdir="${station:?}"
+
+    (
+    cd "${subdir:?}"
+    fm_ffmpeg_clean
+    )
 
     while true; do
         echo "writing to $subdir"
@@ -39,19 +44,22 @@ fm_run_me_in_new_term() {
     fi
 }
 
+fm_ffmpeg_clean() {
+        # cleanup only files that are not executable (for httpd RewriteCond)
+        set -- "$THISDIR/cleandisk" --dir .. --lockdir --minfree "${minfree:?}" \
+	    --rmfilecmd "$THISDIR/zerofile" \
+	    --findargs ! -perm /111 --findargs-end
+	#printf '%q ' "$@"
+	"$@" >/dev/null
+}
+
 fm_ffmpeg_watchdog() {
     local ffmpeg_pid=${1:?}
     local watchdir=${2:?}
     local newstate prevstate=
 
-    cd "$watchdir"
+    cd "${watchdir:?}"
     while true; do
-        # cleanup only files that are not executable (for httpd RewriteCond)
-        "$THISDIR/cleandisk" --dir .. --lockdir --minfree "$minfree" \
-	    --rmfilecmd "$THISDIR/zerofile" \
-	    --findargs ! -perm /111 --findargs-end \
-	    >/dev/null
-        mkdir -p "`date --date=tomorrow +%Y%m/%d`"
         newstate=`du -ksx .`
         #newstate="y"
         if [ x"$prevstate" = x"$newstate" ]; then
@@ -63,6 +71,8 @@ fm_ffmpeg_watchdog() {
         fi
         prevstate=$newstate
         sleep 120
+	fm_ffmpeg_clean
+        mkdir -p "`date --date=tomorrow +%Y%m/%d`"
     done
 }
 
@@ -72,7 +82,7 @@ fm_ffmpeg() {
     echo ffmpeg "$@"
     ffmpeg "$@" &
     ffmpeg_pid=$!
-    fm_ffmpeg_watchdog "$ffmpeg_pid" "$subdir" &
+    fm_ffmpeg_watchdog "$ffmpeg_pid" "${subdir:?}" &
     ffmpeg_watchdog_pid=$!
 
     echo
