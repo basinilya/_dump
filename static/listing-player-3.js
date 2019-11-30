@@ -1,5 +1,18 @@
 // console.log(">> init listing-player.js 1");
 (function() {
+
+	var setWindowLocationHash = (typeof history.replaceState === 'function')
+		? (function(s) {
+			if (!s.startsWith("#") && s.length != 0) {
+				s = "#" + s;
+			}
+			/* this will not affect history */
+			history.replaceState(undefined, undefined, s);
+		})
+		: (function(s) {
+			window.location.hash = s;
+		});
+
 	var listingplayer = document.getElementById("listingplayer");
 	var preloadplayer = document.getElementById("preloadplayer");
 
@@ -41,7 +54,7 @@
 		if (s != null && s.startsWith(base)) {
 			s = s.substring(base.length);
 		}
-		window.location.hash = listingplayer.currentTime + "-" + s;
+		setWindowLocationHash(listingplayer.currentTime + "-" + s);
 	};
 
 	listingplayer.addEventListener("pause", onPause, false);
