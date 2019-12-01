@@ -1,6 +1,19 @@
 // console.log(">> init listing-player.js 1");
 (function() {
 
+	if (window.visualViewport) {
+		var windowtop = document.getElementById("windowtop");
+		
+		function onWindowScroll() {
+			windowtop.style.top = window.visualViewport.offsetTop + "px";
+			windowtop.style.left = window.visualViewport.offsetLeft + "px";
+			windowtop.style.width = window.visualViewport.width + "px";
+		}
+		onWindowScroll();
+		window.visualViewport.addEventListener("resize", onWindowScroll);
+		window.visualViewport.addEventListener("scroll", onWindowScroll);
+	}
+
 	var setWindowLocationHash = (typeof history.replaceState === 'function')
 		? (function(s) {
 			if (!s.startsWith("#") && s.length != 0) {
@@ -131,6 +144,21 @@
 
 	var showPlayer = false;
 
+	var pos;
+	var clipUrl = "";
+	try {
+		var arr = window.location.hash.split(/^#([^-]*)-/);
+		if (arr.length == 3) {
+			pos = arr[1] - 0;
+			clipUrl = arr[2];
+			var a = document.createElement("a");
+			a.setAttribute("href", clipUrl);
+			clipUrl = a.href;
+		}
+	} catch (e) {
+		console.error(e);
+	}
+
 	function init() {
 		// console.log(">> init " + showPlayer);
 
@@ -145,6 +173,11 @@
 			if (typeof href !== 'undefined' && endsWith(href, ".mp3")) {
 				if (listingplayer.src == href) {
 					nextPlayButton = _nextPlayButton;
+				} else if (clipUrl && clipUrl == href) {
+					listingplayer.currentTime = pos;
+					listingplayer.src = clipUrl;
+					nextPlayButton = _nextPlayButton;
+					clipUrl = "";
 				}
 				_nextPlayButton = createPlayButton(link, href, _nextPlayButton);
 				// 
@@ -171,6 +204,8 @@
 	} else {
 	    listingplayer.removeAttribute("controls");
 	}
+
+
 
 	document.body.appendChild(document.createTextNode("x (3)"));
 })();

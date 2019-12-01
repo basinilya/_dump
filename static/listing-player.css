@@ -1,8 +1,16 @@
+#windowtop {
+    width: 100%;
+    height: 20px;
+    position: fixed;
+    top: 0px;
+}
+
 .playerButton img {height: 1em;}
 .listingplayer {
+    position: relative;
     width: 100%;
-    position: fixed;
     top: 10px;
+    height: 60px;
 }
 
 .gapdiv {
