@@ -3,6 +3,7 @@
     height: 20px;
     position: fixed;
     top: 0px;
+    transform-origin: left top;
 }
 
 .playerButton img {height: 1em;}
