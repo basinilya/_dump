@@ -7,7 +7,7 @@
 		function onWindowScroll() {
 			windowtop.style.top = window.visualViewport.offsetTop + "px";
 			windowtop.style.left = window.visualViewport.offsetLeft + "px";
-			windowtop.style.transform = "scale(" + (1/window.visualViewport.scale) + ")";
+			windowtop.style.transform = "scale(" + (window.visualViewport.width/window.innerWidth) + ")";
 		}
 		onWindowScroll();
 		window.visualViewport.addEventListener("resize", onWindowScroll);
