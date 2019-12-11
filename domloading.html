@@ -1,0 +1,34 @@
+<html>
+<head>
+</head>
+<body onload='console.log("ddd");'>
+<span id="some">0</span><br>
+<script>
+var some = document.getElementById("some");
+
+var domLoading = new Date().getTime();
+
+function setSome() {
+  some.innerHTML = Math.round((new Date().getTime() - domLoading) / 1000);
+}
+
+if (window.localStorage && window.performance) {
+  var TYPE_BACK_FORWARD = 2;
+  var key = "realDomLoading-" + window.location.href.split('#')[0];
+  var val = window.localStorage.getItem(key);
+  if (window.performance.navigation.type == TYPE_BACK_FORWARD && val !== null && isFinite(val)) {
+    domLoading = val;
+    setSome();
+  } else {
+    window.localStorage.setItem(key, performance.timing.domLoading);
+  }  
+}
+
+window.setInterval(function() {
+  setSome();
+}, 1000);
+</script>
+
+<a href="about:blank">bbb</a>
+</body>
+</html>

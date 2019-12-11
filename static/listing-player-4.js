@@ -12,6 +12,7 @@
 		onWindowScroll();
 		window.visualViewport.addEventListener("resize", onWindowScroll);
 		window.visualViewport.addEventListener("scroll", onWindowScroll);
+		window.addEventListener("scroll", onWindowScroll);
 	}
 
 	var setWindowLocationHash = (typeof history.replaceState === 'function')
