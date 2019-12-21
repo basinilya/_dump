@@ -95,10 +95,28 @@ var listingReload;
 			var tmp_src = ifrm.src; ifrm.src = ''; ifrm.src = tmp_src;
 		}
 	};
-	
+
+
+	var domLoading = new Date().getTime();
+
+	function checkNav() {
+		if (window.localStorage && window.performance) {
+			var TYPE_BACK_FORWARD = 2;
+			var key = "realDomLoading-" + window.location.href.split('#')[0];
+			var val = window.localStorage.getItem(key);
+			if (window.performance.navigation.type == TYPE_BACK_FORWARD && val !== null && isFinite(val)) {
+				domLoading = val;
+				listingReload();
+			} else {
+				window.localStorage.setItem(key, performance.timing.domLoading);
+			}
+		}
+	}
+
 	function scheduleReload() {
 		if (intervalId === null) {
 			intervalId = window.setInterval(listingReload, 120000);
+			checkNav();
 		}
 	}
 

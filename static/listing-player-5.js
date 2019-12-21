@@ -15,7 +15,7 @@
 		window.addEventListener("scroll", onWindowScroll);
 	}
 
-	var setWindowLocationHash = (typeof history.replaceState === 'function')
+	var setWindowLocationHash0 = (typeof history.replaceState === 'function')
 		? (function(s) {
 			if (!s.startsWith("#") && s.length != 0) {
 				s = "#" + s;
@@ -26,6 +26,14 @@
 		: (function(s) {
 			window.location.hash = s;
 		});
+
+	function setWindowLocationHash(s) {
+		setWindowLocationHash0(s);
+		if (!s.startsWith("#") && s.length != 0) {
+			s = "#" + s;
+		}
+		document.title = document.title.split("#")[0] + s;
+	}
 
 	var listingplayer = document.getElementById("listingplayer");
 	var preloadplayer = document.getElementById("preloadplayer");
