@@ -197,7 +197,9 @@
 		// console.log("<< init");
 	}
 
-	listingTbody.addEventListener("fallbackMutationEvent", init);
+	if (listingTbody) {
+	  listingTbody.addEventListener("fallbackMutationEvent", init);
+	}
 
 	init();
 	
