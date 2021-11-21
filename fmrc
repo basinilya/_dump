@@ -9,6 +9,44 @@ seglen=600
 limit=
 shopt -s nullglob
 
+sleep_fdr=4
+sleep_fdw=5
+
+fm_pipe() {
+    # create anonymous pipe. Can write to FD=$2, can read from FD=$1
+    local fdr fdw x
+    fdr=${1:?}
+    fdw=${2:?}
+    
+    coproc SOME {
+      printf x
+      read x || true
+    }
+
+    # save stdin
+    # clear FD_CLOEXEC for the read end by dup to FD=0
+    # read a single byte from current stdin; this avoids race condition when forked stdout not the pipe yet
+    # restore stdin
+    # steal the write end. No need to clear FD_CLOEXEC (!!! stealing fails on Cygwin)
+    eval "
+      { exec ${fdw}<&0 || true; } 2>/dev/null; 
+      exec 0<&${SOME[0]} ${SOME[0]}<&- ${fdr}<&0;
+      read -r -N1 x;
+      { exec 0<&- 0<&${fdw} || true; } 2>/dev/null;
+      exec ${fdw}>/proc/${SOME_PID:?}/fd/1 ${SOME[1]}>&-;
+      wait "${SOME_PID}"
+      "
+}
+
+fm_pipe $sleep_fdr $sleep_fdw
+
+fm_sleep() {
+  # sleep without forking
+  local seconds x
+  seconds=${1:?}
+  <&${sleep_fdr} read -t "$seconds" x || true
+}
+
 fm_record_in_empty_dirs() {
     local station i subdir have
     station=${1:?}
@@ -26,7 +64,7 @@ fm_record_in_empty_dirs() {
         mkdir -p "${subdir:?}/`date --date=tomorrow +%Y%m/%d`" "${subdir:?}/`date +%Y%m/%d`"
 
         "$@"
-        [ x"$rc" = x"0" ] || sleep 10
+        [ x"$rc" = x"0" ] || fm_sleep 10
     done
 }
 
@@ -70,7 +108,7 @@ fm_ffmpeg_watchdog() {
             break
         fi
         prevstate=$newstate
-        sleep 120
+        fm_sleep 120
 	fm_ffmpeg_clean
         mkdir -p "`date --date=tomorrow +%Y%m/%d`"
     done
@@ -114,7 +152,7 @@ fm_killffmpeg() {
             [ -d "/proc/$ffmpeg_pid" ] || break
             echo "killing process $ffmpeg_pid"
             kill -$sig $ffmpeg_pid || break
-            sleep 10
+            fm_sleep 10
         done
     fi
 }
