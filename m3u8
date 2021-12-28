@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+#url=file://`pwd`/test.m3u8
+url='https://salam-2.rutube.ru/dive/river-1-301.rutube.ru/1yffwLbeYWMOewN68k4FBA/stream/musang-303.m9.rutube.ru/xCdmY9_wH07ly15QXIqrng/1640700709/b30bcfa926ea2929d1499cdd552b4200/144p_stream.m3u8'
+
+urldir=${url%/*}
+
+declare -A seen
+declare -A seennow
+
+fn_printpayload() {
+  curl -s -- "${urldir}/${1:?}"
+}
+
+ifrest=:
+
+while true; do
+  seennow=()
+  while read -r x; do
+    case $x in
+    '#'*)
+      :
+      ;;
+    *)
+      uri=$x
+      seennow[$uri]=1
+      if [ ! "${seen[$uri]+_}" ]; then
+        seen[$uri]=1
+        $ifrest fn_printpayload "$uri"
+      fi
+      #printf "%s\n" "${urldir}/$uri"
+      ;;
+    esac
+  done < <(curl -s -- "$url")
+  if [ ":" = "$ifrest" ]; then
+    ifrest=
+    fn_printpayload "$uri"
+  fi
+  for k in "${!seen[@]}"; do
+    if [ ! "${seennow[$k]+_}" ]; then
+      unset seen[$k]
+    fi
+  done
+  #declare -p seen
+  #
+  sleep 20
+done
+

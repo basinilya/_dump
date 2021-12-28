@@ -165,6 +165,15 @@ fm_rec_echo() {
     #convargs='-c copy'
     convargs='-q:a 9'
     # -af volume=10dB
+    # aaa
+    "$THISDIR/m3u8" | fm_ffmpeg -loglevel warning -y -f mpegts -i - $limit $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m/%d/test-%H-%M-%S.mp3"
+}
+
+fm_rec_echo_old() {
+    local convargs
+    #convargs='-c copy'
+    convargs='-q:a 9'
+    # -af volume=10dB
     fm_ffmpeg -loglevel warning -y -i "https://reg-echomsksni.cdnvideo.ru/stream_reg_128" $limit $convargs -f segment -segment_time $seglen -segment_atclocktime 1 -strftime 1 "${subdir:?}/%Y%m/%d/test-%H-%M-%S.mp3"
 }
 
